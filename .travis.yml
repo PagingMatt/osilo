@@ -9,5 +9,6 @@ env:
    - PACKAGE="osilo"
    - DEPOPTS="async cohttp core nocrypto threads webmachine yojson"
    - PRE_INSTALL_HOOK="cd /home/opam/opam-repository && git pull origin master && opam update -u -y"
+   - POST_INSTALL_HOOK="opam depext -ui github cowabloga opium slacko"
  matrix:
    - DISTRO=debian-stable OCAML_VERSION=4.03.0
