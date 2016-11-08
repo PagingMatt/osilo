@@ -1,0 +1,28 @@
+Name: OSilo
+Version: 0.1
+Synopsis: Peer to peer secure sharing of personal data
+Authors: Matt Harrison <mah93@cam.ac.uk>
+License: ISC
+
+Description: Peer to peer secure sharing of personal data
+Homepage: https://www.github.com/m-harrison/osilo
+
+OASISFormat: 0.4
+BuildTools: ocamlbuild
+Plugins: META (0.4), DevFiles (0.4)
+
+Library "messages"
+  Path: src
+  Modules: Messages
+  BuildDepends: core,nocrypto,yojson,threads
+
+Executable "message_tests"
+  Path: tests
+  MainIs: message_tests.ml
+  CompiledObject: Best
+  BuildDepends: alcotest,core,messages,nocrypto,yojson
+
+Test "message_tests"
+  Run$: flag(tests)
+  Command: $message_tests
+  WorkingDirectory: tests
