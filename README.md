@@ -6,4 +6,4 @@ Using  social  applications  presupposes  handing  over  personal  data  to  the
 
 ## Acknowledgements
 
-- Setting up Travis-CI, including creating the `.travis.yml` and `.travis-ci.sh` followed the instructions [here](http://anil.recoil.org/2013/09/30/travis-and-ocaml.html)
+- `.travis.yml` file was [provided](https://github.com/avsm/ocaml-dockerfile/blob/master/.travis.yml) by Anil Madhavapeddy 
