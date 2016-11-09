@@ -10,13 +10,11 @@ dev-repo: "https://github.com/m-harrison/osilo"
 build: [
   [make "PREFIX=%{prefix}%"]
 ]
-install: [make "PREFIX=%{prefix}%" "install"]
 build-test: [
   ["ocaml" "setup.ml" "-configure" "--enable-tests"]
   ["ocaml" "setup.ml" "-build"]
   ["ocaml" "setup.ml" "-test"]
 ]
-remove: ["ocamlfind" "remove" "osilo"]
 depends: [
   "alcotest"
   "core"
