@@ -17,3 +17,11 @@ build-test: [
   ["ocaml" "setup.ml" "-test"]
 ]
 remove: ["ocamlfind" "remove" "osilo"]
+depends: [
+  "alcotest" {test}
+  "core"
+  "nocrypto"
+  "ocamlfind" {build}
+  "ocamlbuild" {build}
+  "yojson"
+]
