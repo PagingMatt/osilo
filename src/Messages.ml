@@ -41,6 +41,12 @@ module Json = struct
     | `Assoc m -> `Assoc m
     | _        -> raise (Expected_association_list_member (s,j))
 
+  let t_of_assoc_list al =
+    `Assoc al
+
+  let t_of_string s =
+    `String s
+
   let string_of_message_body m b =
     let t = Message.to_string m in
     `Assoc [("type",`String t);("body",b)] |> to_string
@@ -72,7 +78,8 @@ module Dh = struct
       pub : Cstruct.t ;
     }
 
-    let build_body g p = `Assoc [("grp",`String g);("pub", `String p)]
+    let build_body g p = 
+      Json.t_of_assoc_list [("grp",Json.t_of_string g);("pub", Json.t_of_string p)]
 
     let serialise m = 
       let g = Dh.sexp_of_group m.grp |> Sexp.to_string in
@@ -99,7 +106,7 @@ module Dh = struct
     }
 
     let build_body p =
-      `Assoc [("pub",`String p)]
+      Json.t_of_assoc_list [("pub", Json.t_of_string p)]
    
     let serialise m =
       let p = Base64.encode m.pub |> Cstruct.to_string in
