@@ -11,7 +11,7 @@ build: [
   ["./configure"]
   [make]
 ]
-build-tests: [
+build-test: [
   ["./configure --enable-tests"]
   [make]
   [make "test"]
