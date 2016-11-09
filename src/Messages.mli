@@ -1,3 +1,4 @@
+(* Message type variant *)
 module Message : sig
     type t = DH_INIT | DH_REPLY
     
@@ -7,6 +8,7 @@ module Message : sig
     val to_string : t -> string
 end
 
+(* Module to provide facade over Yojson for JSON parsing *)
 module Json : sig
     type t = Yojson.Basic.json
     
@@ -22,6 +24,7 @@ module Json : sig
     val string_of_message_body : Message.t -> t -> string
 end
 
+(* Force all message types to implement a type and serialisation and deserialisation *)
 module type MESSAGE = sig 
   type t 
 
@@ -31,6 +34,7 @@ end
 
 exception Not_correct_message_type of Message.t * string
 
+(* Messages for Diffie-Helmann key exchange *)
 module Dh : sig
   exception B64_not_decodeable of string
   
