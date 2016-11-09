@@ -7,3 +7,12 @@ homepage: "https://github.com/m-harrison/osilo"
 bug-reports: "https://github.com/m-harrison/osilo/issues/new"
 license: "ISC"
 dev-repo: "https://github.com/m-harrison/osilo"
+build: [
+  ["./configure"]
+  [make]
+]
+build-tests: [
+  ["./configure --enable-tests"]
+  [make]
+  [make "test"]
+]
