@@ -48,7 +48,7 @@ end
  
 module type MESSAGE = sig
   type t
-  val serialise : t -> string
+  val serialise   : t -> string
   val deserialise : string -> t
 end
 
@@ -68,7 +68,7 @@ module Dh = struct
     include MESSAGE
   end = struct
     type t = {
-      grp : Dh.group ;
+      grp : Dh.group  ;
       pub : Cstruct.t ;
     }
 
