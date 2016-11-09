@@ -7,6 +7,7 @@ script: bash ./.travis-docker.sh
 env:
  global:
    - PACKAGE="osilo"
+   - INSTALL=false
    - TESTS=true
  matrix:
    - DISTRO=debian-stable OCAML_VERSION=4.03.0
