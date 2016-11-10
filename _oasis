@@ -11,16 +11,16 @@ OASISFormat: 0.4
 BuildTools: ocamlbuild
 Plugins: META (0.4), DevFiles (0.4)
 
-Library "messages"
+Library "osilo"
   Path: src
-  Modules: Messages
-  BuildDepends: core,nocrypto,yojson,threads
+  Modules: Messages,Peer_cache
+  BuildDepends: core,nocrypto,lru-map,yojson,threads
 
 Executable "message_tests"
   Path: tests
   MainIs: message_tests.ml
   CompiledObject: Best
-  BuildDepends: alcotest,core,messages,nocrypto,yojson
+  BuildDepends: alcotest,core,Messages,nocrypto,yojson,threads
 
 Test "message_tests"
   Run$: flag(tests)
