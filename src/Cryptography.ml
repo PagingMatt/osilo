@@ -7,10 +7,6 @@ open Cohttp_lwt_unix
 
 exception Key_exchange_failed
 
-type message = 
-	| P of Cstruct.t
-	| C of Cstruct.t 
-
 module HTTP : sig 
 	val init_dh : peer:Peer.t -> public:Cstruct.t -> group:Dh.group -> Cstruct.t Lwt.t
 end = struct 
@@ -74,37 +70,37 @@ module KS : sig
 
 	val invalidate : ks:t -> peer:Peer.t -> t 
 
-	val mediate : ks:t -> peer:Peer.t -> public:Cstruct.t -> t * Cstruct.t
+	val mediate : ks:t -> peer:Peer.t -> group:Dh.group -> public:Cstruct.t -> t * Cstruct.t
 
 	val lookup : ks:t -> peer:Peer.t -> Cstruct.t option
 
-	val lookup' : ks:t -> peer:Peer.t -> (t * Cstruct.t) Lwt.t
+	val lookup_transp : ks:t -> peer:Peer.t -> (t * Cstruct.t) Lwt.t
 end = struct
 	type t = {
 		cache  : KC.t ;
 	}
 
-  let invalidate ~ks ~peer = {ks with cache = KC.remove ks.cache peer}
+  let invalidate ~ks ~peer = {cache = KC.remove ks.cache peer}
 
-	let mediate ~ks ~peer ~group ~public' = 
-		let secret, _ = Dh.gen_key group in 
-		match Dh.shared group secret public' with
+	let mediate ~ks ~peer ~group ~public = 
+		let secret, public' = Dh.gen_key group in 
+		match Dh.shared group secret public with
     | Some shared ->
-      let added = {ks with cache = KC.add ks.cache peer shared} in 
-		  added, shared
+      let added = {cache = KC.add ks.cache peer shared} in 
+		  added, public'
     | None -> raise Key_exchange_failed
 
   let lookup ~ks ~peer = KC.lookup ks.cache peer
 
-	let lookup' ~ks ~peer =
+	let lookup_transp ~ks ~peer =
 		match lookup ~ks ~peer with
-		| Some key -> return (ks.cache, key)
+		| Some key -> return (ks, key)
 		| None     -> 
 			let group = Dh.gen_group 256 in
 			let secret, public = Dh.gen_key group in 
-			HTTP.init_dh ~peer ~public ~group >>= fun public' -> 
-				match Dh.shared group secret public' with 
-        | Some shared -> return ({ks with cache = KC.add ks.cache peer shared}, shared)
+			HTTP.init_dh ~peer ~public ~group >|= fun pub -> 
+				match Dh.shared group secret pub with 
+        | Some shared -> ({cache = KC.add ks.cache peer shared}, shared)
 				| None        -> raise Key_exchange_failed 
 end
 
@@ -115,21 +111,23 @@ module CS : sig
 
 	val decrypt : ks:KS.t -> peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> Cstruct.t
 end = struct
+  open Cipher_block
+
 	let encrypt ~ks ~peer ~plaintext =
-		KS.lookup' ks peer >>= fun (ks', secret) -> 
-			let key             = Cipher_block.GCM.of_secret secret in 
-			let iv              = Rng.generate 256 in 
-			let ciphertext,tag  = Cipher_block.GCM.encrypt ~key ~iv plaintext in
-			return (ks', ciphertext, iv)
+    KS.lookup_transp ks peer >>= fun (k, secret) -> 
+			let key     = AES.GCM.of_secret secret in 
+			let iv      = Rng.generate 256 in 
+			let result  = AES.GCM.encrypt ~key ~iv plaintext in
+			return (k, result.message, iv)
 
 	exception Decryption_failed
 
 	let decrypt ~ks ~peer ~ciphertext ~iv =
 		match KS.lookup ks peer with
 		| Some secret ->
-			let key           = Cipher_text.GCM.of_secret secret in 
-			let plaintext,tag = Cipher_block.GCM.decrypt ~key ~iv ciphertext in
-			plaintext
+			let key    = AES.GCM.of_secret secret in 
+			let result = AES.GCM.decrypt ~key ~iv ciphertext in
+			result.message
 		| None        -> raise Decryption_failed
 end
 

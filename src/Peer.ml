@@ -14,5 +14,5 @@ let combine_error i j =
 let compare p1 p2 =
 	let hosts = String.compare p1.host p2.host in
 	let ports = p1.port - p2.port in
-	if hosts=0 && port = 0 then 0
+	if (hosts=0) && (ports=0) then 0
 	else combine_error hosts ports
