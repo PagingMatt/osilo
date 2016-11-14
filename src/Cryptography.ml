@@ -1,5 +1,9 @@
 open Nocrypto
+open Lwt
 open Lwt.Infix
+open Sexplib
+open Cohttp
+open Cohttp_lwt_unix
 
 exception Key_exchange_failed
 
@@ -11,11 +15,11 @@ module HTTP : sig
 	val init_dh : peer:Peer.t -> public:Cstruct.t -> group:Dh.group -> Cstruct.t Lwt.t
 end = struct 
 	let init_dh ~peer ~public ~group =
-		let uri = Uri.make ~scheme:"http" ~host:(Peer.host peer) ~port:(Peer.port peer) ~path:"/kx/init" in 
+		let uri = Uri.make ~scheme:"http" ~host:(Peer.host peer) ~port:(Peer.port peer) ~path:"/kx/init" () in 
 		let body = `Assoc [
 			("public", `String (public |> Base64.encode    |> Cstruct.to_string)); 
 			("group",  `String (group  |> Dh.sexp_of_group |> Sexp.to_string   ))
-		] |> Yojson.Basic.to_string in 
+		] |> Yojson.Basic.to_string |> Cohttp_lwt_body.of_string in 
 		Client.post ~body uri >>= fun (r,b) -> 
 			let code = r |> Response.status |> Code.code_of_status in 
 				if code=200 
@@ -24,7 +28,7 @@ end = struct
 					match Yojson.Basic.Util.member "public" json_body with
 					| `String public -> 
 						match public |> Cstruct.of_string |> Base64.decode with
-						| Some public' -> public'
+						| Some public' -> return public'
 						| None         -> raise Key_exchange_failed
 					| _  -> raise Key_exchange_failed
 				else raise Key_exchange_failed
@@ -33,7 +37,7 @@ end
 module KC : sig
 	type t
 
-	val empty : size:int -> t
+	val empty : capacity:int -> t
 
 	val remove : t -> Peer.t -> t
 
