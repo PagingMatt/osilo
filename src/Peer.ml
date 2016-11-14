@@ -3,9 +3,9 @@ type t = {
 	port : int    ;
 }
 
-let host peer = peer.host
+let host p = p.host
 
-let port peer = peer.port
+let port p = p.port
 
 let combine_error i j =
 	if i=0 || j=0 then i + j

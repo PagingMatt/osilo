@@ -11,7 +11,8 @@ OASISFormat: 0.4
 BuildTools: ocamlbuild
 Plugins: META (0.4), DevFiles (0.4)
 
-Library "crypto"
+Executable "Cryptography"
   Path: src
-  Modules: Cryptography
+  MainIs: Cryptography.ml
+  CompiledObject: best
   BuildDepends: core,cstruct,nocrypto,lru-map,yojson,threads

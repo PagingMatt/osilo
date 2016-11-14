@@ -1,4 +1,5 @@
 open Nocrypto
+open Lwt.Infix
 
 exception Key_exchange_failed
 
@@ -110,7 +111,7 @@ module CS : sig
 	val decrypt : cache:KC.t -> peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> Cstruct.t
 end = struct
 	let encrypt ~cache ~peer ~plaintext =
-		KS.lookup' cache peer >>= fun cache', secret -> 
+		KS.lookup' cache peer >>= fun (cache', secret) -> 
 			let key             = Cipher_block.GCM.of_secret secret in 
 			let iv              = Rng.generate
 			 256 in 
