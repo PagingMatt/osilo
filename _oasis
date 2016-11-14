@@ -11,18 +11,7 @@ OASISFormat: 0.4
 BuildTools: ocamlbuild
 Plugins: META (0.4), DevFiles (0.4)
 
-Library "messages"
+Library "cryptography"
   Path: src
-  Modules: Messages
-  BuildDepends: core,nocrypto,yojson,threads
-
-Executable "message_tests"
-  Path: tests
-  MainIs: message_tests.ml
-  CompiledObject: Best
-  BuildDepends: alcotest,core,messages,nocrypto,yojson
-
-Test "message_tests"
-  Run$: flag(tests)
-  Command: $message_tests
-  WorkingDirectory: tests
+  Modules: Cryptography, Peer
+  BuildDepends: core,cstruct,cohttp.lwt,lwt,nocrypto,lru-map,sexplib,uri,yojson,threads
