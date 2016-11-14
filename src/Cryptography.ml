@@ -27,9 +27,9 @@ end = struct
 					let json_body = Yojson.Basic.from_string body in 
 					match Yojson.Basic.Util.member "public" json_body with
 					| `String public -> 
-						match public |> Cstruct.of_string |> Base64.decode with
+						(match public |> Cstruct.of_string |> Base64.decode with
 						| Some public' -> return public'
-						| None         -> raise Key_exchange_failed
+						| None         -> raise Key_exchange_failed)
 					| _  -> raise Key_exchange_failed
 				else raise Key_exchange_failed
 end
@@ -56,7 +56,7 @@ end = struct
 		{ cache = C.empty ; size = capacity ;}
 
 	let remove c p =
-		C.remove p c.cache 
+    {c with cache = C.remove p c.cache} 
 
 	let lookup c p =
 		match C.find p c.cache with
@@ -64,36 +64,37 @@ end = struct
 		| None       -> None
 
 	let add c p k =
-		c.cache
+    {c with cache = c.cache
 		|> C.add p k  
-		|> C.trim c.size
+    |> C.trim c.size}
 end
 
 module KS : sig
 	type t
 
-	val invalidate : cache:KC.t -> peer:Peer.t -> KC.t 
+	val invalidate : ks:t -> peer:Peer.t -> t 
 
-	val mediate : cache:KC.t -> peer:Peer.t -> public:Cstruct.t -> KC.t * Cstruct.t
+	val mediate : ks:t -> peer:Peer.t -> public:Cstruct.t -> t * Cstruct.t
 
-	val lookup : cache:KC.t -> peer:Peer.t -> Cstruct.t option
+	val lookup : ks:t -> peer:Peer.t -> Cstruct.t option
 
-	val lookup' : cache:KC.t -> peer:Peer.t -> (KC.t * Cstruct.t) Lwt.t
+	val lookup' : ks:t -> peer:Peer.t -> (t * Cstruct.t) Lwt.t
 end = struct
 	type t = {
 		cache  : KC.t ;
 	}
 
-	let invalidate ~ks ~peer = KC.remove ks.cache peer
+  let invalidate ~ks ~peer = {ks with cache = KC.remove ks.cache peer}
 
 	let mediate ~ks ~peer ~group ~public' = 
 		let secret, _ = Dh.gen_key group in 
-		let shared    = Dh.shared group secret public' in
-		let removed   = invalidate ks.cache peer in
-		let added     = KC.add ks.cache peer secret in 
-		added, shared
+		match Dh.shared group secret public' with
+    | Some shared ->
+      let added = {ks with cache = KC.add ks.cache peer shared} in 
+		  added, shared
+    | None -> raise Key_exchange_failed
 
-	let lookup ~ks ~peer = KC.lookup ks.cache peer
+  let lookup ~ks ~peer = KC.lookup ks.cache peer
 
 	let lookup' ~ks ~peer =
 		match lookup ~ks ~peer with
@@ -101,31 +102,30 @@ end = struct
 		| None     -> 
 			let group = Dh.gen_group 256 in
 			let secret, public = Dh.gen_key group in 
-			HTTP.init_dh public group >>= fun public' -> 
+			HTTP.init_dh ~peer ~public ~group >>= fun public' -> 
 				match Dh.shared group secret public' with 
-				| Some shared -> (KC.add ks.cache peer shared), shared
+        | Some shared -> return ({ks with cache = KC.add ks.cache peer shared}, shared)
 				| None        -> raise Key_exchange_failed 
 end
 
 module CS : sig
-	val encrypt : cache:KC.t -> peer:Peer.t -> plaintext:Cstruct.t -> (KC.t * Cstruct.t * Cstruct.t) Lwt.t
+	val encrypt : ks:KS.t -> peer:Peer.t -> plaintext:Cstruct.t -> (KS.t * Cstruct.t * Cstruct.t) Lwt.t
 
 	exception Decryption_failed
 
-	val decrypt : cache:KC.t -> peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> Cstruct.t
+	val decrypt : ks:KS.t -> peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> Cstruct.t
 end = struct
-	let encrypt ~cache ~peer ~plaintext =
-		KS.lookup' cache peer >>= fun (cache', secret) -> 
+	let encrypt ~ks ~peer ~plaintext =
+		KS.lookup' ks peer >>= fun (ks', secret) -> 
 			let key             = Cipher_block.GCM.of_secret secret in 
-			let iv              = Rng.generate
-			 256 in 
+			let iv              = Rng.generate 256 in 
 			let ciphertext,tag  = Cipher_block.GCM.encrypt ~key ~iv plaintext in
-			return (cache', ciphertext, iv)
+			return (ks', ciphertext, iv)
 
 	exception Decryption_failed
 
-	let decrypt ~cache ~peer ~ciphertext ~iv =
-		match KS.lookup cache peer with
+	let decrypt ~ks ~peer ~ciphertext ~iv =
+		match KS.lookup ks peer with
 		| Some secret ->
 			let key           = Cipher_text.GCM.of_secret secret in 
 			let plaintext,tag = Cipher_block.GCM.decrypt ~key ~iv ciphertext in
