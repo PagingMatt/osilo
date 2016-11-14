@@ -17,9 +17,15 @@ build-test: [
 ]
 depends: [
   "alcotest"
+  "cohttp"
   "core"
+  "cstruct"
+  "lru-map"
+  "lwt"
   "nocrypto"
   "ocamlfind" {build}
   "ocamlbuild" {build}
+  "sexplib"
+  "uri"
   "yojson"
 ]
