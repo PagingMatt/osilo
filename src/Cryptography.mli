@@ -6,32 +6,6 @@ open Lwt.Infix
  * TODO add information to this to propogate up stack *)
 exception Key_exchange_failed
 
-(* Abstracts calls to HTTP client for cryptography 
- * TODO pull out code into functions, tidy up *)
-module HTTP : sig
-  val init_dh : peer:Peer.t -> public:Cstruct.t -> group:Dh.group -> Cstruct.t Lwt.t
-  (* Initialises a DH key exchange, init_dh ~peer ~public ~group will post this public key, group
-   * pair to the peer and returns a promise of the peer's public key *)
-end 
-
-(* Functional cache mapping Peer.t keys to Cstruct.t values (crypto keys) *)
-module KC : sig
-  type t
-  (* Internal representation of a functional key cache *)
-  
-  val empty  : capacity:int -> t
-  (* Constructor for the empty cache of given capacity *)
-
-  val remove : t -> Peer.t -> t
-  (* Returns a cache where the given peer is not present *)
-  
-  val lookup : t -> Peer.t -> Cstruct.t option
-  (* Looks up a given peer in a cache *)
-  
-  val add    : t -> Peer.t -> Cstruct.t -> t
-  (* Returns a cache with a given peer present as key mapping to the given crypto key value *)
-end
-
 (* Keying service carries out operations on functional key cache *)
 module KS : sig
   type t
