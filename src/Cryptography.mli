@@ -40,6 +40,9 @@ module KS : sig
   type t
   (* Internal representation fo the keying service *)
 
+  val empty : capacity:int -> t
+  (* Constructor for keying service with an empty cache *)
+
   val invalidate    : ks:t -> peer:Peer.t -> t 
   (* Returns a keying service with a given peer removed from its key cache*)
 

@@ -63,14 +63,18 @@ end
 
 module KS : sig  
   type t
-  val invalidate    : ks:t -> peer:Peer.t -> t 
-  val mediate       : ks:t -> peer:Peer.t -> group:Dh.group -> public:Cstruct.t -> t * Cstruct.t
-  val lookup        : ks:t -> peer:Peer.t -> Cstruct.t option
-  val lookup'       : ks:t -> peer:Peer.t -> (t * Cstruct.t) Lwt.t
+  val empty      : capacity:int -> t  
+  val invalidate : ks:t -> peer:Peer.t -> t 
+  val mediate    : ks:t -> peer:Peer.t -> group:Dh.group -> public:Cstruct.t -> t * Cstruct.t
+  val lookup     : ks:t -> peer:Peer.t -> Cstruct.t option
+  val lookup'    : ks:t -> peer:Peer.t -> (t * Cstruct.t) Lwt.t
 end = struct
   type t = {
     cache  : KC.t ;
   }
+  
+  let empty ~capacity =
+    {cache = KC.empty ~capacity}
 
   let invalidate ~ks ~peer = {cache = KC.remove ks.cache peer}
 
