@@ -1,3 +1,5 @@
+(** Abstract HTTP client *)
+
 val get : peer:Peer.t -> path:string -> (int * string) Lwt.t
 (** Carries out a HTTP GET request to the URI made from the peer and path provided *)
 

@@ -1,3 +1,5 @@
+(** Peers are endpoints in the system *)
+
 type t
 (* Internal representation for a peer *)
 
