@@ -72,7 +72,7 @@ module KS : sig
   val invalidate    : ks:t -> peer:Peer.t -> t 
   val mediate       : ks:t -> peer:Peer.t -> group:Dh.group -> public:Cstruct.t -> t * Cstruct.t
   val lookup        : ks:t -> peer:Peer.t -> Cstruct.t option
-  val lookup_transp : ks:t -> peer:Peer.t -> (t * Cstruct.t) Lwt.t
+  val lookup'       : ks:t -> peer:Peer.t -> (t * Cstruct.t) Lwt.t
 end = struct
   type t = {
     cache  : KC.t ;
@@ -90,14 +90,14 @@ end = struct
 
   let lookup ~ks ~peer = KC.lookup ks.cache peer
 
-  let lookup_transp ~ks ~peer =
+  let lookup' ~ks ~peer =
     match lookup ~ks ~peer with
     | Some key -> return (ks, key)
     | None     -> 
         let group = Dh.gen_group 256 in
         let secret, public = Dh.gen_key group in 
-        HTTP.init_dh ~peer ~public ~group >|= fun pub -> 
-        match Dh.shared group secret pub with 
+        HTTP.init_dh ~peer ~public ~group >|= fun public' -> 
+        match Dh.shared group secret public' with 
         | Some shared -> ({cache = KC.add ks.cache peer shared}, shared)
         | None        -> raise Key_exchange_failed 
 end
@@ -111,7 +111,7 @@ end = struct
   open Cipher_block
 
   let encrypt ~ks ~peer ~plaintext =
-    KS.lookup_transp ks peer >>= fun (k, secret) -> 
+    KS.lookup' ks peer >>= fun (k, secret) -> 
       let key     = AES.GCM.of_secret secret in 
       let iv      = Rng.generate 256 in 
       let result  = AES.GCM.encrypt ~key ~iv plaintext in
