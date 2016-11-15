@@ -11,16 +11,17 @@ OASISFormat: 0.4
 BuildTools: ocamlbuild
 Plugins: META (0.4), DevFiles (0.4)
 
-Library "cryptography"
+Library "osilo"
   Path: src
-  Modules: Cryptography, Peer
+  Modules: Cryptography, Http_client, Peer
   BuildDepends: core,cstruct,cohttp.lwt,lwt,nocrypto,lru-map,sexplib,uri,yojson,threads
 
 AlphaFeatures: ocamlbuild_more_args
-Document "Cryptography_API"
+Document "Osilo_API"
   Type: ocamlbuild (0.4)
   BuildTools: ocamldoc
-  Title: API reference for osilo cryptography
+  Title: API reference for osilo
   XOCamlbuildPath: .
   XOCamlbuildExtraArgs: "-docflags '-colorize-code -short-functors -charset utf-8'"
-  XOCamlbuildLibraries: cryptography 
+  XOCamlbuildLibraries: osilo 
+
