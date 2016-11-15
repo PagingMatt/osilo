@@ -1,9 +1,6 @@
 open Nocrypto
 open Lwt
 open Lwt.Infix
-open Sexplib
-open Cohttp
-open Cohttp_lwt_unix
 
 (* Generic exception to throw when key exchange fails anywhere
  * TODO add information to this to propogate up stack *)
