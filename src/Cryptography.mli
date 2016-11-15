@@ -1,3 +1,5 @@
+(** Provides keying and cryptography for the system *)
+
 open Nocrypto
 open Lwt
 open Lwt.Infix
