@@ -15,3 +15,12 @@ Library "cryptography"
   Path: src
   Modules: Cryptography, Peer
   BuildDepends: core,cstruct,cohttp.lwt,lwt,nocrypto,lru-map,sexplib,uri,yojson,threads
+
+AlphaFeatures: ocamlbuild_more_args
+Document "Cryptography_API"
+  Type: ocamlbuild (0.4)
+  BuildTools: ocamldoc
+  Title: API reference for osilo cryptography
+  XOCamlbuildPath: .
+  XOCamlbuildExtraArgs: "-docflags '-colorize-code -short-functors -charset utf-8'"
+  XOCamlbuildLibraries: cryptography 

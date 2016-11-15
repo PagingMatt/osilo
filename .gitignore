@@ -8,6 +8,12 @@
 *.cmxs
 *.cmxa
 
+# developing on Mac OS X
+.DS_Store
+
+# ocamldoc
+*.docdir
+
 # ocamlbuild working directory
 _build/
 
