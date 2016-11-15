@@ -9,24 +9,28 @@ exception Key_exchange_failed
 
 module HTTP : sig 
   val init_dh : peer:Peer.t -> public:Cstruct.t -> group:Dh.group -> Cstruct.t Lwt.t
-end = struct 
-  let init_dh ~peer ~public ~group =
-    let uri = Uri.make ~scheme:"http" ~host:(Peer.host peer) ~port:(Peer.port peer) ~path:"/kx/init" () in 
-    let body = `Assoc [
+end = struct
+  let build_dh_body ~public ~group = 
+    `Assoc [
       ("public", `String (public |> Base64.encode    |> Cstruct.to_string)); 
       ("group",  `String (group  |> Dh.sexp_of_group |> Sexp.to_string   ))
-    ] |> Yojson.Basic.to_string |> Cohttp_lwt_body.of_string in 
+    ] |> Yojson.Basic.to_string |> Cohttp_lwt_body.of_string
+
+  let public_of_dh_reply body = 
+      match body |> Yojson.Basic.from_string |> Yojson.Basic.Util.member "public" with
+      | `String public -> 
+          (match public |> Cstruct.of_string |> Base64.decode with
+           | Some public' -> public'
+           | None         -> raise Key_exchange_failed)
+      | _  -> raise Key_exchange_failed
+
+  let init_dh ~peer ~public ~group =
+    let uri = Uri.make ~scheme:"http" ~host:(Peer.host peer) ~port:(Peer.port peer) ~path:"/kx/init" () in 
+    let body = build_dh_body ~public ~group in
     Client.post ~body uri >>= fun (r,b) -> 
       let code = r |> Response.status |> Code.code_of_status in 
         if code=200 
-        then Cohttp_lwt_body.to_string body >>= fun body ->
-        let json_body = Yojson.Basic.from_string body in 
-          match Yojson.Basic.Util.member "public" json_body with
-          | `String public -> 
-              (match public |> Cstruct.of_string |> Base64.decode with
-              | Some public' -> return public'
-              | None         -> raise Key_exchange_failed)
-          | _  -> raise Key_exchange_failed
+        then Cohttp_lwt_body.to_string b >|= public_of_dh_reply
         else raise Key_exchange_failed
 end
 
