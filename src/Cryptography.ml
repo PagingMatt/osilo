@@ -2,8 +2,6 @@ open Nocrypto
 open Lwt
 open Lwt.Infix
 open Sexplib
-open Cohttp
-open Cohttp_lwt_unix
 
 exception Key_exchange_failed
 
@@ -14,7 +12,7 @@ end = struct
     `Assoc [
       ("public", `String (public |> Base64.encode    |> Cstruct.to_string)); 
       ("group",  `String (group  |> Dh.sexp_of_group |> Sexp.to_string   ))
-    ] |> Yojson.Basic.to_string |> Cohttp_lwt_body.of_string
+    ] |> Yojson.Basic.to_string 
 
   let public_of_dh_reply body = 
       match body |> Yojson.Basic.from_string |> Yojson.Basic.Util.member "public" with
@@ -25,13 +23,10 @@ end = struct
       | _  -> raise Key_exchange_failed
 
   let init_dh ~peer ~public ~group =
-    let uri = Uri.make ~scheme:"http" ~host:(Peer.host peer) ~port:(Peer.port peer) ~path:"/kx/init" () in 
     let body = build_dh_body ~public ~group in
-    Client.post ~body uri >>= fun (r,b) -> 
-      let code = r |> Response.status |> Code.code_of_status in 
-        if code=200 
-        then Cohttp_lwt_body.to_string b >|= public_of_dh_reply
-        else raise Key_exchange_failed
+    Http_client.post ~peer ~path:"/kx/init" ~body >|= fun (c,b) -> 
+      if c=200 then public_of_dh_reply b
+      else raise Key_exchange_failed
 end
 
 module KC : sig
