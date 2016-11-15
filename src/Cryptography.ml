@@ -5,12 +5,8 @@ open Sexplib
 open Cohttp
 open Cohttp_lwt_unix
 
-(* Generic exception to throw when key exchange fails anywhere
- * TODO add information to this to propogate up stack *)
 exception Key_exchange_failed
 
-(* Abstracts calls to HTTP client for cryptography 
- * TODO pull out code into functions, tidy up *)
 module HTTP : sig 
   val init_dh : peer:Peer.t -> public:Cstruct.t -> group:Dh.group -> Cstruct.t Lwt.t
 end = struct 
@@ -34,7 +30,6 @@ end = struct
         else raise Key_exchange_failed
 end
 
-(* Functional cache mapping Peer.t keys to Cstruct.t values (crypto keys) *)
 module KC : sig
   type t
   val empty  : capacity:int -> t
@@ -66,8 +61,7 @@ end = struct
     |> C.trim c.size}
 end
 
-(* Keying service carries out operations on functional key cache *)
-module KS : sig
+module KS : sig  
   type t
   val invalidate    : ks:t -> peer:Peer.t -> t 
   val mediate       : ks:t -> peer:Peer.t -> group:Dh.group -> public:Cstruct.t -> t * Cstruct.t
@@ -102,7 +96,6 @@ end = struct
         | None        -> raise Key_exchange_failed 
 end
 
-(* Cryptography service depends on a keying service and encrypts and decrypts Cstruct.t messages per Peer.t *)
 module CS : sig
   val encrypt : ks:KS.t -> peer:Peer.t -> plaintext:Cstruct.t -> (KS.t * Cstruct.t * Cstruct.t) Lwt.t
   exception Decryption_failed
@@ -128,5 +121,4 @@ end = struct
     | None        -> raise Decryption_failed
 end
 
-(* For random number generation *)
 let () = Nocrypto_entropy_unix.initialize ()
