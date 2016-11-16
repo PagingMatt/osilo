@@ -4,10 +4,7 @@
 module Message : sig
 	type t
 	(* Internal representation *)
-end
 
-(** Provides serialisation and deserialisation between Cstruct.t types and Message.t types *)
-module SS : sig 
 	exception Deserialisation_failed
 	(** Thrown when cannot parse deserialised meesage into a Message.t *)
 
