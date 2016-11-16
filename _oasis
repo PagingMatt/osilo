@@ -13,7 +13,7 @@ Plugins: META (0.4), DevFiles (0.4)
 
 Library "osilo"
   Path: src
-  Modules: Cryptography, Http_client, Peer
+  Modules: Cryptography, Http_client, Peer, Serialisation
   BuildDepends: core,cstruct,cohttp.lwt,lwt,nocrypto,lru-map,sexplib,uri,yojson,threads
 
 AlphaFeatures: ocamlbuild_more_args
