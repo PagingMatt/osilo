@@ -9,6 +9,10 @@ val encode_cstruct : Cstruct.t -> string
 val decode_cstruct : string -> Cstruct.t
 (** [decode_cstruct m] takes the base 64 [string] and attempts to decode it into a [Cstruct.t] *)
 
+val encode_group : Nocrypto.Dh.group -> string
+
+val decode_group : string -> Nocrypto.Dh.group
+
 val encode_message : ciphertext:Cstruct.t -> iv:Cstruct.t -> string
 (** [encode_encrypted ~ciphertext ~iv] constructs the JSON string encoding [ciphertext] and [iv] *)
 
