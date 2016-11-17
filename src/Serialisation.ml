@@ -1,3 +1,5 @@
+(* THIS IS PLACEHOLDER CODE *)
+
 module Message : sig
 	type t
 	exception Deserialisation_failed
