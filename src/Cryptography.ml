@@ -8,7 +8,7 @@ exception Key_exchange_failed
 module HTTP : sig 
   val init_dh : peer:Peer.t -> public:Cstruct.t -> group:Dh.group -> Cstruct.t Lwt.t
 end = struct
-  open Serialisation
+  open Coding
 
   let build_dh_body ~public ~group = 
     `Assoc [
