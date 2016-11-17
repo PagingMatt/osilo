@@ -10,16 +10,17 @@ module HTTP : sig
 end = struct
   open Coding
 
+  (* TODO move this into Coding *)
   let build_dh_body ~public ~group = 
     `Assoc [
-      ("public", `String (encode public)); 
+      ("public", `String (encode_cstruct public)); 
       ("group",  `String (group  |> Dh.sexp_of_group |> Sexp.to_string))
     ] |> Yojson.Basic.to_string 
 
   let public_of_dh_reply body = 
       match body |> Yojson.Basic.from_string |> Yojson.Basic.Util.member "public" with
       | `String public -> 
-          try decode public with
+          try decode_cstruct public with
           | Decoding_failed -> raise Key_exchange_failed
       | _  -> raise Key_exchange_failed
 
