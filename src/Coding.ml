@@ -15,14 +15,18 @@ let string_member s j =
   | `String m -> m
   | _         -> raise Decoding_failed
 
+(* TODO pull these into a module *)
+let tag_ct = "ciphertext"
+let tag_iv = "initial_vector"
+
 let encode_message ~ciphertext ~iv = 
   `Assoc [
-    ("ciphertext"     , `String (encode_cstruct ciphertext));
-    ("initial_vector" , `String (encode_cstruct iv        )) 
+    (tag_ct , `String (encode_cstruct ciphertext));
+    (tag_iv , `String (encode_cstruct iv        )) 
   ] |> Yojson.Basic.to_string
 
 let decode_message ~message =
   let j = Yojson.Basic.from_string message in
-  let c = j |> string_member "ciphertext"     |> decode_cstruct in
-  let i = j |> string_member "initial_vector" |> decode_cstruct in
+  let c = j |> string_member tag_ct |> decode_cstruct in
+  let i = j |> string_member tag_iv |> decode_cstruct in
   (c,i)
