@@ -8,18 +8,19 @@ exception Key_exchange_failed
 module HTTP : sig 
   val init_dh : peer:Peer.t -> public:Cstruct.t -> group:Dh.group -> Cstruct.t Lwt.t
 end = struct
+  open Coding
+
   let build_dh_body ~public ~group = 
     `Assoc [
-      ("public", `String (public |> Base64.encode    |> Cstruct.to_string)); 
-      ("group",  `String (group  |> Dh.sexp_of_group |> Sexp.to_string   ))
+      ("public", `String (encode public)); 
+      ("group",  `String (group  |> Dh.sexp_of_group |> Sexp.to_string))
     ] |> Yojson.Basic.to_string 
 
   let public_of_dh_reply body = 
       match body |> Yojson.Basic.from_string |> Yojson.Basic.Util.member "public" with
       | `String public -> 
-          (match public |> Cstruct.of_string |> Base64.decode with
-           | Some public' -> public'
-           | None         -> raise Key_exchange_failed)
+          try decode public with
+          | Decoding_failed -> raise Key_exchange_failed
       | _  -> raise Key_exchange_failed
 
   let init_dh ~peer ~public ~group =
