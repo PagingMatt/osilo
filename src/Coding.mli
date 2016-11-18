@@ -1,7 +1,8 @@
-(** Bridging between [string] and [Cstruct.t] messages. *)
+(** Decoding transmission-suitable (often serialised JSON) [string] types into internal types and
+ vice versa. *)
 
 exception Decoding_failed
-(** Raised if cannot decode [Cstruct.t]. *)
+(** Raised if cannot decode a string. *)
 
 val encode_cstruct : Cstruct.t -> string 
 (** [encode_cstruct m] takes the [Cstruct.t] [m] and encodes it to a base 64 [string] for 
