@@ -10,7 +10,8 @@ module Client : sig
 end
 (** [Client] module abstracts some client-specific behaviour *)
 
-val write : 
+val write :
+  client:Client.t ->
   service:string -> 
   file:string ->
   contents:Yojson.Basic.json -> 
@@ -20,6 +21,7 @@ branch in my silo repository. This will overwrite anything currently in this fil
 *)
 
 val read :
+  client:Client.t ->
   service:string ->
   file:string -> 
   Yojson.Basic.json option
