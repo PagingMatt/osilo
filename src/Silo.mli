@@ -1,9 +1,12 @@
 (** Interface to Datakit server pointing to my silo *)
 
 module Client : sig
-	type t
-	val make : server:Uri.t -> t
-	(** [make ~server] gives a [t] for [server]*)
+  type t
+  exception Failed_to_make_silo_client of Uri.t
+  (** [Failed_to_make_silo_client s] is thrown when the [Uri.t] [s] has either no port or no host 
+  meaning that a [t] cannot be built of it *)
+  val make : server:Uri.t -> t
+  (** [make ~server] gives a [t] for [server]*)
 end
 (** [Client] module abstracts some client-specific behaviour *)
 
