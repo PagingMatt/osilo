@@ -22,4 +22,8 @@ end = struct
     in
     let s = (Printf.sprintf "%s:%d" h p) in
     { server = s }
+
+  let log = Logs.Src.create "osilo datakit client"
+  module Silo_9p_client      = Client9p_unix.Make(val Logs.src log : Logs.LOG)
+  module Silo_datakit_client = Datakit_client_9p.Make(Silo_9p_client)
 end
