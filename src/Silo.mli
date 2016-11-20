@@ -1,5 +1,12 @@
 (** Interface to Datakit server pointing to my silo *)
 
+module Client : sig
+	type t
+	val make : server:Uri.t -> t
+	(** [make ~server] gives a [t] for [server]*)
+end
+(** [Client] module abstracts some client-specific behaviour *)
+
 val write : 
   service:string -> 
   file:string ->
