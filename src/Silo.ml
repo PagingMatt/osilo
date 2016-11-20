@@ -4,7 +4,7 @@ module Client : sig
   val make : server:Uri.t -> t
 end = struct
   type t = {
-    server : string (* Client9p.connect takes a string not a Uri.t *)
+    server : string (* Silo_9p_client.connect takes a string not a Uri.t *)
   }
 
   exception Failed_to_make_silo_client of Uri.t
