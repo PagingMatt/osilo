@@ -33,6 +33,7 @@ exception Write_failed
 val write :
   client:Client.t ->
   service:string -> 
+  dir:string ->
   file:string ->
   contents:Yojson.Basic.json -> 
   unit Lwt.t

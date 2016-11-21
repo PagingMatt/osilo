@@ -66,13 +66,13 @@ let checkout client service =
 	    | Error error -> raise Checkout_failed
 	    end
 
-let write ~client ~service ~file ~contents =
+let write ~client ~service ~dir ~file ~contents =
   checkout client service
   >>= fun branch -> 
     Client.Silo_datakit_client.Branch.with_transaction branch 
 	  (fun tr -> 
 	    let contents' = Yojson.Basic.to_string contents |> Cstruct.of_string in
-	    Client.Silo_datakit_client.Transaction.create_file tr ~dir:(Datakit_path.of_string_exn file) "filename" contents' >>=
+	    Client.Silo_datakit_client.Transaction.create_file tr ~dir:(Datakit_path.of_string_exn dir) file contents' >>=
 	    begin function
       | Ok ()   -> Client.Silo_datakit_client.Transaction.commit tr "Write"
       | Error e -> raise Write_failed
