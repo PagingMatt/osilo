@@ -35,19 +35,22 @@ end = struct
   module Silo_datakit_client = Datakit_client_9p.Make(Silo_9p_client)
 end
 
-let write ~client ~service ~file ~contents =
-	Silo_9p_client.connect (Client.server client) () 
-	>>= begin function
-	  | Ok conn_9p  -> conn_9p |> Silo_datakit_client.connect
+let checkout client service = 
+  Silo_9p_client.connect (Client.server client) () 
+  >>= begin function
+      | Ok conn_9p  -> conn_9p |> Silo_datakit_client.connect
 	  | Error error -> raise Write_failed
 	  end
-	>>= fun conn_dk -> Silo_datakit_client.Branch service 
-	>>= begin function
+  >>= fun conn_dk -> Silo_datakit_client.Branch service 
+  >>= begin function
 	  | Ok branch   -> branch
 	  | Error error -> raise Write_failed
 	  end
-	>>= fun branch -> 
-	  Silo_datakit_client.with_transaction branch 
+
+let write ~client ~service ~file ~contents =
+  checkout client service
+  >>= fun branch -> 
+    Silo_datakit_client.with_transaction branch 
 	  (fun tr -> 
 	    let contents' = Cstruct.of_string contents in
 	    Silo_datakit_client.Transaction.create_file tr (Datakit_path.of_string_exn file) contents' >>=
@@ -55,3 +58,14 @@ let write ~client ~service ~file ~contents =
         | Ok ()   -> Silo_datakit_client.commit tr ~message:"Write"
         | Error e -> raise Write_failed
 	    end)
+
+let read ~client ~service ~file =
+  checkout client service
+  >>= fun branch -> 
+    Silo_datakit_client.with_transaction branch 
+	  (fun tr -> 
+	    Silo_datakit_client.Transaction.read_file tr (Datakit_path.of_string_exn file) >|=
+	    begin function
+        | Ok cstruct -> Cstruct.to_string cstruct 
+        | Error e    -> raise Write_failed
+	    end))
