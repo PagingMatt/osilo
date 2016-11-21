@@ -35,6 +35,8 @@ end = struct
   module Silo_datakit_client = Datakit_client_9p.Make(Silo_9p_client)
 end
 
+exception Write_failed
+
 let checkout client service = 
   Silo_9p_client.connect (Client.server client) () 
   >>= begin function
@@ -52,7 +54,7 @@ let write ~client ~service ~file ~contents =
   >>= fun branch -> 
     Silo_datakit_client.with_transaction branch 
 	  (fun tr -> 
-	    let contents' = Cstruct.of_string contents in
+	    let contents' = Yojson.Basic.to_string contents |> Cstruct.of_string in
 	    Silo_datakit_client.Transaction.create_file tr (Datakit_path.of_string_exn file) contents' >>=
 	    begin function
         | Ok ()   -> Silo_datakit_client.commit tr ~message:"Write"
@@ -66,6 +68,6 @@ let read ~client ~service ~file =
 	  (fun tr -> 
 	    Silo_datakit_client.Transaction.read_file tr (Datakit_path.of_string_exn file) >|=
 	    begin function
-        | Ok cstruct -> Cstruct.to_string cstruct 
-        | Error e    -> raise Write_failed
-	    end))
+        | Ok cstruct -> Some (Cstruct.to_string cstruct |> Yojson.Basic.from_string)
+        | Error e    -> None
+	    end)

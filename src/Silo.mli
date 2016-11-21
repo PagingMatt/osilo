@@ -10,6 +10,8 @@ module Client : sig
 end
 (** [Client] module abstracts some client-specific behaviour *)
 
+exception Write_failed
+
 val write :
   client:Client.t ->
   service:string -> 
