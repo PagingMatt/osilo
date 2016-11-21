@@ -10,6 +10,7 @@ module Client : sig
 end
 (** [Client] module abstracts some client-specific behaviour *)
 
+exception Checkout_failed
 exception Write_failed
 
 val write :

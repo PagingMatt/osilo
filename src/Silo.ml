@@ -36,18 +36,19 @@ module Silo_9p_client = Client9p_unix.Make(
   
 module Silo_datakit_client = Datakit_client_9p.Make(Silo_9p_client)
 
+exception Checkout_failed
 exception Write_failed
 
 let checkout client service = 
   Silo_9p_client.connect "tcp" (Client.server client) () 
   >|= begin function
       | Ok conn_9p  -> conn_9p |> Silo_datakit_client.connect
-	    | Error error -> raise Write_failed
+      | Error error -> raise Checkout_failed
 	    end
   >>= fun conn_dk -> Silo_datakit_client.branch conn_dk service 
   >|= begin function
 	    | Ok branch   -> branch
-	    | Error error -> raise Write_failed
+	    | Error error -> raise Checkout_failed
 	    end
 
 let write ~client ~service ~file ~contents =
