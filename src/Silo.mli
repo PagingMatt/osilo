@@ -7,6 +7,23 @@ module Client : sig
   meaning that a [t] cannot be built of it *)
   val make : server:Uri.t -> t
   (** [make ~server] gives a [t] for [server]*)
+  module Silo_9p_client : sig
+    include Protocol_9p.Client.S
+    val connect:
+      string -> 
+      string -> 
+      ?msize:int32 -> 
+      ?username:string -> 
+      ?aname:string ->
+      unit -> 
+      t Protocol_9p.Error.t Lwt.t
+  end
+  (** A 9P UNIX client made by applying a source log to the functor *)
+  module Silo_datakit_client : sig
+    include Datakit_S.CLIENT with type error = Protocol_9p_error.error
+    val connect : Silo_9p_client.t -> t
+  end
+  (** Datakit client made by applying [Silo_9p_client] to the functor *)
 end
 (** [Client] module abstracts some client-specific behaviour *)
 
