@@ -30,7 +30,7 @@ end = struct
   let server c = c.server
 
   module Silo_9p_client = Client9p_unix.Make(
-  	val Logs.src (Logs.Src.create "osilo datakit client") : Logs.LOG)
+    (val Logs.src_log (Logs.Src.create "osilo datakit client") : Logs.LOG) )
   
   module Silo_datakit_client = Datakit_client_9p.Make(Silo_9p_client)
 end
