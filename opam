@@ -29,5 +29,6 @@ depends: [
   "protocol-9p"
   "sexplib"
   "uri"
+  "webmachine"
   "yojson"
 ]
