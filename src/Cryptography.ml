@@ -43,15 +43,15 @@ end = struct
     { cache = (C.empty capacity) ; }
 
   let remove c p =
-    {c with cache = (C.remove p c.cache) ; } 
+    { cache = (C.remove p c.cache) ; } 
 
   let lookup c p =
     match C.find p c.cache with
-    | Some (v,c') -> (Some v,c')
-    | None        -> (None  ,c )
+    | Some (v,c') -> (Some v, { cache = c' ; } )
+    | None        -> (None, c)
 
   let add c p k =
-    { c with cache = (C.add p k c.cache) ; }
+    { cache = (C.add p k c.cache) ; }
 end
 
 module KS : sig  
