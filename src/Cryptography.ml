@@ -82,8 +82,8 @@ end = struct
 
   let lookup ~ks ~peer = 
     match KC.lookup ks.cache peer with
-    | (Some c, c') = Some c, {cache = c'}
-    | (None  , _ ) = None  , ks
+    | (Some k, c) -> (Some k, {cache = c})
+    | (None  , _) -> (None  , ks)
 
   let lookup' ~ks ~peer =
     match lookup ~ks ~peer with
