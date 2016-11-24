@@ -37,14 +37,13 @@ end = struct
 
   type t = {
     cache : C.t ;
-    size  : int ;
   }
 
   let empty ~capacity = 
     { cache = (C.empty capacity) ; }
 
   let remove c p =
-    {c with cache = C.remove p c.cache} 
+    {c with cache = (C.remove p c.cache) ; } 
 
   let lookup c p =
     match C.find p c.cache with
