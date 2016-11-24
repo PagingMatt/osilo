@@ -22,11 +22,18 @@ end
 module KC : sig
   type t
   val empty  : capacity:int -> t
-  val remove : t -> Peer.t -> t
-  val lookup : t -> Peer.t -> Cstruct.t option
-  val add    : t -> Peer.t -> Cstruct.t -> t
+  val remove : t -> Peer.t  -> t
+  val lookup : t -> Peer.t  -> Cstruct.t option * t
+  val add    : t -> Peer.t  -> Cstruct.t -> t
 end = struct 
-  module C = Lru_map.F.Make(Peer)
+  module V : sig
+    type t = Cstruct.t
+    val weight : t -> int
+  end = struct 
+    type t = Cstruct.t
+    let weight c = Cstruct.len c
+  end
+  module C = Lru.F.Make(Peer)(V)
 
   type t = {
     cache : Cstruct.t C.t ;
@@ -34,20 +41,18 @@ end = struct
   }
 
   let empty ~capacity = 
-    { cache = C.empty ; size = capacity ;}
+    { cache = (C.empty capacity) ; }
 
   let remove c p =
     {c with cache = C.remove p c.cache} 
 
   let lookup c p =
     match C.find p c.cache with
-    | Some (v,_) -> Some v
-    | None       -> None
+    | Some (v,c') -> (Some v,c')
+    | None        -> (None  ,c )
 
   let add c p k =
-    {c with cache = c.cache
-    |> C.add p k  
-    |> C.trim c.size}
+    { c with cache = (C.add p k c.cache) ; }
 end
 
 module KS : sig  
@@ -55,7 +60,7 @@ module KS : sig
   val empty      : capacity:int -> t  
   val invalidate : ks:t -> peer:Peer.t -> t 
   val mediate    : ks:t -> peer:Peer.t -> group:Dh.group -> public:Cstruct.t -> t * Cstruct.t
-  val lookup     : ks:t -> peer:Peer.t -> Cstruct.t option
+  val lookup     : ks:t -> peer:Peer.t -> Cstruct.t option * t
   val lookup'    : ks:t -> peer:Peer.t -> (t * Cstruct.t) Lwt.t
 end = struct
   type t = {
@@ -75,12 +80,15 @@ end = struct
 		  added, public'
     | None -> raise Key_exchange_failed
 
-  let lookup ~ks ~peer = KC.lookup ks.cache peer
+  let lookup ~ks ~peer = 
+    match KC.lookup ks.cache peer with
+    | (Some c, c') = Some c, {cache = c'}
+    | (None  , _ ) = None  , ks
 
   let lookup' ~ks ~peer =
     match lookup ~ks ~peer with
-    | Some key -> return (ks, key)
-    | None     -> 
+    | (Some key, ks') -> return (ks', key)
+    | (None    , _  ) -> 
         let group = Dh.gen_group 256 in
         let secret, public = Dh.gen_key group in 
         HTTP.init_dh ~peer ~public ~group >|= fun public' -> 
@@ -92,7 +100,7 @@ end
 module CS : sig
   val encrypt : ks:KS.t -> peer:Peer.t -> plaintext:Cstruct.t -> (KS.t * Cstruct.t * Cstruct.t) Lwt.t
   exception Decryption_failed
-  val decrypt : ks:KS.t -> peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> Cstruct.t
+  val decrypt : ks:KS.t -> peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> (KS.t * Cstruct.t)
 end = struct
   open Cipher_block
 
@@ -107,11 +115,11 @@ end = struct
 
   let decrypt ~ks ~peer ~ciphertext ~iv =
     match KS.lookup ks peer with
-    | Some secret ->
+    | (Some secret, ks') ->
         let key    = AES.GCM.of_secret secret in 
         let result = AES.GCM.decrypt ~key ~iv ciphertext in
-        result.message
-    | None        -> raise Decryption_failed
+        ks', result.message
+    | (None, _)          -> raise Decryption_failed
 end
 
 let () = Nocrypto_entropy_unix.initialize ()

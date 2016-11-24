@@ -34,9 +34,9 @@ module KS : sig
 
   val lookup : 
     ks:t        -> 
-    peer:Peer.t -> Cstruct.t option
+    peer:Peer.t -> Cstruct.t option * t
   (** [lookup ~ks ~peer] gives an option containing the value [peer] maps to in [ks] if the mapping
-   exists. *)
+   exists, paired with [ks] updated such that [peer]'s mapping is the MRU *)
 
   val lookup' : 
     ks:t        -> 
@@ -66,7 +66,7 @@ module CS : sig
     ks:KS.t              -> 
     peer:Peer.t          -> 
     ciphertext:Cstruct.t -> 
-    iv:Cstruct.t         -> Cstruct.t
+    iv:Cstruct.t         -> KS.t * Cstruct.t
   (** [decrypt ~ks ~peer ~ciphertext ~iv] will decrypt [ciphertext] using the shared secret held in
   [ks]'s cache between this and [peer] and [iv]. If no shared secret exists [Decryption_failed] is
   raised. *)
