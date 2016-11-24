@@ -36,8 +36,8 @@ end = struct
   module C = Lru.F.Make(Peer)(V)
 
   type t = {
-    cache : Cstruct.t C.t ;
-    size  : int           ;
+    cache : C.t ;
+    size  : int ;
   }
 
   let empty ~capacity = 
