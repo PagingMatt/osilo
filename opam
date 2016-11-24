@@ -20,7 +20,7 @@ depends: [
   "cohttp"
   "core"
   "cstruct"
-  "lru-map"
+  "lru"
   "lwt"
   "nocrypto"
   "ocamlfind" {build}
