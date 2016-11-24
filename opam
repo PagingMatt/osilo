@@ -20,11 +20,13 @@ depends: [
   "cohttp"
   "core"
   "cstruct"
-  "lru-map"
+  "datakit-client"
+  "lru"
   "lwt"
   "nocrypto"
   "ocamlfind" {build}
   "ocamlbuild" {build}
+  "protocol-9p"
   "sexplib"
   "uri"
   "yojson"

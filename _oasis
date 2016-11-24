@@ -14,7 +14,7 @@ Plugins: META (0.4), DevFiles (0.4)
 Library "osilo"
   Path: src
   Modules: Cryptography, Http_client, Peer, Coding, Serialisation, Silo
-  BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto,lru-map,protocol-9p.unix,sexplib,uri,yojson,threads
+  BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto,lru,protocol-9p.unix,sexplib,uri,yojson,threads
 
 AlphaFeatures: ocamlbuild_more_args
 Document "Osilo_API"
