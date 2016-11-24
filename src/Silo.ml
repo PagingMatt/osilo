@@ -59,24 +59,24 @@ let checkout client service =
   >|= begin function
       | Ok conn_9p  -> conn_9p |> Client.Silo_datakit_client.connect
       | Error error -> raise Checkout_failed
-	  end
+      end
   >>= fun conn_dk -> Client.Silo_datakit_client.branch conn_dk service 
   >|= begin function
-	  | Ok branch   -> branch
-	  | Error error -> raise Checkout_failed
-	  end
+      | Ok branch   -> branch
+      | Error error -> raise Checkout_failed
+      end
 
 let write ~client ~service ~file ~contents =
   checkout client service
   >>= fun branch -> 
     Client.Silo_datakit_client.Branch.with_transaction branch 
-	  (fun tr -> 
-	    let contents' = Yojson.Basic.to_string contents |> Cstruct.of_string in
-	    Client.Silo_datakit_client.Transaction.create_or_replace_file tr (Datakit_path.of_string_exn file) contents' >>=
-	    begin function
-        | Ok ()   -> Client.Silo_datakit_client.Transaction.commit tr "Write"
-        | Error e -> raise Write_failed
-	    end)
+      (fun tr -> 
+      let contents' = Yojson.Basic.to_string contents |> Cstruct.of_string in
+      Client.Silo_datakit_client.Transaction.create_or_replace_file tr (Datakit_path.of_string_exn file) contents' >>=
+      begin function
+      | Ok ()   -> Client.Silo_datakit_client.Transaction.commit tr "Write"
+      | Error e -> raise Write_failed
+      end)
   >|= begin function
       | Ok () -> ()
       | Error e -> raise Write_failed
@@ -86,7 +86,7 @@ let read ~client ~service ~file =
   checkout client service
   >>= fun branch -> 
     Client.Silo_datakit_client.Branch.with_transaction branch 
-	  (fun tr -> Client.Silo_datakit_client.Transaction.read_file tr (Datakit_path.of_string_exn file))
+    (fun tr -> Client.Silo_datakit_client.Transaction.read_file tr (Datakit_path.of_string_exn file))
   >|= begin function
       | Ok cstruct  -> Some (cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
       | Error error -> None
