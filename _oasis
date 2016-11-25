@@ -11,17 +11,9 @@ OASISFormat: 0.4
 BuildTools: ocamlbuild
 Plugins: META (0.4), DevFiles (0.4)
 
-Library "osilo"
+Executable "server"
   Path: src
-  Modules: Cryptography, Http_client, Http_server, Peer, Coding, Serialisation, Silo, Wm
+  MainIs: Osilo_server.ml
+  CompiledObject: best
   BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto,lru,protocol-9p.unix,sexplib,uri,webmachine,yojson,threads
-
-AlphaFeatures: ocamlbuild_more_args
-Document "Osilo_API"
-  Type: ocamlbuild (0.4)
-  BuildTools: ocamldoc
-  Title: API reference for osilo
-  XOCamlbuildPath: .
-  XOCamlbuildExtraArgs: "-docflags '-colorize-code -short-functors -charset utf-8'"
-  XOCamlbuildLibraries: osilo 
 
