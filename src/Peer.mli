@@ -3,7 +3,7 @@
 type t
 (* Internal representation for a peer *)
 
-val create -> string -> int -> t
+val create : string -> int -> t
 (** [create host port] builds a [t] from a string host and integer port *)
 
 val host : t -> string
