@@ -4,7 +4,7 @@ open Lwt.Infix
 let ping host port =
   let peer = Peer.create host port in
   Http_client.get ~peer ~path:"/ping/";
-  >|= fun (c,_) -> Printf.printf "Response code: %d" c 
+  >|= fun (c,_) -> Printf.printf "Response code: %d\n" c 
 
 module Terminal = struct
   let ping = 
