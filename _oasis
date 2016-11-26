@@ -28,14 +28,14 @@ Library "osilo"
   Modules: Coding,Cryptography,Http_client,Http_server,Peer,Serialisation,Silo,Wm
   BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto,lru,protocol-9p.unix,sexplib,uri,webmachine,yojson,threads
 
-Executable "peer_tests"
+Executable "osilo_tests"
   Path: tests
-  MainIs: peer_tests.ml
+  MainIs: test_src.ml
   Build$: flag(tests)
   CompiledObject: native
-  BuildDepends: alcotest,osilo,uri
+  BuildDepends: alcotest,osilo,core,nocrypto,cstruct,sexplib,yojson,uri
 
-Test "peer_tests"
+Test "osilo_tests"
   Run$: flag(tests)
-  Command: $peer_tests
+  Command: $osilo_tests
   WorkingDirectory: tests
