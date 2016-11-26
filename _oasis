@@ -22,3 +22,10 @@ Executable "client"
   MainIs: Osilo_client.ml
   CompiledObject: best
   BuildDepends: core,cohttp.lwt,lwt,uri,threads
+
+Library "osilo"
+  Path: src
+  Modules: Coding,Cryptography,Http_client,Http_server,Peer,Serialisation,Silo,Wm
+  BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto,lru,protocol-9p.unix,sexplib,uri,webmachine,yojson,threads
+
+
