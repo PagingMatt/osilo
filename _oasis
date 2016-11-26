@@ -17,3 +17,8 @@ Executable "server"
   CompiledObject: best
   BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto,lru,protocol-9p.unix,sexplib,uri,webmachine,yojson,threads
 
+Executable "client"
+  Path: src
+  MainIs: Osilo_client.ml
+  CompiledObject: best
+  BuildDepends: core,cohttp.lwt,lwt,uri,threads
