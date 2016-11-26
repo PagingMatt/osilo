@@ -33,4 +33,9 @@ Executable "peer_tests"
   MainIs: peer_tests.ml
   Build$: flag(tests)
   CompiledObject: native
-  BuildDepends: alcotest,uri
+  BuildDepends: alcotest,osilo,uri
+
+Test "peer_tests"
+  Run$: flag(tests)
+  Command: $peer_tests
+  WorkingDirectory: tests
