@@ -28,4 +28,9 @@ Library "osilo"
   Modules: Coding,Cryptography,Http_client,Http_server,Peer,Serialisation,Silo,Wm
   BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto,lru,protocol-9p.unix,sexplib,uri,webmachine,yojson,threads
 
-
+Executable "peer_tests"
+  Path: tests
+  MainIs: peer_tests.ml
+  Build$: flag(tests)
+  CompiledObject: native
+  BuildDepends: alcotest,uri
