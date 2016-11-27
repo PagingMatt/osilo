@@ -11,29 +11,34 @@ OASISFormat: 0.4
 BuildTools: ocamlbuild
 Plugins: META (0.4), DevFiles (0.4)
 
+Library "osilo"
+  Path: src
+  Modules: Coding, Cryptography,  Http_client, Http_server,
+           Peer,   Serialisation, Silo,        Wm
+  BuildDepends: core,       cstruct,          cohttp.lwt,    datakit-client,
+                logs,       lwt,              nocrypto.unix, 
+                lru,        protocol-9p.unix, sexplib,       uri,
+                webmachine, yojson,           threads
+
 Executable "server"
   Path: src
   MainIs: Osilo_server.ml
   CompiledObject: best
-  BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto.unix,psq,lru,protocol-9p.unix,sexplib,uri,webmachine,yojson,threads
+  BuildDepends: psq,osilo
 
 Executable "client"
   Path: src
   MainIs: Osilo_client.ml
   CompiledObject: best
-  BuildDepends: core,cohttp.lwt,lwt,uri,psq,threads
+  BuildDepends: psq,osilo
 
-Library "osilo"
-  Path: src
-  Modules: Coding,Cryptography,Http_client,Http_server,Peer,Serialisation,Silo,Wm
-  BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto.unix,psq,lru,protocol-9p.unix,sexplib,uri,webmachine,yojson,threads
-
-Executable "osilo_tests"
+Executable osilo_tests
   Path: tests
   MainIs: test_src.ml
   Build$: flag(tests)
-  CompiledObject: native
-  BuildDepends: alcotest,osilo,core,nocrypto.unix,psq,lru,cstruct,sexplib,yojson,uri
+  CompiledObject: best
+  Install: false
+  BuildDepends: alcotest,psq,osilo
 
 Test "osilo_tests"
   Run$: flag(tests)
