@@ -1,3 +1,9 @@
+module Cstruct_testable = struct
+  type t = Cstruct.t
+  let pp = Cstruct.hexdump_pp
+  let equal = Cstruct.equal
+end
+
 module Peer_tests = struct
   let host = "127.0.0.1"
   let port = 8000
