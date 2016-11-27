@@ -16,7 +16,7 @@ Library "osilo"
   Modules: Coding, Cryptography,  Http_client, Http_server,
            Peer,   Serialisation, Silo,        Wm
   BuildDepends: core,       cstruct,          cohttp.lwt,    datakit-client,
-                logs,       lwt,              nocrypto.unix, 
+                logs,       lwt,              nocrypto.unix, psq, 
                 lru,        protocol-9p.unix, sexplib,       uri,
                 webmachine, yojson,           threads
 
@@ -24,13 +24,13 @@ Executable "server"
   Path: src
   MainIs: Osilo_server.ml
   CompiledObject: best
-  BuildDepends: psq,osilo
+  BuildDepends: osilo
 
 Executable "client"
   Path: src
   MainIs: Osilo_client.ml
   CompiledObject: best
-  BuildDepends: psq,osilo
+  BuildDepends: osilo
 
 Executable osilo_tests
   Path: tests
@@ -38,7 +38,7 @@ Executable osilo_tests
   Build$: flag(tests)
   CompiledObject: best
   Install: false
-  BuildDepends: alcotest,psq,osilo
+  BuildDepends: alcotest,osilo
 
 Test "osilo_tests"
   Run$: flag(tests)
