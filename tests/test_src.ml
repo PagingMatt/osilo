@@ -1,8 +1,4 @@
-module Cstruct_testable = struct
-  type t = Cstruct.t
-  let pp = Cstruct.hexdump_pp
-  let equal = Cstruct.equal
-end
+let cstruct = Alcotest.testable (Cstruct.hexdump_pp) (Cstruct.equal) 
 
 module Peer_tests = struct
   let host = "127.0.0.1"
@@ -31,12 +27,16 @@ module Coding_tests = struct
   let b64 = "fooBARfooBARfooBARfooBARfooBARfo"
   
   let symm_cstruct () =
-    let cstruct = Coding.decode_cstruct b64 in
-    let result = Coding.encode_cstruct cstruct in
+    let c  = Coding.decode_cstruct b64 in
+    let s  = Coding.encode_cstruct c   in
+    let c' = Coding.decode_cstruct s   in
     Alcotest.(check string) 
-      "Checks that starting from a string, decoding and reincoding a cstruct is symmetric"
-      b64
-      result
+      "Checks that starting from a base 64 string, decoding and re-encoding a cstruct is symmetric"
+      b64 s;
+    Alcotest.(check cstruct)
+      "Checks that starting from a Cstruct, encoding to a base 64 string and decoding back to a cstruct is symmetric"
+      c c'
+
 
   let tests = [
     ("Tests that encoding/decoding cstructs is symmetric", `Quick, symm_cstruct);
