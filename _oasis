@@ -15,25 +15,25 @@ Executable "server"
   Path: src
   MainIs: Osilo_server.ml
   CompiledObject: best
-  BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto,lru,protocol-9p.unix,sexplib,uri,webmachine,yojson,threads
+  BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto.unix,psq,lru,protocol-9p.unix,sexplib,uri,webmachine,yojson,threads
 
 Executable "client"
   Path: src
   MainIs: Osilo_client.ml
   CompiledObject: best
-  BuildDepends: core,cohttp.lwt,lwt,uri,threads
+  BuildDepends: core,cohttp.lwt,lwt,uri,psq,threads
 
 Library "osilo"
   Path: src
   Modules: Coding,Cryptography,Http_client,Http_server,Peer,Serialisation,Silo,Wm
-  BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto,lru,protocol-9p.unix,sexplib,uri,webmachine,yojson,threads
+  BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto.unix,psq,lru,protocol-9p.unix,sexplib,uri,webmachine,yojson,threads
 
 Executable "osilo_tests"
   Path: tests
   MainIs: test_src.ml
   Build$: flag(tests)
   CompiledObject: native
-  BuildDepends: alcotest,osilo,core,nocrypto,cstruct,sexplib,yojson,uri
+  BuildDepends: alcotest,osilo,core,nocrypto.unix,psq,lru,cstruct,sexplib,yojson,uri
 
 Test "osilo_tests"
   Run$: flag(tests)

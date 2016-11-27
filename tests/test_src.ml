@@ -75,6 +75,36 @@ module Coding_tests = struct
   ]
 end
 
+module Cryptography_tests = struct
+  open Cryptography
+
+  let singleton_ks = KS.empty 1 
+  let peer = Peer.create "127.0.0.1" 8000 
+  let group = Nocrypto.Dh.gen_group 32
+
+
+  let key_service_can_add_single_peer () =
+    let my_secret,my_public   = Nocrypto.Dh.gen_key group in
+    let their_ks,their_public = KS.mediate ~ks:singleton_ks ~peer ~group ~public:my_public in
+    let their_shared = 
+      match KS.lookup ~ks:their_ks ~peer with 
+      | Some s, _ -> s
+      | None,   _ -> Alcotest.fail "Did not add [Peer -> Secret] mapping to KS"
+    in 
+    let my_shared = 
+      match Nocrypto.Dh.shared group my_secret their_public with 
+      | Some s -> s
+      | None   -> Alcotest.fail "Could not calculate shared secret"
+    in
+    Alcotest.(check cstruct)
+      "Check that the secret in their keying service is the same as the secret I calculate"
+      my_shared their_shared  
+  
+  let tests = [
+    ("Tests that two simulated peers carry out key exchange as expected", `Quick, key_service_can_add_single_peer) 
+  ]
+end
+
 let () = 
   Alcotest.run "Osilo Tests" [
     "Peer module"  , Peer_tests.tests;
