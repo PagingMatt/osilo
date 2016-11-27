@@ -1,4 +1,5 @@
 # OASIS_START
 true: annot, bin_annot
-<src/Cryptography.ml> : thread
+<*> : thread
+<*> : package(psq)
 # OASIS_STOP
