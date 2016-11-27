@@ -37,14 +37,25 @@ module Coding_tests = struct
       "Checks that starting from a Cstruct, encoding to a base 64 string and decoding back to a cstruct is symmetric"
       c c'
 
+  let symm_dh_reply () =
+    let p  = Coding.decode_cstruct b64 in
+    let r  = Coding.encode_kx_reply p  in
+    let p' = Coding.decode_kx_reply r  in
+    let r' = Coding.encode_kx_reply p' in
+    Alcotest.(check cstruct)
+      "Checks public key decoded from KX reply is the same as the one it was encoded with"
+      p p';
+    Alcotest.(check string)
+      "Checks kx reply initially encoded is same as decoding and re-encoding reply"
+      r r'
 
   let tests = [
     ("Tests that encoding/decoding cstructs is symmetric", `Quick, symm_cstruct);
     (*("Tests that encoding/decoding DH groups is symmetric", `Quick, symm_group);
     ("Tests that encoding/decoding encrypted messages is symmetric", `Quick, symm_message);
-    ("Tests that encoding/decoding DH key exchange init is symmetric", `Quick, symm_dh_init);
+    ("Tests that encoding/decoding DH key exchange init is symmetric", `Quick, symm_dh_init);*)
     ("Tests that encoding/decoding DH key exchange reply is symmetric", `Quick, symm_dh_reply);
-  *)]
+  ]
 end
 
 let () = 
