@@ -71,13 +71,13 @@ module CS : sig
   exception Decryption_failed
   val decrypt : ks:KS.t -> peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> (KS.t * Cstruct.t)
 end = struct
-  open Cipher_block
+  open Cipher_block.AES.GCM
 
   let encrypt ~ks ~peer ~plaintext =
     KS.lookup' ks peer >>= fun (k, secret) -> 
-      let key     = AES.GCM.of_secret secret in 
+      let key     = of_secret secret in 
       let iv      = Rng.generate 256 in 
-      let result  = AES.GCM.encrypt ~key ~iv plaintext in
+      let result  = encrypt ~key ~iv plaintext in
       return (k, result.message, iv)
 
   exception Decryption_failed
@@ -85,8 +85,8 @@ end = struct
   let decrypt ~ks ~peer ~ciphertext ~iv =
     match KS.lookup ks peer with
     | (Some secret, ks') ->
-        let key    = AES.GCM.of_secret secret in 
-        let result = AES.GCM.decrypt ~key ~iv ciphertext in
+        let key    = of_secret secret in 
+        let result = decrypt ~key ~iv ciphertext in
         ks', result.message
     | (None, _)          -> raise Decryption_failed
 end
