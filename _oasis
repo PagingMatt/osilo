@@ -40,7 +40,7 @@ Executable osilo_tests
   Install: false
   BuildDepends: alcotest,osilo
 
-Test "osilo_tests"
+Test osilo_tests
   Run$: flag(tests)
   Command: $osilo_tests
   WorkingDirectory: tests
