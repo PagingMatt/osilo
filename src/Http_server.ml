@@ -3,11 +3,6 @@ open Cohttp_lwt_unix
 open Cohttp_lwt_unix_io
 open Lwt.Infix
 
-(* TODO make this less ugly *)
-let this_peer      = ref None
-let keying_service = ref None
-let datakit_client = ref None
-
 class ping = object(self)
   inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -23,22 +18,30 @@ class ping = object(self)
     Wm.continue (`String (Printf.sprintf "%s" text)) rd
 end
 
-let api = [
-  ("/ping/", fun () -> new ping);
-] 
+open Cryptography
+open Silo
 
-let callback _ request body =
-  Wm.dispatch' api ~body ~request 
-  >|= begin function
-      | Some r -> r 
-      | None   -> (`Not_found, Cohttp.Header.init (), `String "Not found", [])
-      end
-  >>= fun (status, headers, body, _) -> Server.respond ~headers ~status ~body ()
+class server hostname port key silo_host = object(self)
+  val address : Peer.t = Peer.create hostname port
 
-let start ~port ~uri ~silo ~master =
-  let server = Server.make ~callback () in
-  let mode   = `TCP (`Port port) in
-  this_peer      := Some (Peer.create uri port) in
-  keying_service := Some (Cryptography.KS.empty ~capacity:1024 ~master);
-  datakit_client := Some (Silo.Client.make ~server:silo); 
-  Server.create ~mode server
+  val mutable keying_service : KS.t = KS.empty ~capacity:1024 ~master:key
+
+  val mutable silo_client : Client.t = Client.make ~server:(Uri.make ~host:silo_host ())
+
+  val api = [
+    ("/ping/", fun () -> new ping);
+  ]
+
+  method private callback _ request body =
+    Wm.dispatch' api ~body ~request 
+    >|= begin function
+        | Some r -> r 
+        | None   -> (`Not_found, Cohttp.Header.init (), `String "Not found", [])
+        end
+    >>= fun (status, headers, body, _) -> Server.respond ~headers ~status ~body ()
+
+  method start ()  =
+    let server = Server.make ~callback:self#callback () in
+    let mode   = `TCP (`Port port) in
+    Server.create ~mode server
+end
