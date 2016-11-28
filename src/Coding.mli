@@ -39,3 +39,7 @@ public key. *)
 val decode_kx_reply : message:string -> Cstruct.t
 (** [decode_kx_reply ~message] takes a JSON string which represents a key exchange reply message
 and decodes it to get the public key. *)
+
+val serialise : Peer.t -> string -> string
+
+val deserialise : string -> Peer.t * string

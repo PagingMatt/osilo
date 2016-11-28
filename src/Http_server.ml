@@ -5,6 +5,35 @@ open Lwt.Infix
 
 open Cryptography
 open Silo
+
+class kx_init s = object(self)
+  inherit [Cohttp_lwt_body.t] Wm.resource
+
+  val mutable public_key : Cstruct.t option = None
+
+  method content_types_provided rd = 
+    Wm.continue [("text/json", self#to_json)] rd
+
+  method content_types_accepted rd = Wm.continue [] rd
+  
+  method allowed_methods rd = Wm.continue [`POST] rd
+
+  method to_json rd = 
+    Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body 
+    >>= fun s -> Wm.continue (`String s) rd
+
+  method process_post rd =
+    Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+    >|= Coding.deserialise 
+    >>= fun (peer,message) -> 
+          let public,group = Coding.decode_kx_init ~message in
+          let ks,public' = Cryptography.KS.mediate ~ks:s#keying_service ~peer ~group ~public in 
+          (s#set_keying_service ks);
+          let reply = Coding.encode_kx_reply ~public:public' in
+          let r     = Coding.serialise s#address reply |> Cohttp_lwt_body.of_string in
+          let rd'   = {rd with resp_body=r } in
+          Wm.continue true rd'         
+end
   
 class ping s = object(self)
   inherit [Cohttp_lwt_body.t] Wm.resource
@@ -25,6 +54,8 @@ class server hostname port key silo_host = object(self)
   val address : Peer.t = Peer.create hostname port
   
   val mutable keying_service : KS.t = KS.empty ~capacity:1024 ~master:key
+
+  method set_keying_service k = keying_service <- k
 
   val mutable silo_client : Client.t = Client.make ~server:(Uri.make ~host:silo_host ())
 

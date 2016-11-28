@@ -1,4 +1,5 @@
 open Core.Std
+open Lwt.Infix
 
 exception Decoding_failed
 
@@ -27,11 +28,19 @@ let string_member s j =
   | `String m -> m
   | _         -> raise Decoding_failed
 
+let int_member s j = 
+  match Yojson.Basic.Util.member s j with
+  | `Int i -> i
+  | _         -> raise Decoding_failed
+
 (* TODO pull these into a module *)
 let tag_ct = "ciphertext"
 let tag_iv = "initial_vector"
 let tag_pb = "public"
 let tag_gr = "group"
+let tag_ho = "host"
+let tag_po = "port"
+let tag_me = "message"
 
 let encode_message ~ciphertext ~iv = 
   `Assoc [
@@ -66,3 +75,21 @@ let decode_kx_reply ~message =
   |> Yojson.Basic.from_string 
   |> string_member tag_pb 
   |> decode_cstruct
+
+let serialise peer message =
+  let host = Peer.host peer in
+  let port = Peer.port peer in
+  `Assoc [
+    (tag_ho, `String host);
+    (tag_po, `Int port);
+    (tag_me, `String message)
+  ]
+  |> Yojson.Basic.to_string
+
+let deserialise body =
+  let j = Yojson.Basic.from_string body in
+  let h = j |> string_member tag_ho     in
+  let p = j |> int_member tag_po        in
+  let peer = Peer.create h p            in
+  let m = j |> string_member tag_me     in
+  peer,m
