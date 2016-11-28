@@ -3,7 +3,10 @@ open Cohttp_lwt_unix
 open Cohttp_lwt_unix_io
 open Lwt.Infix
 
-class ping = object(self)
+open Cryptography
+open Silo
+  
+class ping s = object(self)
   inherit [Cohttp_lwt_body.t] Wm.resource
 
   method content_types_provided rd = 
@@ -18,21 +21,17 @@ class ping = object(self)
     Wm.continue (`String (Printf.sprintf "%s" text)) rd
 end
 
-open Cryptography
-open Silo
-
 class server hostname port key silo_host = object(self)
   val address : Peer.t = Peer.create hostname port
-
+  
   val mutable keying_service : KS.t = KS.empty ~capacity:1024 ~master:key
 
   val mutable silo_client : Client.t = Client.make ~server:(Uri.make ~host:silo_host ())
 
-  val api = [
-    ("/ping/", fun () -> new ping);
-  ]
-
   method private callback _ request body =
+    let api = [
+      ("/ping/", fun () -> new ping self);
+    ] in
     Wm.dispatch' api ~body ~request 
     >|= begin function
         | Some r -> r 
