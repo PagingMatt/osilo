@@ -13,6 +13,7 @@ module KS : sig
   (* Internal representation fo the keying service *)
 
   val empty : 
+    address:Peer.t ->
     capacity:int ->
     master:Cstruct.t -> t
   (** Constructor for keying service with an empty cache. [empty ~capacity ~master] gives a keying 

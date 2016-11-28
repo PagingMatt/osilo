@@ -1,10 +1,10 @@
 let cstruct = Alcotest.testable (Cstruct.hexdump_pp) (Cstruct.equal) 
 
-module Peer_tests = struct
-  let host = "127.0.0.1"
-  let port = 8000
-  let peer = Peer.create host port
+let host = "127.0.0.1"
+let port = 8000
+let peer = Peer.create host port
 
+module Peer_tests = struct
   let peer_builds_with_host () =
     Alcotest.(check string)
       "Checks host is stored and retrieved correctly from Peer"
@@ -39,11 +39,11 @@ module Coding_tests = struct
       c c'
 
   let symm_message () =
-    let c     = Coding.decode_cstruct a     in
-    let i     = Coding.decode_cstruct b     in
-    let s     = Coding.encode_message c i   in
-    let c',i' = Coding.decode_message s     in
-    let s'    = Coding.encode_message c' i' in
+    let c     = Coding.decode_cstruct a          in
+    let i     = Coding.decode_cstruct b          in
+    let s     = Coding.encode_message ~peer ~ciphertext:c ~iv:i   in
+    let p,c',i' = Coding.decode_message s        in
+    let s'    = Coding.encode_message ~peer ~ciphertext:c' ~iv:i' in
     Alcotest.(check cstruct)
       "Checks decoding and re-encoding a message produces the same ciphertext"
       c c';
@@ -56,9 +56,9 @@ module Coding_tests = struct
 
   let symm_dh_reply () =
     let p  = Coding.decode_cstruct a   in
-    let r  = Coding.encode_kx_reply p  in
-    let p' = Coding.decode_kx_reply r  in
-    let r' = Coding.encode_kx_reply p' in
+    let r  = Coding.encode_kx_reply ~peer ~public:p  in
+    let peer',p' = Coding.decode_kx_reply r  in
+    let r' = Coding.encode_kx_reply ~peer ~public:p' in
     Alcotest.(check cstruct)
       "Checks public key decoded from KX reply is the same as the one it was encoded with"
       p p';
@@ -81,7 +81,7 @@ module Cryptography_tests = struct
   let group = Nocrypto.Dh.gen_group 32
 
   let can_mediate_key_exchange () =
-    let ks = KS.empty ~capacity:4 ~master:(Cstruct.of_string "test") in
+    let ks = KS.empty ~address:peer ~capacity:4 ~master:(Cstruct.of_string "test") in
     let peer = Peer.create "localhost" 8000 in
     let peer_secret,peer_public = Nocrypto.Dh.gen_key group in
     let ks2,my_public = KS.mediate ~ks ~peer ~group ~public:peer_public in

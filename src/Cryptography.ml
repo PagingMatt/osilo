@@ -6,12 +6,12 @@ open Sexplib
 exception Key_exchange_failed
 
 module HTTP : sig 
-  val init_dh : peer:Peer.t -> public:Cstruct.t -> group:Dh.group -> Cstruct.t Lwt.t
+  val init_dh : this:Peer.t -> peer:Peer.t -> public:Cstruct.t -> group:Dh.group -> (Peer.t * Cstruct.t) Lwt.t
 end = struct
   open Coding
 
-  let init_dh ~peer ~public ~group =
-    let body = encode_kx_init ~public ~group in
+  let init_dh ~this ~peer ~public ~group =
+    let body = encode_kx_init ~peer:this ~public ~group in
     Http_client.post ~peer ~path:"/kx/init" ~body >|= fun (c,b) -> 
       if c=200 then 
         try decode_kx_reply b with
@@ -21,7 +21,7 @@ end
 
 module KS : sig  
   type t
-  val empty      : capacity:int -> master:Cstruct.t -> t  
+  val empty      : address:Peer.t -> capacity:int -> master:Cstruct.t -> t  
   val invalidate : ks:t -> peer:Peer.t -> t 
   val mediate    : ks:t -> peer:Peer.t -> group:Dh.group -> public:Cstruct.t -> t * Cstruct.t
   val lookup     : ks:t -> peer:Peer.t -> Cstruct.t option * t
@@ -35,12 +35,13 @@ end = struct
   module KC = Lru.F.Make(Peer)(V)
   
   type t = {
-    master : Cstruct.t ;
-    cache  : KC.t ;
+    address : Peer.t    ;
+    master  : Cstruct.t ;
+    cache   : KC.t      ;
   }
-  
-  let empty ~capacity ~master =
-    { master; cache = KC.empty capacity}
+
+  let empty ~address ~capacity ~master =
+    { address; master; cache = KC.empty capacity}
 
   let invalidate ~ks ~peer = {ks with cache = KC.remove peer ks.cache}
 
@@ -60,8 +61,9 @@ end = struct
     | (Some key, ks') -> return (ks', key)
     | (None    , _  ) -> 
         let group = Dh.gen_group 256 in
-        let secret, public = Dh.gen_key group in 
-        HTTP.init_dh ~peer ~public ~group >|= fun public' -> 
+        let secret, public = Dh.gen_key group in
+        let this = ks.address in 
+        HTTP.init_dh ~this ~peer ~public ~group >|= fun (peer',public') -> 
         match Dh.shared group secret public' with 
         | Some shared -> ({ks with cache = KC.add peer shared ks.cache}, shared)
         | None        -> raise Key_exchange_failed 
