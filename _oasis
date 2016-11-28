@@ -11,10 +11,10 @@ OASISFormat: 0.4
 BuildTools: ocamlbuild
 Plugins: META (0.4), DevFiles (0.4)
 
-Library "osilo"
+Library osilo
   Path: src
-  Modules: Coding, Cryptography,  Http_client, Http_server,
-           Peer,   Serialisation, Silo,        Wm
+  Modules:      Coding,     Cryptography,     Http_client,   Http_server,
+                Peer,       Serialisation,    Silo,          Wm
   BuildDepends: core,       cstruct,          cohttp.lwt,    datakit-client,
                 logs,       lwt,              nocrypto.unix, psq, 
                 lru,        protocol-9p.unix, sexplib,       uri,
