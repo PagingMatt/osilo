@@ -26,7 +26,10 @@ class kx_init s = object(self)
     Cohttp_lwt_body.to_string rd.Wm.Rd.req_body 
     >>= fun message -> 
       let (peer,public,group) = Coding.decode_kx_init ~message in
-      let ks,public' = Cryptography.KS.mediate ~ks:s#get_keying_service ~peer ~group ~public in 
+      let ks,public' = Cryptography.KS.mediate ~ks:s#get_keying_service ~peer ~group ~public in
+      (match KS.lookup ~ks ~peer with
+      | Some k,_ -> print_endline (Printf.sprintf "%s" (k |> Nocrypto.Base64.encode |> Cstruct.to_string))
+      | None,_ -> print_endline "shit.");
       (s#set_keying_service ks);
       let reply = Coding.encode_kx_reply ~peer:(s#get_address) ~public:public' in
       let r     = reply |> Cohttp_lwt_body.of_string in
@@ -57,7 +60,7 @@ class server hostname port key silo_host = object(self)
   method get_keying_service = keying_service
   method set_keying_service k = keying_service <- k
 
-  val mutable silo_client : Client.t = Client.make ~server:(Uri.make ~host:silo_host ())
+  (*val mutable silo_client : Client.t = Client.make ~server:(Uri.make ~host:silo_host ())*)
 
   method private callback _ request body =
     let api = [
