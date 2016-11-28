@@ -18,7 +18,7 @@ class kx_init s = object(self)
   
   method allowed_methods rd = Wm.continue [`POST] rd
 
-  method to_json rd = 
+  method private to_json rd = 
     Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body 
     >>= fun s -> Wm.continue (`String s) rd
 
@@ -26,9 +26,9 @@ class kx_init s = object(self)
     Cohttp_lwt_body.to_string rd.Wm.Rd.req_body 
     >>= fun message -> 
       let (peer,public,group) = Coding.decode_kx_init ~message in
-      let ks,public' = Cryptography.KS.mediate ~ks:s#keying_service ~peer ~group ~public in 
+      let ks,public' = Cryptography.KS.mediate ~ks:s#get_keying_service ~peer ~group ~public in 
       (s#set_keying_service ks);
-      let reply = Coding.encode_kx_reply ~peer:(s#address) ~public:public' in
+      let reply = Coding.encode_kx_reply ~peer:(s#get_address) ~public:public' in
       let r     = reply |> Cohttp_lwt_body.of_string in
       let rd'   = {rd with resp_body=r } in
       Wm.continue true rd'         
@@ -51,16 +51,18 @@ end
 
 class server hostname port key silo_host = object(self)
   val address : Peer.t = Peer.create hostname port
- 
-  val mutable keying_service : KS.t = KS.empty ~address:(Peer.create hostname port) ~capacity:1024 ~master:key
+  method get_address = address 
 
+  val mutable keying_service : KS.t = KS.empty ~address:(Peer.create hostname port) ~capacity:1024 ~master:key
+  method get_keying_service = keying_service
   method set_keying_service k = keying_service <- k
 
   val mutable silo_client : Client.t = Client.make ~server:(Uri.make ~host:silo_host ())
 
   method private callback _ request body =
     let api = [
-      ("/ping/", fun () -> new ping self);
+      ("/ping/"   , fun () -> new ping    self);
+      ("/kx/init/", fun () -> new kx_init self);
     ] in
     Wm.dispatch' api ~body ~request 
     >|= begin function
