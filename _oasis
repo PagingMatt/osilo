@@ -20,14 +20,14 @@ Library "osilo"
                 lru,        protocol-9p.unix, sexplib,       uri,
                 webmachine, yojson,           threads
 
-Executable "server"
-  Path: src
+Executable server
+  Path: server
   MainIs: Osilo_server.ml
   CompiledObject: best
   BuildDepends: osilo
 
-Executable "client"
-  Path: src
+Executable client
+  Path: client
   MainIs: Osilo_client.ml
   CompiledObject: best
   BuildDepends: osilo
