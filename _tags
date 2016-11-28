@@ -1,4 +1,4 @@
 # OASIS_START
 true: annot, bin_annot
-<src/Cryptography.ml> : thread
+true: thread
 # OASIS_STOP

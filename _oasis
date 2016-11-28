@@ -11,14 +11,36 @@ OASISFormat: 0.4
 BuildTools: ocamlbuild
 Plugins: META (0.4), DevFiles (0.4)
 
-Executable "server"
+Library osilo
   Path: src
+  Modules:      Coding,     Cryptography,  Http_client, Http_server,
+                Peer,       Serialisation, Silo,        Wm
+  BuildDepends: core,       cstruct,       cohttp.lwt,  datakit-client,
+                lwt,        nocrypto.unix, lru,         protocol-9p.unix, 
+                sexplib,    uri,           webmachine,  yojson,
+                threads
+
+Executable server
+  Path: server
   MainIs: Osilo_server.ml
   CompiledObject: best
-  BuildDepends: core,cstruct,cohttp.lwt,datakit-client,logs,lwt,nocrypto,lru,protocol-9p.unix,sexplib,uri,webmachine,yojson,threads
+  BuildDepends: osilo
 
-Executable "client"
-  Path: src
+Executable client
+  Path: client
   MainIs: Osilo_client.ml
   CompiledObject: best
-  BuildDepends: core,cohttp.lwt,lwt,uri,threads
+  BuildDepends: osilo
+
+Executable osilo_tests
+  Path: tests
+  MainIs: test_src.ml
+  Build$: flag(tests)
+  CompiledObject: best
+  Install: false
+  BuildDepends: alcotest,osilo
+
+Test osilo_tests
+  Run$: flag(tests)
+  Command: $osilo_tests
+  WorkingDirectory: tests
