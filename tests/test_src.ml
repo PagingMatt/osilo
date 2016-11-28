@@ -81,7 +81,7 @@ module Cryptography_tests = struct
   let group = Nocrypto.Dh.gen_group 32
 
   let can_mediate_key_exchange () =
-    let ks = KS.empty 4 in
+    let ks = KS.empty ~capacity:4 ~master:(Cstruct.of_string "test") in
     let peer = Peer.create "localhost" 8000 in
     let peer_secret,peer_public = Nocrypto.Dh.gen_key group in
     let ks2,my_public = KS.mediate ~ks ~peer ~group ~public:peer_public in

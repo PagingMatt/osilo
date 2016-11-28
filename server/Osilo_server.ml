@@ -9,7 +9,7 @@ module Terminal = struct
         +> flag "-p" (optional_with_default 8000 int)
         ~doc:"  Port to listen for REST API calls on."
       )
-      (fun p () -> Lwt_main.run (Http_server.start p))
+      (fun p () -> Lwt_main.run (Http_server.start ~port:p ~silo:(Uri.make ~host:"localhost" ()) ~master:(Cstruct.of_string "test")))
 
   let commands = 
     Command.group 

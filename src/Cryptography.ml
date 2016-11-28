@@ -21,7 +21,7 @@ end
 
 module KS : sig  
   type t
-  val empty      : capacity:int -> t  
+  val empty      : capacity:int -> master:Cstruct.t -> t  
   val invalidate : ks:t -> peer:Peer.t -> t 
   val mediate    : ks:t -> peer:Peer.t -> group:Dh.group -> public:Cstruct.t -> t * Cstruct.t
   val lookup     : ks:t -> peer:Peer.t -> Cstruct.t option * t
@@ -35,23 +35,24 @@ end = struct
   module KC = Lru.F.Make(Peer)(V)
   
   type t = {
+    master : Cstruct.t ;
     cache  : KC.t ;
   }
   
-  let empty ~capacity =
-    {cache = KC.empty capacity}
+  let empty ~capacity ~master =
+    { master; cache = KC.empty capacity}
 
-  let invalidate ~ks ~peer = {cache = KC.remove peer ks.cache}
+  let invalidate ~ks ~peer = {ks with cache = KC.remove peer ks.cache}
 
   let mediate ~ks ~peer ~group ~public = 
     let secret, public' = Dh.gen_key group in 
     match Dh.shared group secret public with
-    | Some shared -> {cache = KC.add peer shared ks.cache},public'
+    | Some shared -> {ks with cache = KC.add peer shared ks.cache},public'
     | None        -> raise Key_exchange_failed
 
   let lookup ~ks ~peer = 
     match KC.find peer ks.cache with
-    | Some (k, c) -> (Some k, {cache = c})
+    | Some (k, c) -> (Some k, {ks with cache = c})
     | None        -> (None  , ks)
 
   let lookup' ~ks ~peer =
@@ -62,7 +63,7 @@ end = struct
         let secret, public = Dh.gen_key group in 
         HTTP.init_dh ~peer ~public ~group >|= fun public' -> 
         match Dh.shared group secret public' with 
-        | Some shared -> ({cache = KC.add peer shared ks.cache}, shared)
+        | Some shared -> ({ks with cache = KC.add peer shared ks.cache}, shared)
         | None        -> raise Key_exchange_failed 
 end
 

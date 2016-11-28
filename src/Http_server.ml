@@ -1,8 +1,10 @@
 open Cohttp_lwt
 open Cohttp_lwt_unix
 open Cohttp_lwt_unix_io
-
 open Lwt.Infix
+
+let keying_service = ref None
+let datakit_client = ref None
 
 class ping = object(self)
   inherit [Cohttp_lwt_body.t] Wm.resource
@@ -31,7 +33,9 @@ let callback _ request body =
       end
   >>= fun (status, headers, body, _) -> Server.respond ~headers ~status ~body ()
 
-let start ~port =
+let start ~port ~silo ~master =
   let server = Server.make ~callback () in
   let mode   = `TCP (`Port port) in
+  keying_service := Some (Cryptography.KS.empty ~capacity:1024 ~master);
+  datakit_client := Some (Silo.Client.make ~server:silo); 
   Server.create ~mode server
