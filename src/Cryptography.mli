@@ -30,7 +30,8 @@ module KS : sig
     public:Cstruct.t -> t * Cstruct.t
   (** [mediate ~ks ~peer ~group ~public] mediates a Diffie-Helmann key exchange with [peer] using
   the public key [public] and group [group]. It gives a pair containing [ks] with an updated or
-  new mapping from [peer] in its cache and the shared secret between this and [peer].*)
+  new mapping from [peer] in its cache and the public key to send back to this [peer] to complete
+  the key exchange. *)
 
   val lookup : 
     ks:t        -> 
