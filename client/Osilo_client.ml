@@ -1,5 +1,6 @@
 open Core.Std
 open Lwt.Infix
+open Logs
 
 exception Kx_failed
 
@@ -52,5 +53,7 @@ module Terminal = struct
 end
 
 let () = 
+  Logs.set_reporter (Logs_fmt.reporter ());
+  Logs.set_level (Some Logs.Info);
   Nocrypto_entropy_unix.initialize ();
   Command.run Terminal.commands
