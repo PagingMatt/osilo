@@ -2,6 +2,9 @@ open Lwt.Infix
 open Result
 open Protocol_9p
 
+let src = Logs.Src.create ~doc:"logger for datakit entrypoint" "osilo.silo"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Client : sig
   type t
   exception Failed_to_make_silo_client of Uri.t
@@ -30,7 +33,9 @@ end = struct
   exception Failed_to_make_silo_client of Uri.t
 
   let create ~server =
-    { server = (Printf.sprintf "%s:5640" server) }
+    let address = Printf.sprintf "%s:5640" server in
+    Log.info (fun m -> m "Creating silo client for Datakit server at %s" address);
+    { server = address }
 
   let server c = c.server
 
@@ -44,15 +49,24 @@ exception Checkout_failed
 exception Write_failed
 
 let checkout client service = 
+  Log.info (fun m -> m "Checking out branch %s on %s" service (Client.server client));
   Client.Silo_9p_client.connect "tcp" (Client.server client) () 
   >|= begin function
-      | Ok conn_9p  -> conn_9p |> Client.Silo_datakit_client.connect
-      | Error error -> raise Checkout_failed
+      | Ok conn_9p  -> 
+          Log.info (fun m -> m "Connected to server %s" (Client.server client));
+          conn_9p |> Client.Silo_datakit_client.connect
+      | Error error -> 
+          Log.err (fun m -> m "Failed to connect to %s" (Client.server client)); 
+          raise Checkout_failed
       end
   >>= fun conn_dk -> Client.Silo_datakit_client.branch conn_dk service 
   >|= begin function
-      | Ok branch   -> branch
-      | Error error -> raise Checkout_failed
+      | Ok branch   -> 
+          Log.info (fun m -> m "Checked out branch %s on %s" service (Client.server client));
+          branch
+      | Error error -> 
+          Log.err (fun m -> m "Failed to checkout branch %s on %s" service (Client.server client)); 
+          raise Checkout_failed
       end
 
 let write ~client ~service ~file ~contents =
@@ -72,11 +86,16 @@ let write ~client ~service ~file ~contents =
       end
 
 let read ~client ~service ~file =
+  Log.info (fun m -> m "Reading %s on service %s from server %s" file service (Client.server client));
   checkout client service
   >>= fun branch -> 
     Client.Silo_datakit_client.Branch.with_transaction branch 
     (fun tr -> Client.Silo_datakit_client.Transaction.read_file tr (Datakit_path.of_string_exn file))
   >|= begin function
-      | Ok cstruct  -> Some (cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
-      | Error error -> None
+      | Ok cstruct  -> 
+          Log.info (fun m -> m "Read file %s on service %s from server %s" file service (Client.server client));
+          Some (cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
+      | Error error -> 
+          Log.err (fun m -> m "Failed to read file %s on service %s from server %s" file service (Client.server client));
+          None
       end
