@@ -15,7 +15,7 @@ module Terminal = struct
         +> flag "-dh" (required string)
         ~doc:"  Hostname of Datakit server"
       )
-      (fun h p k dh () -> Lwt_main.run ((new Http_server.server h p (Coding.decode_cstruct k) dh )#start ()))
+      (fun h p k dh () -> Lwt_main.run (new Http_server.server h p (Coding.decode_cstruct k) dh )#start)
 
   let commands = 
     Command.group 

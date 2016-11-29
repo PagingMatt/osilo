@@ -74,7 +74,7 @@ class server hostname port key silo_host = object(self)
         end
     >>= fun (status, headers, body, _) -> Server.respond ~headers ~status ~body ()
 
-  method start ()  =
+  method start =
     let server = Server.make ~callback:self#callback () in
     let mode   = `TCP (`Port port) in
     Server.create ~mode server
