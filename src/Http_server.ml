@@ -6,6 +6,9 @@ open Lwt.Infix
 open Cryptography
 open Silo
 
+let src = Logs.Src.create ~doc:"logger for osilo REST server" "osilo.http_server"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 class kx_init s = object(self)
   inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -25,9 +28,12 @@ class kx_init s = object(self)
   method process_post rd =
     Cohttp_lwt_body.to_string rd.Wm.Rd.req_body 
     >>= fun message -> 
-      let (peer,public,group) = Coding.decode_kx_init ~message in
-      let ks,public' = Cryptography.KS.mediate ~ks:s#get_keying_service ~peer ~group ~public in
+      let (peer,public,group) = Log.info (fun m -> m "A remote peer has initiated a key exchange."); Coding.decode_kx_init ~message in
+      let ks,public' = 
+        Cryptography.KS.mediate ~ks:s#get_keying_service ~peer ~group ~public in
       (s#set_keying_service ks);
+      Log.info (fun m -> m "Mediated key exchange with (%s,%d), passing back public key '%s'" 
+        (Peer.host peer) (Peer.port peer) (public' |> Nocrypto.Base64.encode |> Cstruct.to_string));
       let reply = Coding.encode_kx_reply ~peer:(s#get_address) ~public:public' in
       let r     = reply |> Cohttp_lwt_body.of_string in
       let rd'   = {rd with resp_body=r } in
@@ -45,7 +51,7 @@ class ping s = object(self)
   method allowed_methods rd = Wm.continue [`GET] rd
 
   method private to_text rd = 
-    let text = "pong" in 
+    let text = Log.info (fun m -> m "Pinged."); "pong" in 
     Wm.continue (`String (Printf.sprintf "%s" text)) rd
 end
 
@@ -74,5 +80,6 @@ class server hostname port key silo_host = object(self)
   method start =
     let server = Server.make ~callback:self#callback () in
     let mode   = `TCP (`Port port) in
+    Log.info (fun m -> m "Starting REST server on port %d, hostname is %s" port hostname); 
     Server.create ~mode server
 end
