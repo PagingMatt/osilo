@@ -1,7 +1,11 @@
 open Lwt
 open Lwt.Infix
+open Core.Std
 open Cohttp
 open Cohttp_lwt_unix
+
+let src = Logs.Src.create ~doc:"logger for HTTP client" "osilo.http_client"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 let build_uri ~peer ~path = 
   Uri.make ~scheme:"http" ~host:(Peer.host peer) ~port:(Peer.port peer) ~path:path ()
@@ -12,9 +16,13 @@ let handle_http_resp (r,b) =
   >|= fun body -> (code,body)
 
 let get ~peer ~path =
-  Client.get (build_uri ~peer ~path) 
+  let uri = build_uri ~peer ~path in
+  Log.info (fun m -> m "GET %s" (Uri.to_string uri));
+  Client.get uri
   >>= handle_http_resp
 
 let post ~peer ~path ~body =
-  Client.post (build_uri ~peer ~path) ~body:(Cohttp_lwt_body.of_string body) 
+  let uri = build_uri ~peer ~path in
+  Log.info (fun m -> m "POST %s... to %s" (String.sub body 0 8) (Uri.to_string uri));
+  Client.post uri ~body:(Cohttp_lwt_body.of_string body) 
   >>= handle_http_resp
