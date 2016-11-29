@@ -13,9 +13,12 @@ module KS : sig
   (* Internal representation fo the keying service *)
 
   val empty : 
-    capacity:int -> t
-  (** Constructor for keying service with an empty cache. [empty ~capacity] gives a keying service
-  with an empty cache that can hold [capacity] keys. *)
+    address:Peer.t ->
+    capacity:int ->
+    master:Cstruct.t -> t
+  (** Constructor for keying service with an empty cache. [empty ~capacity ~master] gives a keying 
+  service with an empty cache that can hold [capacity] keys, the private key for which is [master]. 
+  *)
 
   val invalidate : 
     ks:t        -> 

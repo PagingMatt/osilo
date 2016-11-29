@@ -17,25 +17,27 @@ val encode_group : Nocrypto.Dh.group -> string
 val decode_group : string -> Nocrypto.Dh.group
 (** [decode_group message] decodes a Diffie-Helmann group from a string representation. *)
 
-val encode_message : ciphertext:Cstruct.t -> iv:Cstruct.t -> string
-(** [encode_encrypted ~ciphertext ~iv] constructs the JSON string encoding [ciphertext] and [iv]. *)
+val encode_message : peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> string
+(** [encode_encrypted ~peer ~ciphertext ~iv] constructs the JSON string encoding [ciphertext] and
+[iv] for this endpoint, [peer]. *)
 
-val decode_message : message:string -> Cstruct.t * Cstruct.t 
+val decode_message : message:string -> Peer.t * Cstruct.t * Cstruct.t 
 (** [decode_encrypted ~message] takes the JSON string [message] which encodes an initial vector and
-ciphertext. The result is the pair containing these. *)
+ciphertext, sent by some [peer]. The result is the tuple containing these. *)
 
-val encode_kx_init : public:Cstruct.t -> group:Nocrypto.Dh.group -> string
-(** [encode_kx_init ~public ~group] encodes the key exchange initialisation message into a JSON 
-string ready for transmission. *)
+val encode_kx_init : peer:Peer.t -> public:Cstruct.t -> group:Nocrypto.Dh.group -> string
+(** [encode_kx_init ~peer ~public ~group] encodes the key exchange initialisation message into a 
+JSON string ready for transmission, for this [peer]. *)
 
-val decode_kx_init : message:string -> Cstruct.t * Nocrypto.Dh.group
+val decode_kx_init : message:string -> Peer.t * Cstruct.t * Nocrypto.Dh.group
 (** [decode_kx_init ~message] decodes a key exchange initialisation message from the transmitted
-JSON string. *)
+JSON string, sent by some remote [peer]. *)
 
-val encode_kx_reply : public:Cstruct.t -> string
-(** [encode_kx_reply ~public] encodes a key exchange reply into a JSON string from the calculated
-public key. *)
+val encode_kx_reply : peer:Peer.t -> public:Cstruct.t -> string
+(** [encode_kx_reply ~peer ~public] encodes a key exchange reply into a JSON string from the 
+calculated public key, from this [peer]. *)
 
-val decode_kx_reply : message:string -> Cstruct.t
+val decode_kx_reply : message:string -> Peer.t * Cstruct.t
 (** [decode_kx_reply ~message] takes a JSON string which represents a key exchange reply message
-and decodes it to get the public key. *)
+and decodes it to get the public key and the [peer] that sent it. *)
+
