@@ -4,6 +4,13 @@ open Logs
 
 exception Kx_failed
 
+let get_my host port service file =
+  let peer = Peer.create host port in
+  let body = file in
+  Http_client.post ~peer ~path:(Printf.sprintf "/my/%s" service) ~body
+  >|= fun (c,b) -> 
+        Printf.printf "Response code is %d\n\n%s" c b 
+
 let kx_test host port =
   let group = Nocrypto.Dh.gen_group 32 in
   let s,p   = Nocrypto.Dh.gen_key group in
@@ -36,6 +43,19 @@ module Terminal = struct
       )
       (fun h p () -> Lwt_main.run (kx_test h p))
 
+  let get_my = 
+    Command.basic
+      ~summary:"Get a piece of my data"
+      Command.Spec.(
+        empty
+        +> flag "-h" (required string) ~doc:" Host to target request at."
+        +> flag "-p" (required int   ) ~doc:" Port to talk to at target."
+        +> flag "-s" (required string) ~doc:" Service data is from."
+        +> flag "-f" (required string) ~doc:" Logical file name."
+      )
+      (fun h p s f () -> Lwt_main.run (get_my h p s f))
+
+
   let ping = 
     Command.basic
       ~summary:"Ping specified osilo server."
@@ -49,7 +69,7 @@ module Terminal = struct
   let commands = 
     Command.group 
       ~summary:"Terminal entry point for osilo terminal client."
-      [("kx",kx_test);("ping", ping)]
+      [("get-my",get_my);("kx",kx_test);("ping", ping)]
 end
 
 let () = 
