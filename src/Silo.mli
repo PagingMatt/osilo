@@ -5,7 +5,7 @@ module Client : sig
   exception Failed_to_make_silo_client of Uri.t
   (** [Failed_to_make_silo_client s] is thrown when the [Uri.t] [s] has either no port or no host 
   meaning that a [t] cannot be built of it *)
-  val make : server:Uri.t -> t
+  val create : server:string -> t
   (** [make ~server] gives a [t] for [server]*)
   module Silo_9p_client : sig
     include Protocol_9p.Client.S

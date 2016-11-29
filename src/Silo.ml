@@ -5,7 +5,7 @@ open Protocol_9p
 module Client : sig
   type t
   exception Failed_to_make_silo_client of Uri.t
-  val make : server:Uri.t -> t
+  val create : server:string -> t
   val server : t -> string
   module Silo_9p_client : sig
     include Protocol_9p.Client.S
@@ -29,19 +29,8 @@ end = struct
 
   exception Failed_to_make_silo_client of Uri.t
 
-  let make ~server =
-    let h = 
-      (match Uri.host server with 
-      | Some h' -> h'
-      | None    -> raise (Failed_to_make_silo_client server))
-    in
-    let p = 
-      (match Uri.port server with
-      | Some p' -> p'
-      | None    -> raise (Failed_to_make_silo_client server))
-    in
-    let s = (Printf.sprintf "%s:%d" h p) in
-    { server = s }
+  let create ~server =
+    { server = (Printf.sprintf "%s:5640" server) }
 
   let server c = c.server
 
