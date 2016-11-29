@@ -55,7 +55,7 @@ class ping s = object(self)
     Wm.continue (`String (Printf.sprintf "%s" text)) rd
 end
 
-class server hostname port key silo_host = object(self)
+class server hostname port key silo = object(self)
   val address : Peer.t = Peer.create hostname port
   method get_address = address 
 
@@ -63,7 +63,7 @@ class server hostname port key silo_host = object(self)
   method get_keying_service = keying_service
   method set_keying_service k = keying_service <- k
 
-  (*val mutable silo_client : Client.t = Client.make ~server:(Uri.make ~host:silo_host ())*)
+  val mutable silo_client : Client.t = Client.create ~server:silo
 
   method private callback _ request body =
     let api = [
