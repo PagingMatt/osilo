@@ -1,4 +1,5 @@
 open Core.Std
+open Logs
 
 module Terminal = struct 
   let start =
@@ -23,4 +24,7 @@ module Terminal = struct
       [("start", start)]
 end
 
-let () = Command.run Terminal.commands
+let () = 
+  Logs.set_reporter (Logs_fmt.reporter ());
+  Logs.set_level (Some Logs.Info);
+  Command.run Terminal.commands
