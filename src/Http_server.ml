@@ -1,3 +1,4 @@
+open Core.Std
 open Cohttp_lwt
 open Cohttp_lwt_unix
 open Cohttp_lwt_unix_io
@@ -39,6 +40,50 @@ class kx_init s = object(self)
       let rd'   = {rd with resp_body=r } in
       Wm.continue true rd'         
 end
+
+exception No_path
+exception No_service of string
+exception No_file of string
+
+class my_data s = object(self)
+  inherit [Cohttp_lwt_body.t] Wm.resource
+
+  val mutable data : Yojson.Basic.json option = None
+
+  method content_types_provided rd = 
+    Wm.continue [("text/json", self#to_json)] rd
+
+  method content_types_accepted rd = Wm.continue [] rd
+  
+  method allowed_methods rd = Wm.continue [`POST] rd
+
+  method resource_exists rd =
+    Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+    >>= fun file -> 
+    Log.info (fun m -> m "Checking if resource exists");
+    try 
+      let service =
+        match Wm.Rd.lookup_path_info "service" rd with 
+        | Some p -> Log.info (fun m -> m "Service wildcard was '%s'" p); p
+        | None   -> raise No_path 
+      in
+      Log.info (fun m -> m "Service to read file from is '%s'" service); 
+      Log.info (fun m -> m "File to read from service is '%s'" file); 
+      Silo.read ~client:s#get_silo_client ~service ~file
+      >>= fun j -> (data <- j); Wm.continue (not(data = None)) rd
+    with
+      | No_path      -> Log.err (fun m -> m "No path"); Wm.continue false rd  
+      | No_service s -> Log.err (fun m -> m "No service found in the path '%s'" s); Wm.continue false rd  
+      | No_file s    -> Log.err (fun m -> m "No file found in the path '%s'" s); Wm.continue false rd  
+
+  method private to_json rd =
+    let s,rd' = 
+    match data with
+    | None   -> "",rd
+    | Some j -> let s' = Yojson.Basic.to_string j in
+        s',{rd with resp_body = Cohttp_lwt_body.of_string s'}
+    in Wm.continue (`String s) rd'
+end
   
 class ping s = object(self)
   inherit [Cohttp_lwt_body.t] Wm.resource
@@ -64,11 +109,13 @@ class server hostname port key silo = object(self)
   method set_keying_service k = keying_service <- k
 
   val mutable silo_client : Client.t = Client.create ~server:silo
+  method get_silo_client = silo_client
 
   method private callback _ request body =
     let api = [
-      ("/ping/"   , fun () -> new ping    self);
-      ("/kx/init/", fun () -> new kx_init self);
+      ("/ping/"      , fun () -> new ping    self);
+      ("/kx/init/"   , fun () -> new kx_init self);
+      ("/my/:service", fun () -> new my_data self);
     ] in
     Wm.dispatch' api ~body ~request 
     >|= begin function
