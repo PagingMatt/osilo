@@ -59,6 +59,9 @@ class get_my s = object(self)
 
   method resource_exists rd =
     Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+    >|= (fun message -> Coding.decode_message' ~message)
+    >|= (fun (c,i) -> CS.decrypt' ~key:(s#get_secret_key) ~ciphertext:c ~iv:i)
+    >|= Cstruct.to_string
     >|= Yojson.Basic.from_string
     >|= begin function
         | `List j -> 

@@ -12,8 +12,11 @@ let get_my host port service file key =
     | None   -> raise Get_failed
   in
   let peer = Peer.create host port in
-  let body = `List [`String file] |> Yojson.Basic.to_string in
-  Http_client.post ~peer ~path:(Printf.sprintf "/get/my/%s" service) ~body
+  let plaintext = (`List [`String file]) |> Yojson.Basic.to_string |> Cstruct.of_string in
+  let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
+  let body = Coding.encode_message' ~ciphertext:c ~iv:i in
+  let path = Printf.sprintf "/get/my/%s" service in
+  Printf.printf "%s" body; Http_client.post ~peer ~path ~body
   >|= (fun (c,b) -> Coding.decode_message b) 
   >|= (fun (p,ciphertext,iv) -> Cryptography.CS.decrypt' ~key ~ciphertext ~iv)
   >|= Cstruct.to_string
