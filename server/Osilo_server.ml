@@ -13,10 +13,10 @@ module Terminal = struct
         ~doc:"  Port to listen for REST API calls on."
         +> flag "-k" (required string)
         ~doc:"  Base 64 secret key shared with clients"
-        +> flag "-dh" (required string)
+        +> flag "-ds" (required string)
         ~doc:"  Hostname of Datakit server"
       )
-      (fun h p k dh () -> Lwt_main.run (new Http_server.server h p (Coding.decode_cstruct k) dh )#start)
+      (fun h p k ds () -> Lwt_main.run (new Http_server.server h p (Coding.decode_cstruct k) ds )#start)
 
   let commands = 
     Command.group 

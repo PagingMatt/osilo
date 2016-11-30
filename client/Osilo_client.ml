@@ -2,7 +2,25 @@ open Core.Std
 open Lwt.Infix
 open Logs
 
+exception Get_failed
 exception Kx_failed
+
+let get_my host port service file key =
+  let key  = 
+    match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
+    | Some c -> c
+    | None   -> raise Get_failed
+  in
+  let peer = Peer.create host port in
+  let plaintext = (`List [`String file]) |> Yojson.Basic.to_string |> Cstruct.of_string in
+  let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
+  let body = Coding.encode_message' ~ciphertext:c ~iv:i in
+  let path = Printf.sprintf "/get/my/%s" service in
+  Printf.printf "%s" body; Http_client.post ~peer ~path ~body
+  >|= (fun (c,b) -> Coding.decode_message b) 
+  >|= (fun (p,ciphertext,iv) -> Cryptography.CS.decrypt' ~key ~ciphertext ~iv)
+  >|= Cstruct.to_string
+  >|= (fun m -> Printf.printf "%s\n\n" m) 
 
 let kx_test host port =
   let group = Nocrypto.Dh.gen_group 32 in
@@ -36,6 +54,20 @@ module Terminal = struct
       )
       (fun h p () -> Lwt_main.run (kx_test h p))
 
+  let get_my = 
+    Command.basic
+      ~summary:"Get a piece of my data"
+      Command.Spec.(
+        empty
+        +> flag "-h" (required string) ~doc:" Host to target request at."
+        +> flag "-p" (required int   ) ~doc:" Port to talk to at target."
+        +> flag "-s" (required string) ~doc:" Service data is from."
+        +> flag "-f" (required string) ~doc:" Logical file name."
+        +> flag "-k" (required string) ~doc:" Base64 string private key."
+      )
+      (fun h p s f k () -> Lwt_main.run (get_my h p s f k))
+
+
   let ping = 
     Command.basic
       ~summary:"Ping specified osilo server."
@@ -49,7 +81,7 @@ module Terminal = struct
   let commands = 
     Command.group 
       ~summary:"Terminal entry point for osilo terminal client."
-      [("kx",kx_test);("ping", ping)]
+      [("get-my",get_my);("kx",kx_test);("ping", ping)]
 end
 
 let () = 

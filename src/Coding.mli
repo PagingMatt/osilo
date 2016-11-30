@@ -17,6 +17,10 @@ val encode_group : Nocrypto.Dh.group -> string
 val decode_group : string -> Nocrypto.Dh.group
 (** [decode_group message] decodes a Diffie-Helmann group from a string representation. *)
 
+val encode_message' : ciphertext:Cstruct.t -> iv:Cstruct.t -> string
+
+val decode_message' : message:string ->  Cstruct.t * Cstruct.t 
+
 val encode_message : peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> string
 (** [encode_encrypted ~peer ~ciphertext ~iv] constructs the JSON string encoding [ciphertext] and
 [iv] for this endpoint, [peer]. *)

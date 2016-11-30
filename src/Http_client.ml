@@ -23,6 +23,6 @@ let get ~peer ~path =
 
 let post ~peer ~path ~body =
   let uri = build_uri ~peer ~path in
-  Log.info (fun m -> m "POST %s... to %s" (String.sub body 0 8) (Uri.to_string uri));
+  Log.info (fun m -> m "POST %s... to %s" (String.sub body 0 4) (Uri.to_string uri));
   Client.post uri ~body:(Cohttp_lwt_body.of_string body) 
   >>= handle_http_resp

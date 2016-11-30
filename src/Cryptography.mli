@@ -20,6 +20,9 @@ module KS : sig
   service with an empty cache that can hold [capacity] keys, the private key for which is [master]. 
   *)
 
+  val secret :
+    ks:t -> Cstruct.t
+
   val invalidate : 
     ks:t        -> 
     peer:Peer.t -> t 
@@ -53,6 +56,10 @@ end
 (** Cryptography service depends on a keying service with the responsibility to encrypt and decrypt 
 Cstruct.t messages per peer *)
 module CS : sig
+  val encrypt' :
+    key:Cstruct.t ->
+    plaintext:Cstruct.t -> Cstruct.t * Cstruct.t
+ 
   val encrypt : 
     ks:KS.t             -> 
     peer:Peer.t         -> 
@@ -65,6 +72,11 @@ module CS : sig
 
   exception Decryption_failed
   (** In the case that decryption fails, this exception is thrown. *)
+
+  val decrypt' :
+    key:Cstruct.t ->
+    ciphertext:Cstruct.t ->
+    iv:Cstruct.t -> Cstruct.t
   
   val decrypt : 
     ks:KS.t              -> 

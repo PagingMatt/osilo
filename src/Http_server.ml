@@ -1,3 +1,4 @@
+open Core.Std
 open Cohttp_lwt
 open Cohttp_lwt_unix
 open Cohttp_lwt_unix_io
@@ -39,6 +40,75 @@ class kx_init s = object(self)
       let rd'   = {rd with resp_body=r } in
       Wm.continue true rd'         
 end
+
+exception No_path
+exception No_service of string
+exception No_file of string
+
+class get_my s = object(self)
+  inherit [Cohttp_lwt_body.t] Wm.resource
+
+  val mutable data : Yojson.Basic.json = `Null
+
+  method content_types_provided rd = 
+    Wm.continue [("text/plain", self#to_text)] rd (* encrypted JSON *)
+
+  method content_types_accepted rd = Wm.continue [] rd
+  
+  method allowed_methods rd = Wm.continue [`POST] rd
+
+  method resource_exists rd =
+    Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+    >|= (fun message -> Coding.decode_message' ~message)
+    >|= (fun (c,i) -> CS.decrypt' ~key:(s#get_secret_key) ~ciphertext:c ~iv:i)
+    >|= Cstruct.to_string
+    >|= Yojson.Basic.from_string
+    >|= begin function
+        | `List j -> 
+            let f x = 
+              match x with 
+              | `String s -> s
+              | _         -> raise (No_file "File was not string") 
+            in List.map j ~f
+        | _       -> raise (No_file "No JSON list provided")
+        end
+    >>= fun files ->
+          try 
+            let service =
+              match Wm.Rd.lookup_path_info "service" rd with 
+              | Some p -> Log.info (fun m -> m "Service wildcard was '%s'" p); p
+              | None   -> raise No_path 
+            in
+              Silo.read ~client:s#get_silo_client ~service ~files
+              >>= fun j -> 
+                    (data <- j);
+                    match j with 
+                    | `Assoc _  -> (Wm.continue true  rd)
+                    | _         -> (Wm.continue false rd)  
+          with
+          | No_path      -> Log.err (fun m -> m "No path"); Wm.continue false rd  
+          | No_service s -> Log.err (fun m -> m "No service found in the path '%s'" s); Wm.continue false rd  
+          | No_file s    -> Log.err (fun m -> m "No file found in the path '%s'" s); Wm.continue false rd  
+
+  method process_post rd =
+    let s,rd' = 
+    match data with
+    | `Assoc l -> 
+         Yojson.Basic.to_string (`Assoc l)
+         |> Cstruct.of_string
+         |> (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
+         |> (fun (ciphertext,iv) -> Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv)  
+         |> fun s' -> s',{rd with resp_body = Cohttp_lwt_body.of_string s'}
+    | _ -> "",rd
+    in Wm.continue true rd'        
+
+  method private to_text rd = 
+    Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+    >|= Cstruct.of_string
+    >|= (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
+    >|= (fun (ciphertext,iv) -> Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv)  
+    >>= fun s -> Wm.continue (`String s) rd
+end
   
 class ping s = object(self)
   inherit [Cohttp_lwt_body.t] Wm.resource
@@ -55,20 +125,23 @@ class ping s = object(self)
     Wm.continue (`String (Printf.sprintf "%s" text)) rd
 end
 
-class server hostname port key silo_host = object(self)
+class server hostname port key silo = object(self)
   val address : Peer.t = Peer.create hostname port
   method get_address = address 
 
   val mutable keying_service : KS.t = KS.empty ~address:(Peer.create hostname port) ~capacity:1024 ~master:key
   method get_keying_service = keying_service
   method set_keying_service k = keying_service <- k
+  method get_secret_key = KS.secret keying_service
 
-  (*val mutable silo_client : Client.t = Client.make ~server:(Uri.make ~host:silo_host ())*)
+  val mutable silo_client : Client.t = Client.create ~server:silo
+  method get_silo_client = silo_client
 
   method private callback _ request body =
     let api = [
-      ("/ping/"   , fun () -> new ping    self);
-      ("/kx/init/", fun () -> new kx_init self);
+      ("/ping/"          , fun () -> new ping    self);
+      ("/kx/init/"       , fun () -> new kx_init self);
+      ("/get/my/:service", fun () -> new get_my  self);
     ] in
     Wm.dispatch' api ~body ~request 
     >|= begin function

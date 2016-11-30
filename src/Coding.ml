@@ -45,6 +45,18 @@ let tag_ho = "host"
 let tag_po = "port"
 let tag_me = "message"
 
+let encode_message' ~ciphertext ~iv = 
+  `Assoc [
+    (tag_ct , `String (encode_cstruct ciphertext));
+    (tag_iv , `String (encode_cstruct iv        )) 
+  ] |> Yojson.Basic.to_string
+
+let decode_message' ~message =
+  let j = Yojson.Basic.from_string message in
+  let c = j |> string_member tag_ct |> decode_cstruct in
+  let i = j |> string_member tag_iv |> decode_cstruct in
+  (c,i)
+
 let encode_message ~peer ~ciphertext ~iv = 
   let host = Peer.host peer in
   let port = Peer.port peer in

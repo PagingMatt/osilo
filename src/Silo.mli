@@ -5,7 +5,7 @@ module Client : sig
   exception Failed_to_make_silo_client of Uri.t
   (** [Failed_to_make_silo_client s] is thrown when the [Uri.t] [s] has either no port or no host 
   meaning that a [t] cannot be built of it *)
-  val make : server:Uri.t -> t
+  val create : server:string -> t
   (** [make ~server] gives a [t] for [server]*)
   module Silo_9p_client : sig
     include Protocol_9p.Client.S
@@ -29,6 +29,7 @@ end
 
 exception Checkout_failed
 exception Write_failed
+exception Read_failed
 
 val write :
   client:Client.t ->
@@ -41,9 +42,9 @@ branch in my silo repository. This will overwrite anything currently in this fil
 *)
 
 val read :
-  client:Client.t ->
-  service:string ->
-  file:string -> 
-  (Yojson.Basic.json option) Lwt.t
-(** [read ~service ~file] will return the contents of the [file] on the [service] branch in my silo
-repository. This is an option type so if this doesn't exist then [None] is returned. *)
+  client:Client.t   ->
+  service:string    ->
+  files:string list -> 
+  (Yojson.Basic.json) Lwt.t
+(** [read ~service ~files] will return the contents of each file in [files] on the [service] branch 
+in my silo repository. *)
