@@ -29,6 +29,7 @@ end
 
 exception Checkout_failed
 exception Write_failed
+exception Read_failed
 
 val write :
   client:Client.t ->

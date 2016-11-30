@@ -47,6 +47,7 @@ end
   
 exception Checkout_failed
 exception Write_failed
+exception Read_failed
 
 let checkout client service = 
   Log.info (fun m -> m "Checking out branch %s on %s" service (Client.server client));
@@ -88,9 +89,21 @@ let write ~client ~service ~file ~contents =
 let read ~client ~service ~file =
   Log.info (fun m -> m "Reading %s on service %s from server %s" file service (Client.server client));
   checkout client service
-  >>= fun branch -> 
-    Client.Silo_datakit_client.Branch.with_transaction branch 
-    (fun tr -> Client.Silo_datakit_client.Transaction.read_file tr (Datakit_path.of_string_exn file))
+  >>= Client.Silo_datakit_client.Branch.head
+  >|= begin function 
+      | Ok ptr      -> ptr
+      | Error error ->  
+          Log.err (fun m -> m "Failed to checkout branch %s on %s" service (Client.server client)); 
+          raise Read_failed
+      end
+  >|= begin function
+      | Some head -> head
+      | None      -> 
+          Log.err (fun m -> m "Branch %s doesn't exist on %s" service (Client.server client)); 
+          raise Read_failed
+      end
+  >|= Client.Silo_datakit_client.Commit.tree
+  >>= fun tree -> Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
   >|= begin function
       | Ok cstruct  -> 
           Log.info (fun m -> m "Read file %s on service %s from server %s" file service (Client.server client));
