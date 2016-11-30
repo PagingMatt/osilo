@@ -25,6 +25,7 @@ end
 module KS : sig  
   type t
   val empty      : address:Peer.t -> capacity:int -> master:Cstruct.t -> t  
+  val secret     : ks:t -> Cstruct.t
   val invalidate : ks:t -> peer:Peer.t -> t 
   val mediate    : ks:t -> peer:Peer.t -> group:Dh.group -> public:Cstruct.t -> t * Cstruct.t
   val lookup     : ks:t -> peer:Peer.t -> Cstruct.t option * t
@@ -46,6 +47,9 @@ end = struct
   let empty ~address ~capacity ~master =
     Log.info (fun m -> m "Created empty keying service with capacity %d" capacity);
     { address; master; cache = KC.empty capacity}
+
+  let secret ~ks =
+    ks.master
 
   let invalidate ~ks ~peer = 
     Log.info (fun m -> m "Invalidating (%s,%d) in keying service's cache" (Peer.host peer) (Peer.port peer));
@@ -91,30 +95,37 @@ end = struct
 end
 
 module CS : sig
-  val encrypt : ks:KS.t -> peer:Peer.t -> plaintext:Cstruct.t -> (KS.t * Cstruct.t * Cstruct.t) Lwt.t
+  val encrypt' : key:Cstruct.t -> plaintext:Cstruct.t -> Cstruct.t * Cstruct.t
+  val encrypt  : ks:KS.t -> peer:Peer.t -> plaintext:Cstruct.t -> (KS.t * Cstruct.t * Cstruct.t) Lwt.t
   exception Decryption_failed
-  val decrypt : ks:KS.t -> peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> (KS.t * Cstruct.t)
+  val decrypt' : key:Cstruct.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> Cstruct.t
+  val decrypt  : ks:KS.t -> peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> (KS.t * Cstruct.t)
 end = struct
   open Cipher_block.AES.GCM
 
+  let encrypt' ~key ~plaintext =
+    let key    = of_secret key in
+    let iv     = Rng.generate 256 in 
+    let result = encrypt ~key ~iv plaintext in
+    result.message, iv
+
   let encrypt ~ks ~peer ~plaintext =
     KS.lookup' ks peer >>= fun (k, secret) -> 
-      let key     = of_secret secret in 
-      let iv      = Rng.generate 256 in 
-      let result  = encrypt ~key ~iv plaintext in
-      return (k, result.message, iv)
+      let key        = secret in 
+      let result,iv  = encrypt' ~key ~plaintext in
+      return (k, result, iv)
 
   exception Decryption_failed
 
+  let decrypt' ~key ~ciphertext ~iv =
+    let key = of_secret key in
+    let result = decrypt ~key ~iv ciphertext in
+    result.message
+
   let decrypt ~ks ~peer ~ciphertext ~iv =
     match KS.lookup ks peer with
-    | (Some secret, ks') ->
-        let key    = of_secret secret in 
-        let result = decrypt ~key ~iv ciphertext in
-        ks', result.message
-    | (None, _)          -> 
-        Log.err (fun m -> m "Could not decrypt message.");
-        raise Decryption_failed
+    | (Some key, ks') -> ks', (decrypt' ~key ~ciphertext ~iv)
+    | (None, _) -> raise Decryption_failed
 end
 
 let () = Nocrypto_entropy_unix.initialize ()

@@ -2,14 +2,22 @@ open Core.Std
 open Lwt.Infix
 open Logs
 
+exception Get_failed
 exception Kx_failed
 
-let get_my host port service file =
+let get_my host port service file key =
+  let key  = 
+    match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
+    | Some c -> c
+    | None   -> raise Get_failed
+  in
   let peer = Peer.create host port in
-  let body = file in
-  Http_client.post ~peer ~path:(Printf.sprintf "/my/%s" service) ~body
-  >|= fun (c,b) -> 
-        Printf.printf "Response code is %d\n\n%s" c b 
+  let body = `List [`String file] |> Yojson.Basic.to_string in
+  Http_client.post ~peer ~path:(Printf.sprintf "/get/my/%s" service) ~body
+  >|= (fun (c,b) -> Coding.decode_message b) 
+  >|= (fun (p,ciphertext,iv) -> Cryptography.CS.decrypt' ~key ~ciphertext ~iv)
+  >|= Cstruct.to_string
+  >|= (fun m -> Printf.printf "%s\n\n" m) 
 
 let kx_test host port =
   let group = Nocrypto.Dh.gen_group 32 in
@@ -52,8 +60,9 @@ module Terminal = struct
         +> flag "-p" (required int   ) ~doc:" Port to talk to at target."
         +> flag "-s" (required string) ~doc:" Service data is from."
         +> flag "-f" (required string) ~doc:" Logical file name."
+        +> flag "-k" (required string) ~doc:" Base64 string private key."
       )
-      (fun h p s f () -> Lwt_main.run (get_my h p s f))
+      (fun h p s f k () -> Lwt_main.run (get_my h p s f k))
 
 
   let ping = 

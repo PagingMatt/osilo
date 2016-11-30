@@ -50,24 +50,15 @@ exception Write_failed
 exception Read_failed
 
 let checkout client service = 
-  Log.info (fun m -> m "Checking out branch %s on %s" service (Client.server client));
   Client.Silo_9p_client.connect "tcp" (Client.server client) () 
   >|= begin function
-      | Ok conn_9p  -> 
-          Log.info (fun m -> m "Connected to server %s" (Client.server client));
-          conn_9p |> Client.Silo_datakit_client.connect
-      | Error error -> 
-          Log.err (fun m -> m "Failed to connect to %s" (Client.server client)); 
-          raise Checkout_failed
+      | Ok conn_9p  -> (conn_9p |> Client.Silo_datakit_client.connect)
+      | Error error -> raise Checkout_failed
       end
-  >>= fun conn_dk -> Client.Silo_datakit_client.branch conn_dk service 
+  >>= fun conn_dk -> (Client.Silo_datakit_client.branch conn_dk service) 
   >|= begin function
-      | Ok branch   -> 
-          Log.info (fun m -> m "Checked out branch %s on %s" service (Client.server client));
-          branch
-      | Error error -> 
-          Log.err (fun m -> m "Failed to checkout branch %s on %s" service (Client.server client)); 
-          raise Checkout_failed
+      | Ok branch   -> branch
+      | Error error -> raise Checkout_failed
       end
 
 let write ~client ~service ~file ~contents =
@@ -86,8 +77,8 @@ let write ~client ~service ~file ~contents =
       | Error e -> raise Write_failed
       end
 
-let read ~client ~service ~file =
-  Log.info (fun m -> m "Reading %s on service %s from server %s" file service (Client.server client));
+let read ~client ~service ~files =
+  Log.info (fun m -> m "Reading from service %s from server %s" service (Client.server client));
   checkout client service
   >>= Client.Silo_datakit_client.Branch.head
   >|= begin function 
@@ -103,12 +94,13 @@ let read ~client ~service ~file =
           raise Read_failed
       end
   >|= Client.Silo_datakit_client.Commit.tree
-  >>= fun tree -> Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
-  >|= begin function
-      | Ok cstruct  -> 
-          Log.info (fun m -> m "Read file %s on service %s from server %s" file service (Client.server client));
-          Some (cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
-      | Error error -> 
-          Log.err (fun m -> m "Failed to read file %s on service %s from server %s" file service (Client.server client));
-          None
-      end
+  >>= fun tree ->
+        let f file = 
+          Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
+          >|= begin function
+              | Ok cstruct  -> (Printf.sprintf "%s" file),(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
+              | Error error -> (Printf.sprintf "%s" file),`Null
+              end
+        in
+          (Lwt_list.map_s f files)
+  >|= fun l -> `Assoc l

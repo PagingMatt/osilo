@@ -42,9 +42,9 @@ branch in my silo repository. This will overwrite anything currently in this fil
 *)
 
 val read :
-  client:Client.t ->
-  service:string ->
-  file:string -> 
-  (Yojson.Basic.json option) Lwt.t
-(** [read ~service ~file] will return the contents of the [file] on the [service] branch in my silo
-repository. This is an option type so if this doesn't exist then [None] is returned. *)
+  client:Client.t   ->
+  service:string    ->
+  files:string list -> 
+  (Yojson.Basic.json) Lwt.t
+(** [read ~service ~files] will return the contents of each file in [files] on the [service] branch 
+in my silo repository. *)
