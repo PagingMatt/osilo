@@ -70,19 +70,26 @@ class my_data s = object(self)
       Log.info (fun m -> m "Service to read file from is '%s'" service); 
       Log.info (fun m -> m "File to read from service is '%s'" file); 
       Silo.read ~client:s#get_silo_client ~service ~file
-      >>= fun j -> (data <- j); Wm.continue (not(data = None)) rd
+      >>= fun j -> (data <- j);
+            match j with 
+            | Some j' -> Log.info (fun m -> m "Read %s from silo" (Yojson.Basic.to_string j')); Wm.continue true rd
+            | None    -> Log.info (fun m -> m "Result was None"); Wm.continue false rd            
     with
       | No_path      -> Log.err (fun m -> m "No path"); Wm.continue false rd  
       | No_service s -> Log.err (fun m -> m "No service found in the path '%s'" s); Wm.continue false rd  
       | No_file s    -> Log.err (fun m -> m "No file found in the path '%s'" s); Wm.continue false rd  
 
-  method private to_json rd =
+  method process_post rd =
     let s,rd' = 
     match data with
-    | None   -> "",rd
-    | Some j -> let s' = Yojson.Basic.to_string j in
+    | None   -> Log.info (fun m -> m "Data -> None"); "",rd
+    | Some j -> Log.info (fun m -> m "Data -> %s" (Yojson.Basic.to_string j)); let s' = Yojson.Basic.to_string j in
         s',{rd with resp_body = Cohttp_lwt_body.of_string s'}
-    in Wm.continue (`String s) rd'
+    in Wm.continue true rd'        
+
+  method private to_json rd = 
+    Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body 
+    >>= fun s -> Wm.continue (`String s) rd
 end
   
 class ping s = object(self)
