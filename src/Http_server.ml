@@ -57,13 +57,19 @@ class get s = object(self)
   
   method allowed_methods rd = Wm.continue [`POST] rd
 
+  method private decrypt_message_from_client body =
+    Cohttp_lwt_body.to_string body 
+    >|= (fun message -> Coding.decode_message' ~message)
+    >|= (fun (c,i)   -> CS.decrypt' ~key:(s#get_secret_key) ~ciphertext:c ~iv:i)
+
+  method private encrypt_message_to_client message =
+    Cstruct.of_string message
+    |> (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
+    |> (fun (ciphertext,iv) -> Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv)  
+
   method process_post rd =
-    let plaintext = 
-      rd.Wm.Rd.req_body |> Cohttp_lwt_body.to_string 
-      >|= (fun message -> Coding.decode_message' ~message)
-      >|= (fun (c,i) -> CS.decrypt' ~key:(s#get_secret_key) ~ciphertext:c ~iv:i)
-    in
-    plaintext 
+    let plaintext = self#decrypt_message_from_client rd.Wm.Rd.req_body 
+    in plaintext 
     >|= Cstruct.to_string
     >|= Yojson.Basic.from_string
     >|= begin function
@@ -98,11 +104,9 @@ class get s = object(self)
               match j with 
               | `Assoc _  ->
                 Yojson.Basic.to_string j
-                |> Cstruct.of_string
-                |> (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
-                |> (fun (ciphertext,iv) -> Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv)  
+                |> self#encrypt_message_to_client
                 |> fun s' -> Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string s'}
-              | _           -> Wm.continue false rd  
+              | _         -> Wm.continue false rd  
       with
       | No_path      -> Log.err (fun m -> m "No path"); Wm.continue false rd  
       | No_service s -> Log.err (fun m -> m "No service found in the path '%s'" s); Wm.continue false rd  
