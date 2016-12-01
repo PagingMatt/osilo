@@ -57,6 +57,11 @@ class get s = object(self)
   
   method allowed_methods rd = Wm.continue [`POST] rd
 
+  method private get_path_info_exn rd wildcard =
+    match Wm.Rd.lookup_path_info wildcard rd with 
+    | Some p -> p
+    | None   -> raise No_path 
+
   method private decrypt_message_from_client body =
     Cohttp_lwt_body.to_string body 
     >|= (fun message -> Coding.decode_message' ~message)
@@ -82,16 +87,8 @@ class get s = object(self)
         end
     >>= fun files ->
       try 
-        let peer = 
-          match Wm.Rd.lookup_path_info "peer" rd with 
-          | Some p -> p
-          | None   -> raise No_path 
-        in 
-        let service =
-          match Wm.Rd.lookup_path_info "service" rd with 
-          | Some p -> p
-          | None   -> raise No_path 
-        in
+        let peer    = get_path_info_exn rd "peer"    in 
+        let service = get_path_info_exn rd "service" in
           (if peer=(Peer.host s#get_address) then
             Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service ~files
           else
