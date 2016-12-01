@@ -77,9 +77,9 @@ let write ~client ~service ~file ~contents =
       | Error e -> raise Write_failed
       end
 
-let read ~client ~service ~files =
+let read ~client ~peer ~service ~files =
   Log.info (fun m -> m "Reading from service %s from server %s" service (Client.server client));
-  checkout client service
+  checkout client (Printf.sprintf "%s/%s" (Peer.host peer) service)
   >>= Client.Silo_datakit_client.Branch.head
   >|= begin function 
       | Ok ptr      -> ptr
