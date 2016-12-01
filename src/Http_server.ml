@@ -58,9 +58,12 @@ class get s = object(self)
   method allowed_methods rd = Wm.continue [`POST] rd
 
   method process_post rd =
-    Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-    >|= (fun message -> Coding.decode_message' ~message)
-    >|= (fun (c,i) -> CS.decrypt' ~key:(s#get_secret_key) ~ciphertext:c ~iv:i)
+    let plaintext = 
+      rd.Wm.Rd.req_body |> Cohttp_lwt_body.to_string 
+      >|= (fun message -> Coding.decode_message' ~message)
+      >|= (fun (c,i) -> CS.decrypt' ~key:(s#get_secret_key) ~ciphertext:c ~iv:i)
+    in
+    plaintext 
     >|= Cstruct.to_string
     >|= Yojson.Basic.from_string
     >|= begin function
@@ -73,21 +76,33 @@ class get s = object(self)
         end
     >>= fun files ->
       try 
+        let peer = 
+          match Wm.Rd.lookup_path_info "peer" rd with 
+          | Some p -> p
+          | None   -> raise No_path 
+        in 
         let service =
           match Wm.Rd.lookup_path_info "service" rd with 
           | Some p -> p
           | None   -> raise No_path 
         in
-          Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service ~files
+          (if peer=(Peer.host s#get_address) then
+            Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service ~files
+          else
+            plaintext
+            >>= (fun plaintext -> CS.encrypt ~ks:(s#get_keying_service) ~peer:(Peer.create peer 6620) ~plaintext)
+            >|= (fun (ks,ciphertext,iv) -> s#set_keying_service ks; Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv)
+            >>= (fun body -> Http_client.post ~peer:(Peer.create peer 6620) ~path:(Printf.sprintf "/get/%s/%s" peer service) ~body) 
+            >|= (fun (c,b) -> Yojson.Basic.from_string b))
           >>= fun j -> (data <- j);
-            match j with 
-            | `Assoc _  ->
+              match j with 
+              | `Assoc _  ->
                 Yojson.Basic.to_string j
                 |> Cstruct.of_string
                 |> (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
                 |> (fun (ciphertext,iv) -> Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv)  
                 |> fun s' -> Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string s'}
-            | _           -> Wm.continue false rd  
+              | _           -> Wm.continue false rd  
       with
       | No_path      -> Log.err (fun m -> m "No path"); Wm.continue false rd  
       | No_service s -> Log.err (fun m -> m "No service found in the path '%s'" s); Wm.continue false rd  
