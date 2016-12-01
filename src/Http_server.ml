@@ -87,8 +87,8 @@ class get s = object(self)
         end
     >>= fun files ->
       try 
-        let peer    = get_path_info_exn rd "peer"    in 
-        let service = get_path_info_exn rd "service" in
+        let peer    = self#get_path_info_exn rd "peer"    in 
+        let service = self#get_path_info_exn rd "service" in
           (if peer=(Peer.host s#get_address) then
             Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service ~files
           else
