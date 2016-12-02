@@ -75,7 +75,7 @@ class get s = object(self)
 
   method private encrypt_message_to_peer peer plaintext =
     CS.encrypt ~ks:(s#get_keying_service) ~peer ~plaintext
-    >|= fun (ks,ciphertext,iv) -> s#set_keying_service ks; Coding.encode_message ~peer ~ciphertext ~iv
+    >|= fun (ks,ciphertext,iv) -> s#set_keying_service ks; Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv
 
   method private decrypt_message_from_peer peer ciphertext iv =
     let ks,message = CS.decrypt ~ks:(s#get_keying_service) ~peer ~ciphertext ~iv
