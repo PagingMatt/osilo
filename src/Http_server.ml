@@ -62,10 +62,9 @@ class get s = object(self)
     | Some p -> p
     | None   -> raise No_path 
 
-  method private decrypt_message_from_client body =
-    Cohttp_lwt_body.to_string body 
-    >|= (fun message -> Coding.decode_message' ~message)
-    >|= (fun (c,i)   -> CS.decrypt' ~key:(s#get_secret_key) ~ciphertext:c ~iv:i)
+  method private decrypt_message_from_client message =
+    let ciphertext,iv = Coding.decode_message' ~message in
+    CS.decrypt' ~key:(s#get_secret_key) ~ciphertext ~iv
 
   method private encrypt_message_to_client message =
     Cstruct.of_string message
@@ -74,7 +73,7 @@ class get s = object(self)
 
   method private get_file_list plaintext =
     Cstruct.to_string plaintext
-    |> Yojson.Basic.from_string
+    |> Yojson.Basic.from_string 
     |> begin function
         | `List j -> 
             List.map j begin function
@@ -84,23 +83,23 @@ class get s = object(self)
         | _ -> raise (No_file "No JSON list provided")
         end
 
-  method private get_data peer service plaintext =
-    if peer=(Peer.host s#get_address) then
-      let files = self#get_file_list plaintext in
+  method private get_data target service body =
+    let plaintext = self#decrypt_message_from_client body  in
+    if target=(Peer.host s#get_address) then (* GET this server's data *)
+      let files     = self#get_file_list plaintext           in
       Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service ~files
-    else
-      CS.encrypt ~ks:(s#get_keying_service) ~peer:(Peer.create peer 6620) ~plaintext
+    else (* GET other server's data *)
+      CS.encrypt ~ks:(s#get_keying_service) ~peer:(Peer.create target 6620) ~plaintext
       >|= (fun (ks,ciphertext,iv) -> s#set_keying_service ks; Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv)
-      >>= (fun body -> Http_client.post ~peer:(Peer.create peer 6620) ~path:(Printf.sprintf "/get/%s/%s" peer service) ~body) 
+      >>= (fun body -> Http_client.post ~peer:(Peer.create target 6620) ~path:(Printf.sprintf "/get/%s/%s" target service) ~body) 
       >|= (fun (c,b) -> Yojson.Basic.from_string b)
 
   method process_post rd =
-    let plaintext = self#decrypt_message_from_client rd.Wm.Rd.req_body in 
     try 
-      let peer    = self#get_path_info_exn rd "peer"    in 
-      let service = self#get_path_info_exn rd "service" in
-      plaintext 
-      >>= (fun plaintext -> self#get_data peer service plaintext)
+      let target_peer = self#get_path_info_exn rd "peer"    in 
+      let service     = self#get_path_info_exn rd "service" in
+      Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+      >>= (self#get_data target_peer service)
       >>= fun j -> 
         ((data <- j);
         let st,rd' =
