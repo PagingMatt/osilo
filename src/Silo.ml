@@ -79,7 +79,8 @@ let write ~client ~service ~file ~contents =
 
 let read ~client ~peer ~service ~files =
   Log.info (fun m -> m "Reading from service %s from server %s" service (Client.server client));
-  checkout client (Printf.sprintf "%s/%s" (Peer.host peer) service)
+  let branch = Printf.sprintf "%s" service in
+  checkout client branch
   >>= Client.Silo_datakit_client.Branch.head
   >|= begin function 
       | Ok ptr      -> ptr
