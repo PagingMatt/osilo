@@ -48,7 +48,7 @@ end
 
 exception Peer_requesting_not_my_data of Peer.t * Peer.t
 exception Malformed_data
-exception Fetch_failed
+exception Fetch_failed of Peer.t
 exception No_file of string
 exception Path_info_exn of string
 
@@ -120,7 +120,7 @@ class get s = object(self)
         let plaintext = self#decrypt_message_from_peer target ciphertext iv in
         self#encrypt_message_to_client (Cstruct.to_string plaintext)
       else
-        raise Fetch_failed)
+        raise (Fetch_failed target))
 
   (* Called when a peer has sent GET request *)
   method private peer_get_my_data service source ciphertext iv =
@@ -168,6 +168,8 @@ class get s = object(self)
       with
       | Path_info_exn w -> Log.err (fun m -> m "Could not find wildcard %s in request path %s." w (Uri.to_string rd.Wm.Rd.uri)); Wm.continue false rd
       | Peer_requesting_not_my_data (s,t) -> Log.debug (fun m -> m "Peer %s was requesting data from %s, not from me." (Peer.host s) (Peer.host t)); Wm.continue false rd  
+      | Malformed_data -> Log.debug (fun m -> m "Request for my data contained malformed list of files."); Wm.continue false rd
+      | Fetch_failed t -> Log.debug (fun m -> m "Could not fetch requested data from %s." (Peer.host t)); Wm.continue false rd
 
   method private to_text rd = 
     Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
