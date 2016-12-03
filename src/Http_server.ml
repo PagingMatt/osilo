@@ -29,11 +29,13 @@ class kx_init s = object(self)
   method process_post rd =
     Cohttp_lwt_body.to_string rd.Wm.Rd.req_body 
     >>= fun message -> 
-      let (peer,public,group) = Log.info (fun m -> m "A remote peer has initiated a key exchange."); Coding.decode_kx_init ~message in
+      let (peer,public,group) = 
+        Log.debug (fun m -> m "A remote peer has initiated a key exchange."); 
+        Coding.decode_kx_init ~message in
       let ks,public' = 
         Cryptography.KS.mediate ~ks:s#get_keying_service ~peer ~group ~public in
       (s#set_keying_service ks);
-      Log.info (fun m -> m "Mediated key exchange with (%s,%d), passing back public key '%s'" 
+      Log.debug (fun m -> m "Mediated key exchange with (%s,%d), passing back public key '%s'" 
         (Peer.host peer) (Peer.port peer) (public' |> Nocrypto.Base64.encode |> Cstruct.to_string));
       let reply = Coding.encode_kx_reply ~peer:(s#get_address) ~public:public' in
       let r     = reply |> Cohttp_lwt_body.of_string in
