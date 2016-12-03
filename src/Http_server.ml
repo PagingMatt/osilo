@@ -32,11 +32,14 @@ class kx_init s = object(self)
       let (peer,public,group) = 
         Log.debug (fun m -> m "A remote peer has initiated a key exchange."); 
         Coding.decode_kx_init ~message in
+      Log.debug (fun m -> m "The remote peer is %s. Their public key is '%s' and group is '%s'"
+        (Peer.host peer) (public |> Nocrypto.Base64.encode |> Cstruct.to_string) 
+        (group |> Nocrypto.Dh.sexp_of_group |> Sexp.to_string));
       let ks,public' = 
         Cryptography.KS.mediate ~ks:s#get_keying_service ~peer ~group ~public in
       (s#set_keying_service ks);
-      Log.debug (fun m -> m "Mediated key exchange with (%s,%d), passing back public key '%s'" 
-        (Peer.host peer) (Peer.port peer) (public' |> Nocrypto.Base64.encode |> Cstruct.to_string));
+      Log.debug (fun m -> m "Calculated shared key for %s, passing back public key '%s'" 
+        (Peer.host peer) (public' |> Nocrypto.Base64.encode |> Cstruct.to_string));
       let reply = Coding.encode_kx_reply ~peer:(s#get_address) ~public:public' in
       let r     = reply |> Cohttp_lwt_body.of_string in
       let rd'   = {rd with resp_body=r } in
