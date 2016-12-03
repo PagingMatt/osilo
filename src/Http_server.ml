@@ -162,15 +162,27 @@ class get s = object(self)
           else
             raise (Peer_requesting_not_my_data (source_peer,target_peer))))
       >>= fun response -> 
-        Log.debug (fun m -> m "Returning data to requester.");
+        Log.debug (fun m -> m "Read was successful - putting encrypted data into response body.");
         Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
       with
-      | Path_info_exn w -> Log.err (fun m -> m "Could not find wildcard %s in request path %s." w (Uri.to_string rd.Wm.Rd.uri)); Wm.continue false rd
-      | Peer_requesting_not_my_data (s,t) -> Log.debug (fun m -> m "Peer %s was requesting data from %s, not from me." (Peer.host s) (Peer.host t)); Wm.continue false rd  
-      | Malformed_data -> Log.debug (fun m -> m "Request for my data contained malformed list of files or response from Datakit malformed."); Wm.continue false rd
-      | Fetch_failed t -> Log.debug (fun m -> m "Could not fetch requested data from %s." (Peer.host t)); Wm.continue false rd
+      | Path_info_exn w -> 
+          Log.err (fun m -> m "Read was unsuccessful - could not find wildcard %s in request path %s." 
+            w (Uri.to_string rd.Wm.Rd.uri)); 
+          Wm.continue false rd
+      | Peer_requesting_not_my_data (s,t) -> 
+          Log.debug (fun m -> m "Read was unsuccessful - peer %s was requesting data from %s, not from me." 
+            (Peer.host s) (Peer.host t)); 
+          Wm.continue false rd  
+      | Malformed_data -> 
+          Log.debug (fun m -> m "Read was unsuccessful - request for my data contained malformed list of files or response from Datakit malformed."); 
+          Wm.continue false rd
+      | Fetch_failed t -> 
+          Log.debug (fun m -> m "Read was unsuccessful - could not fetch requested data from %s." 
+            (Peer.host t)); 
+          Wm.continue false rd
 
   method private to_text rd = 
+    Log.debug (fun m -> m "Sending response for read request.");
     Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
     >>= fun s -> Wm.continue (`String s) rd
 end
