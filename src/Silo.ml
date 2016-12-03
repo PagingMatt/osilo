@@ -77,9 +77,10 @@ let write ~client ~service ~file ~contents =
       | Error e -> raise Write_failed
       end
 
-let read ~client ~service ~files =
+let read ~client ~peer ~service ~files =
   Log.info (fun m -> m "Reading from service %s from server %s" service (Client.server client));
-  checkout client service
+  let branch = Printf.sprintf "%s" service in
+  checkout client branch
   >>= Client.Silo_datakit_client.Branch.head
   >|= begin function 
       | Ok ptr      -> ptr

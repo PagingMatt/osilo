@@ -41,11 +41,14 @@ class kx_init s = object(self)
       Wm.continue true rd'         
 end
 
+exception Peer_requesting_not_my_data
+exception Malformed_data
+exception Fetch_failed
 exception No_path
 exception No_service of string
 exception No_file of string
 
-class get_my s = object(self)
+class get s = object(self)
   inherit [Cohttp_lwt_body.t] Wm.resource
 
   val mutable data : Yojson.Basic.json = `Null
@@ -57,56 +60,104 @@ class get_my s = object(self)
   
   method allowed_methods rd = Wm.continue [`POST] rd
 
-  method resource_exists rd =
-    Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-    >|= (fun message -> Coding.decode_message' ~message)
-    >|= (fun (c,i) -> CS.decrypt' ~key:(s#get_secret_key) ~ciphertext:c ~iv:i)
-    >|= Cstruct.to_string
-    >|= Yojson.Basic.from_string
-    >|= begin function
+  method private get_path_info_exn rd wildcard =
+    match Wm.Rd.lookup_path_info wildcard rd with 
+    | Some p -> p
+    | None   -> raise No_path 
+
+  method private decrypt_message_from_client ciphertext iv =
+    CS.decrypt' ~key:(s#get_secret_key) ~ciphertext ~iv
+
+  method private encrypt_message_to_client message =
+    Cstruct.of_string message
+    |> (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
+    |> (fun (ciphertext,iv) -> Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv)  
+
+  method private encrypt_message_to_peer peer plaintext =
+    CS.encrypt ~ks:(s#get_keying_service) ~peer ~plaintext
+    >|= fun (ks,ciphertext,iv) -> s#set_keying_service ks; Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv
+
+  method private decrypt_message_from_peer peer ciphertext iv =
+    let ks,message = CS.decrypt ~ks:(s#get_keying_service) ~peer ~ciphertext ~iv
+    in s#set_keying_service ks; message 
+
+  method private get_file_list plaintext =
+    Cstruct.to_string plaintext
+    |> Yojson.Basic.from_string 
+    |> begin function
         | `List j -> 
-            let f x = 
-              match x with 
-              | `String s -> s
-              | _         -> raise (No_file "File was not string") 
-            in List.map j ~f
-        | _       -> raise (No_file "No JSON list provided")
+            List.map j begin function
+            | `String s -> s
+            | _         -> raise (No_file "File was not string") 
+            end
+        | _ -> raise (No_file "No JSON list provided")
         end
-    >>= fun files ->
-          try 
-            let service =
-              match Wm.Rd.lookup_path_info "service" rd with 
-              | Some p -> Log.info (fun m -> m "Service wildcard was '%s'" p); p
-              | None   -> raise No_path 
-            in
-              Silo.read ~client:s#get_silo_client ~service ~files
-              >>= fun j -> 
-                    (data <- j);
-                    match j with 
-                    | `Assoc _  -> (Wm.continue true  rd)
-                    | _         -> (Wm.continue false rd)  
-          with
-          | No_path      -> Log.err (fun m -> m "No path"); Wm.continue false rd  
-          | No_service s -> Log.err (fun m -> m "No service found in the path '%s'" s); Wm.continue false rd  
-          | No_file s    -> Log.err (fun m -> m "No file found in the path '%s'" s); Wm.continue false rd  
+
+  (* Called when GET came from my client *)
+  method private client_get_my_data service ciphertext iv =
+    let plaintext = self#decrypt_message_from_client ciphertext iv  in
+    let files     = self#get_file_list plaintext           in
+    Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service ~files
+    >|= fun j -> 
+      (data <- j);
+      match j with 
+      | `Assoc _  -> 
+          Yojson.Basic.to_string j 
+          |> self#encrypt_message_to_client 
+      | _         -> raise Malformed_data
+    
+  method private client_get_peer_data target service ciphertext iv =   
+    let plaintext = self#decrypt_message_from_client ciphertext iv in
+    self#encrypt_message_to_peer target plaintext
+    >>= (fun body -> Http_client.post ~peer:target ~path:(Printf.sprintf "/get/%s/%s" (Peer.host target) service) ~body) 
+    >|= (fun (c,b) -> 
+      if c=200 then 
+        let _,ciphertext,iv = Coding.decode_message b in
+        let plaintext = self#decrypt_message_from_peer target ciphertext iv in
+        self#encrypt_message_to_client (Cstruct.to_string plaintext)
+      else
+        raise Fetch_failed)
+
+  (* Called when a peer has sent GET request *)
+  method private peer_get_my_data service source ciphertext iv =
+    let plaintext = self#decrypt_message_from_peer source ciphertext iv in
+    let files = self#get_file_list plaintext in
+    Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service ~files
+    >>= fun j -> 
+      (data <- j);
+      match j with 
+      | `Assoc _  -> 
+          Yojson.Basic.to_string j
+          |> Cstruct.of_string 
+          |> self#encrypt_message_to_peer source
+      | _         -> raise Malformed_data
 
   method process_post rd =
-    let s,rd' = 
-    match data with
-    | `Assoc l -> 
-         Yojson.Basic.to_string (`Assoc l)
-         |> Cstruct.of_string
-         |> (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
-         |> (fun (ciphertext,iv) -> Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv)  
-         |> fun s' -> s',{rd with resp_body = Cohttp_lwt_body.of_string s'}
-    | _ -> "",rd
-    in Wm.continue true rd'        
+    try 
+      let target_peer = Peer.create (self#get_path_info_exn rd "peer") 6620 in 
+      let service     = self#get_path_info_exn rd "service" in
+      Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+      >|= (fun message -> Coding.decode_message ~message)
+      >>= (fun (source_peer,ciphertext,iv) -> 
+        if target_peer = s#get_address then (* GET is for my data *)
+          if source_peer = s#get_address then (* from my client *)
+            self#client_get_my_data service ciphertext iv
+          else (* from some peer *)
+            self#peer_get_my_data service source_peer ciphertext iv 
+        else 
+          if source_peer = s#get_address then (* my client after someone else's data *)
+            self#client_get_peer_data target_peer service ciphertext iv 
+        else
+          (* error - peer after someone's data that isn't mine *)
+          raise Peer_requesting_not_my_data)
+      >>= fun response -> Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
+      with
+      | No_path      -> Log.err (fun m -> m "No path"); Wm.continue false rd  
+      | No_service s -> Log.err (fun m -> m "No service found in the path '%s'" s); Wm.continue false rd  
+      | No_file s    -> Log.err (fun m -> m "No file found in the path '%s'" s); Wm.continue false rd  
 
   method private to_text rd = 
     Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-    >|= Cstruct.of_string
-    >|= (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
-    >|= (fun (ciphertext,iv) -> Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv)  
     >>= fun s -> Wm.continue (`String s) rd
 end
   
@@ -139,9 +190,10 @@ class server hostname port key silo = object(self)
 
   method private callback _ request body =
     let api = [
-      ("/ping/"          , fun () -> new ping    self);
-      ("/kx/init/"       , fun () -> new kx_init self);
-      ("/get/my/:service", fun () -> new get_my  self);
+      ("/ping/"             , fun () -> new ping    self);
+      ("/kx/init/"          , fun () -> new kx_init self);
+      ("/get/:peer/:service", fun () -> new get     self);
+      (*("/set/:peer/:service", fun () -> new set     self);*)
     ] in
     Wm.dispatch' api ~body ~request 
     >|= begin function
