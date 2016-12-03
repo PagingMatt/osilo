@@ -46,12 +46,11 @@ class kx_init s = object(self)
       Wm.continue true rd'         
 end
 
-exception Peer_requesting_not_my_data
+exception Peer_requesting_not_my_data of Peer.t * Peer.t
 exception Malformed_data
 exception Fetch_failed
-exception No_path
-exception No_service of string
 exception No_file of string
+exception Path_info_exn of string
 
 class get s = object(self)
   inherit [Cohttp_lwt_body.t] Wm.resource
@@ -68,7 +67,7 @@ class get s = object(self)
   method private get_path_info_exn rd wildcard =
     match Wm.Rd.lookup_path_info wildcard rd with 
     | Some p -> p
-    | None   -> raise No_path 
+    | None   -> raise (Path_info_exn wildcard) 
 
   method private decrypt_message_from_client ciphertext iv =
     CS.decrypt' ~key:(s#get_secret_key) ~ciphertext ~iv
@@ -138,28 +137,37 @@ class get s = object(self)
       | _         -> raise Malformed_data
 
   method process_post rd =
-    try 
+    try
+      Log.debug (fun m -> m "A read request for some data has been received."); 
       let target_peer = Peer.create (self#get_path_info_exn rd "peer") 6620 in 
       let service     = self#get_path_info_exn rd "service" in
+      Log.debug (fun m -> m "The read request is for data for %s on %s." service (Peer.host target_peer));
       Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
       >|= (fun message -> Coding.decode_message ~message)
       >>= (fun (source_peer,ciphertext,iv) -> 
-        if target_peer = s#get_address then (* GET is for my data *)
-          if source_peer = s#get_address then (* from my client *)
-            self#client_get_my_data service ciphertext iv
-          else (* from some peer *)
-            self#peer_get_my_data service source_peer ciphertext iv 
+        Log.debug (fun m -> m "The read request originated from someone claiming to be %s and has ciphertext '%s' and initial vector '%s'."
+          (Peer.host source_peer) (Cstruct.to_string ciphertext) (Cstruct.to_string iv));
+        if target_peer = s#get_address then
+          (Log.debug (fun m -> m "The read request is for some of my data.");
+          if source_peer = s#get_address then
+            (Log.debug (fun m -> m "The read request for my data is from someone claiming to be a client of mine.");
+            self#client_get_my_data service ciphertext iv)
+          else
+            (Log.debug (fun m -> m "The read request for my data is from someone claiming to be peer %s." (Peer.host source_peer));
+            self#peer_get_my_data service source_peer ciphertext iv))
         else 
-          if source_peer = s#get_address then (* my client after someone else's data *)
-            self#client_get_peer_data target_peer service ciphertext iv 
-        else
-          (* error - peer after someone's data that isn't mine *)
-          raise Peer_requesting_not_my_data)
-      >>= fun response -> Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
+          (Log.debug (fun m -> m "The read request is for another peer's data.");
+          if source_peer = s#get_address then
+            (Log.debug (fun m -> m "The read request for another peer's data is from someone claiming to be a client of mine.");
+            self#client_get_peer_data target_peer service ciphertext iv) 
+          else
+            raise (Peer_requesting_not_my_data (source_peer,target_peer))))
+      >>= fun response -> 
+        Log.debug (fun m -> m "Returning data to requester.");
+        Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
       with
-      | No_path      -> Log.err (fun m -> m "No path"); Wm.continue false rd  
-      | No_service s -> Log.err (fun m -> m "No service found in the path '%s'" s); Wm.continue false rd  
-      | No_file s    -> Log.err (fun m -> m "No file found in the path '%s'" s); Wm.continue false rd  
+      | Path_info_exn w -> Log.err (fun m -> m "Could not find wildcard %s in request path %s." w (Uri.to_string rd.Wm.Rd.uri)); Wm.continue false rd
+      | Peer_requesting_not_my_data (s,t) -> Log.debug (fun m -> m "Peer %s was requesting data from %s, not from me." (Peer.host s) (Peer.host t)); Wm.continue false rd  
 
   method private to_text rd = 
     Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
