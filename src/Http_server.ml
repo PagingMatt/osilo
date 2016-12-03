@@ -231,6 +231,6 @@ class server hostname port key silo = object(self)
   method start =
     let server = Server.make ~callback:self#callback () in
     let mode   = `TCP (`Port port) in
-    Log.info (fun m -> m "Starting REST server on port %d, hostname is %s" port hostname); 
+    Log.info (fun m -> m "Starting osilo REST server for %s on port %d." hostname port); 
     Server.create ~mode server
 end
