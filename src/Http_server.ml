@@ -185,7 +185,7 @@ class ping s = object(self)
   method allowed_methods rd = Wm.continue [`GET] rd
 
   method private to_text rd = 
-    let text = Log.info (fun m -> m "Pinged."); "pong" in 
+    let text = Log.debug (fun m -> m "Have been pinged."); "I am alive." in 
     Wm.continue (`String (Printf.sprintf "%s" text)) rd
 end
 
