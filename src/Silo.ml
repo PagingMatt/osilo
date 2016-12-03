@@ -78,21 +78,16 @@ let write ~client ~service ~file ~contents =
       end
 
 let read ~client ~peer ~service ~files =
-  Log.info (fun m -> m "Reading from service %s from server %s" service (Client.server client));
   let branch = Printf.sprintf "%s" service in
   checkout client branch
   >>= Client.Silo_datakit_client.Branch.head
   >|= begin function 
       | Ok ptr      -> ptr
-      | Error error ->  
-          Log.err (fun m -> m "Failed to checkout branch %s on %s" service (Client.server client)); 
-          raise Read_failed
+      | Error error -> raise Read_failed
       end
   >|= begin function
       | Some head -> head
-      | None      -> 
-          Log.err (fun m -> m "Branch %s doesn't exist on %s" service (Client.server client)); 
-          raise Read_failed
+      | None      -> raise Read_failed
       end
   >|= Client.Silo_datakit_client.Commit.tree
   >>= fun tree ->

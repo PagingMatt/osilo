@@ -29,24 +29,27 @@ class kx_init s = object(self)
   method process_post rd =
     Cohttp_lwt_body.to_string rd.Wm.Rd.req_body 
     >>= fun message -> 
-      let (peer,public,group) = Log.info (fun m -> m "A remote peer has initiated a key exchange."); Coding.decode_kx_init ~message in
+      let (peer,public,group) = 
+        Log.debug (fun m -> m "A remote peer has initiated a key exchange."); 
+        Coding.decode_kx_init ~message in
+      Log.debug (fun m -> m "The remote peer is %s. Their public key is '%s' and group is '%s'"
+        (Peer.host peer) (public |> Nocrypto.Base64.encode |> Cstruct.to_string) 
+        (group |> Nocrypto.Dh.sexp_of_group |> Sexp.to_string));
       let ks,public' = 
         Cryptography.KS.mediate ~ks:s#get_keying_service ~peer ~group ~public in
       (s#set_keying_service ks);
-      Log.info (fun m -> m "Mediated key exchange with (%s,%d), passing back public key '%s'" 
-        (Peer.host peer) (Peer.port peer) (public' |> Nocrypto.Base64.encode |> Cstruct.to_string));
+      Log.debug (fun m -> m "Calculated shared key for %s, passing back public key '%s'" 
+        (Peer.host peer) (public' |> Nocrypto.Base64.encode |> Cstruct.to_string));
       let reply = Coding.encode_kx_reply ~peer:(s#get_address) ~public:public' in
       let r     = reply |> Cohttp_lwt_body.of_string in
       let rd'   = {rd with resp_body=r } in
       Wm.continue true rd'         
 end
 
-exception Peer_requesting_not_my_data
+exception Peer_requesting_not_my_data of Peer.t * Peer.t
 exception Malformed_data
-exception Fetch_failed
-exception No_path
-exception No_service of string
-exception No_file of string
+exception Fetch_failed of Peer.t
+exception Path_info_exn of string
 
 class get s = object(self)
   inherit [Cohttp_lwt_body.t] Wm.resource
@@ -63,7 +66,7 @@ class get s = object(self)
   method private get_path_info_exn rd wildcard =
     match Wm.Rd.lookup_path_info wildcard rd with 
     | Some p -> p
-    | None   -> raise No_path 
+    | None   -> raise (Path_info_exn wildcard) 
 
   method private decrypt_message_from_client ciphertext iv =
     CS.decrypt' ~key:(s#get_secret_key) ~ciphertext ~iv
@@ -88,9 +91,9 @@ class get s = object(self)
         | `List j -> 
             List.map j begin function
             | `String s -> s
-            | _         -> raise (No_file "File was not string") 
+            | _         -> raise Malformed_data 
             end
-        | _ -> raise (No_file "No JSON list provided")
+        | _ -> raise Malformed_data
         end
 
   (* Called when GET came from my client *)
@@ -116,7 +119,7 @@ class get s = object(self)
         let plaintext = self#decrypt_message_from_peer target ciphertext iv in
         self#encrypt_message_to_client (Cstruct.to_string plaintext)
       else
-        raise Fetch_failed)
+        raise (Fetch_failed target))
 
   (* Called when a peer has sent GET request *)
   method private peer_get_my_data service source ciphertext iv =
@@ -133,30 +136,53 @@ class get s = object(self)
       | _         -> raise Malformed_data
 
   method process_post rd =
-    try 
+    try
+      Log.debug (fun m -> m "A read request for some data has been received."); 
       let target_peer = Peer.create (self#get_path_info_exn rd "peer") 6620 in 
       let service     = self#get_path_info_exn rd "service" in
+      Log.debug (fun m -> m "The read request is for data for %s on %s." service (Peer.host target_peer));
       Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
       >|= (fun message -> Coding.decode_message ~message)
       >>= (fun (source_peer,ciphertext,iv) -> 
-        if target_peer = s#get_address then (* GET is for my data *)
-          if source_peer = s#get_address then (* from my client *)
-            self#client_get_my_data service ciphertext iv
-          else (* from some peer *)
-            self#peer_get_my_data service source_peer ciphertext iv 
+        Log.debug (fun m -> m "The read request originated from someone claiming to be %s and has ciphertext '%s' and initial vector '%s'."
+          (Peer.host source_peer) (Cstruct.to_string ciphertext) (Cstruct.to_string iv));
+        if target_peer = s#get_address then
+          (Log.debug (fun m -> m "The read request is for some of my data.");
+          if source_peer = s#get_address then
+            (Log.debug (fun m -> m "The read request for my data is from someone claiming to be a client of mine.");
+            self#client_get_my_data service ciphertext iv)
+          else
+            (Log.debug (fun m -> m "The read request for my data is from someone claiming to be peer %s." (Peer.host source_peer));
+            self#peer_get_my_data service source_peer ciphertext iv))
         else 
-          if source_peer = s#get_address then (* my client after someone else's data *)
-            self#client_get_peer_data target_peer service ciphertext iv 
-        else
-          (* error - peer after someone's data that isn't mine *)
-          raise Peer_requesting_not_my_data)
-      >>= fun response -> Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
+          (Log.debug (fun m -> m "The read request is for another peer's data.");
+          if source_peer = s#get_address then
+            (Log.debug (fun m -> m "The read request for another peer's data is from someone claiming to be a client of mine.");
+            self#client_get_peer_data target_peer service ciphertext iv) 
+          else
+            raise (Peer_requesting_not_my_data (source_peer,target_peer))))
+      >>= fun response -> 
+        Log.debug (fun m -> m "Read was successful - putting encrypted data into response body.");
+        Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
       with
-      | No_path      -> Log.err (fun m -> m "No path"); Wm.continue false rd  
-      | No_service s -> Log.err (fun m -> m "No service found in the path '%s'" s); Wm.continue false rd  
-      | No_file s    -> Log.err (fun m -> m "No file found in the path '%s'" s); Wm.continue false rd  
+      | Path_info_exn w -> 
+          Log.err (fun m -> m "Read was unsuccessful - could not find wildcard %s in request path %s." 
+            w (Uri.to_string rd.Wm.Rd.uri)); 
+          Wm.continue false rd
+      | Peer_requesting_not_my_data (s,t) -> 
+          Log.debug (fun m -> m "Read was unsuccessful - peer %s was requesting data from %s, not from me." 
+            (Peer.host s) (Peer.host t)); 
+          Wm.continue false rd  
+      | Malformed_data -> 
+          Log.debug (fun m -> m "Read was unsuccessful - request for my data contained malformed list of files or response from Datakit malformed."); 
+          Wm.continue false rd
+      | Fetch_failed t -> 
+          Log.debug (fun m -> m "Read was unsuccessful - could not fetch requested data from %s." 
+            (Peer.host t)); 
+          Wm.continue false rd
 
   method private to_text rd = 
+    Log.debug (fun m -> m "Sending response for read request.");
     Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
     >>= fun s -> Wm.continue (`String s) rd
 end
@@ -172,7 +198,7 @@ class ping s = object(self)
   method allowed_methods rd = Wm.continue [`GET] rd
 
   method private to_text rd = 
-    let text = Log.info (fun m -> m "Pinged."); "pong" in 
+    let text = Log.debug (fun m -> m "Have been pinged."); "I am alive." in 
     Wm.continue (`String (Printf.sprintf "%s" text)) rd
 end
 
@@ -205,6 +231,6 @@ class server hostname port key silo = object(self)
   method start =
     let server = Server.make ~callback:self#callback () in
     let mode   = `TCP (`Port port) in
-    Log.info (fun m -> m "Starting REST server on port %d, hostname is %s" port hostname); 
+    Log.info (fun m -> m "Starting osilo REST server for %s on port %d." hostname port); 
     Server.create ~mode server
 end

@@ -3,9 +3,6 @@ open Lwt
 open Lwt.Infix
 open Sexplib
 
-let src = Logs.Src.create ~doc:"logger for cryptography" "osilo.cryptography"
-module Log = (val Logs.src_log src : Logs.LOG)
-
 exception Key_exchange_failed
 
 module HTTP : sig 
@@ -45,52 +42,39 @@ end = struct
   }
 
   let empty ~address ~capacity ~master =
-    Log.info (fun m -> m "Created empty keying service with capacity %d" capacity);
     { address; master; cache = KC.empty capacity}
 
   let secret ~ks =
     ks.master
 
   let invalidate ~ks ~peer = 
-    Log.info (fun m -> m "Invalidating (%s,%d) in keying service's cache" (Peer.host peer) (Peer.port peer));
     {ks with cache = KC.remove peer ks.cache}
 
   let mediate ~ks ~peer ~group ~public = 
     let secret, public' = Dh.gen_key group in 
     match Dh.shared group secret public with
     | Some shared -> 
-        Log.info (fun m -> m "Computed shared key for (%s,%d)." (Peer.host peer) (Peer.port peer)); 
         ({ks with cache = KC.add peer shared ks.cache},public')
     | None        -> 
-        Log.err (fun m -> m "Computing shared key for (%s,%d) failed." (Peer.host peer) (Peer.port peer)); 
         raise Key_exchange_failed
 
   let lookup ~ks ~peer = 
-    Log.info (fun m -> m "Looking up (%s,%d) in keying service's cache." (Peer.host peer) (Peer.port peer));
     match KC.find peer ks.cache with
-    | Some (k, c) -> 
-        Log.info (fun m -> m "Shared secret for (%s,%d) found." (Peer.host peer) (Peer.port peer)); 
-        (Some k, {ks with cache = c})
-    | None        -> 
-        Log.info (fun m -> m "No shared secret for (%s,%d) found." (Peer.host peer) (Peer.port peer)); 
-        (None  , ks)
+    | Some (k, c) -> (Some k, {ks with cache = c})
+    | None        -> (None  , ks)
 
   let lookup' ~ks ~peer =
     match lookup ~ks ~peer with
     | (Some key, ks') -> return (ks', key)
     | (None    , _  ) -> 
-        Log.info (fun m -> m "Attempting to get shared secret for (%s,%d)" (Peer.host peer) (Peer.port peer));
         let group = Dh.gen_group 256 in
         let secret, public = Dh.gen_key group in
         let this = ks.address in 
-        Log.info (fun m -> m "Initiating the key exchange with (%s,%d)" (Peer.host peer) (Peer.port peer));
         HTTP.init_dh ~this ~peer ~public ~group >|= fun (peer',public') -> 
         match Dh.shared group secret public' with 
         | Some shared -> 
-            Log.info (fun m -> m "Transparently computed shared key for (%s,%d)." (Peer.host peer) (Peer.port peer)); 
             ({ks with cache = KC.add peer shared ks.cache}, shared)
         | None        -> 
-            Log.err (fun m -> m "Computing shared key for (%s,%d) failed." (Peer.host peer) (Peer.port peer)); 
             raise Key_exchange_failed 
 end
 
