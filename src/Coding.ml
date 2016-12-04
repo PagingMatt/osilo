@@ -70,7 +70,7 @@ let decode_message ~message =
   let p = j |> int_member    tag_po in
   let c = j |> string_member tag_ct |> decode_cstruct in
   let i = j |> string_member tag_iv |> decode_cstruct in
-  let peer = Peer.create h p in
+  let peer = Peer.create h in
   (peer,c,i)
 
 let encode_kx_init ~peer ~public ~group =
@@ -93,7 +93,7 @@ let decode_kx_init ~message =
   let k' = decode_cstruct k          in
   let g  = j |> string_member tag_gr in
   let g' = decode_group g            in
-  let peer = Peer.create h p         in
+  let peer = Peer.create h           in
   (peer,k',g')
 
 let encode_kx_reply ~peer ~public =
@@ -113,6 +113,6 @@ let decode_kx_reply ~message =
   let p = j |> int_member    tag_po in
   let k = j |> string_member tag_pb in
   let k' = decode_cstruct k in 
-  let peer = Peer.create h p in
+  let peer = Peer.create h  in
   (peer,k')
 
