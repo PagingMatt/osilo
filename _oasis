@@ -14,7 +14,7 @@ Plugins: META (0.4), DevFiles (0.4)
 Library osilo
   Path: src
   Modules:      Coding,     Cryptography,  Http_client, Http_server,
-                Peer,       Serialisation, Silo,        Wm
+                Peer,       Silo,          Wm
   BuildDepends: core,       cstruct,       cohttp.lwt,  datakit-client,
                 lwt,        nocrypto.unix, lru,         protocol-9p.unix, 
                 sexplib,    uri,           webmachine,  yojson,
@@ -44,3 +44,12 @@ Test osilo_tests
   Run$: flag(tests)
   Command: $osilo_tests
   WorkingDirectory: tests
+
+AlphaFeatures: ocamlbuild_more_args 
+Document "Osilo_Library" 
+  Type: ocamlbuild (0.4) 
+  BuildTools: ocamldoc
+  Title: API reference for osilo library stack 
+  XOCamlbuildPath: . 
+  XOCamlbuildExtraArgs: "-docflags '-colorize-code -short-functors -charset utf-8'" 
+  XOCamlbuildLibraries: osilo

@@ -31,19 +31,12 @@ exception Checkout_failed
 exception Write_failed
 exception Read_failed
 
-val write :
-  client:Client.t ->
-  service:string -> 
-  file:string ->
-  contents:Yojson.Basic.json -> 
-  unit Lwt.t
-(** [write ~service ~file ~contents] writes the value of [contents] to [file] on the [service]
-branch in my silo repository. This will overwrite anything currently in this file without warning. 
-*)
-
 val read :
   client:Client.t   ->
   peer:Peer.t       ->
   service:string    ->
   files:string list -> 
   (Yojson.Basic.json) Lwt.t
+(** [read ~client ~peer ~service ~files] will read each file from the list of [files] from the 
+[service] on the Datakit server pointed to by [client], for [peer]. [peer] is the [Peer.t] for this
+server. *)
