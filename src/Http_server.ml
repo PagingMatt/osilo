@@ -202,7 +202,7 @@ class ping s = object(self)
     Wm.continue (`String (Printf.sprintf "%s" text)) rd
 end
 
-class server hostname port key silo = object(self)
+class server hostname key silo = object(self)
   val address : Peer.t = Peer.create hostname
   method get_address = address 
 
@@ -230,7 +230,7 @@ class server hostname port key silo = object(self)
 
   method start =
     let server = Server.make ~callback:self#callback () in
-    let mode   = `TCP (`Port port) in
-    Log.info (fun m -> m "Starting osilo REST server for %s on port %d." hostname port); 
+    let mode   = `TCP (`Port 6620) in
+    Log.info (fun m -> m "Starting osilo REST server for %s on port %d." hostname 6620); 
     Server.create ~mode server
 end
