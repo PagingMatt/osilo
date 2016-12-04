@@ -11,7 +11,7 @@ let get_my host port service file key =
     | Some c -> c
     | None   -> raise Get_failed
   in
-  let peer = Peer.create host port in
+  let peer = Peer.create host in
   let plaintext = (`List [`String file]) |> Yojson.Basic.to_string |> Cstruct.of_string in
   let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
   let body = Coding.encode_message ~peer ~ciphertext:c ~iv:i in
@@ -25,8 +25,8 @@ let get_my host port service file key =
 let kx_test host port =
   let group = Nocrypto.Dh.gen_group 32 in
   let s,p   = Nocrypto.Dh.gen_key group in
-  let me    = Peer.create "127.0.0.1" 8001 in
-  let peer  = Peer.create host port in
+  let me    = Peer.create "127.0.0.1" in
+  let peer  = Peer.create host in
   let msg   = Coding.encode_kx_init me p group in
   Http_client.post ~peer ~path:"/kx/init/" ~body:msg
   >|= fun (c,b) ->
@@ -39,7 +39,7 @@ let kx_test host port =
           Printf.printf "%s" (shared |> Nocrypto.Base64.encode |> Cstruct.to_string)
 
 let ping host port =
-  let peer = Peer.create host port in
+  let peer = Peer.create host in
   Http_client.get ~peer ~path:"/ping/";
   >|= fun (c,_) -> Printf.printf "Response code: %d\n" c 
 
