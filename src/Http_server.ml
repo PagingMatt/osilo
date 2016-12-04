@@ -138,7 +138,7 @@ class get s = object(self)
   method process_post rd =
     try
       Log.debug (fun m -> m "A read request for some data has been received."); 
-      let target_peer = Peer.create (self#get_path_info_exn rd "peer") 6620 in 
+      let target_peer = Peer.create (self#get_path_info_exn rd "peer") in 
       let service     = self#get_path_info_exn rd "service" in
       Log.debug (fun m -> m "The read request is for data for %s on %s." service (Peer.host target_peer));
       Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
@@ -202,11 +202,11 @@ class ping s = object(self)
     Wm.continue (`String (Printf.sprintf "%s" text)) rd
 end
 
-class server hostname port key silo = object(self)
-  val address : Peer.t = Peer.create hostname port
+class server hostname key silo = object(self)
+  val address : Peer.t = Peer.create hostname
   method get_address = address 
 
-  val mutable keying_service : KS.t = KS.empty ~address:(Peer.create hostname port) ~capacity:1024 ~master:key
+  val mutable keying_service : KS.t = KS.empty ~address:(Peer.create hostname) ~capacity:1024 ~master:key
   method get_keying_service = keying_service
   method set_keying_service k = keying_service <- k
   method get_secret_key = KS.secret keying_service
@@ -230,7 +230,7 @@ class server hostname port key silo = object(self)
 
   method start =
     let server = Server.make ~callback:self#callback () in
-    let mode   = `TCP (`Port port) in
-    Log.info (fun m -> m "Starting osilo REST server for %s on port %d." hostname port); 
+    let mode   = `TCP (`Port 6620) in
+    Log.info (fun m -> m "Starting osilo REST server for %s on port %d." hostname 6620); 
     Server.create ~mode server
 end

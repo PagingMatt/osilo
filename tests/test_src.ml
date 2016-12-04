@@ -1,8 +1,8 @@
 let cstruct = Alcotest.testable (Cstruct.hexdump_pp) (Cstruct.equal) 
 
 let host = "127.0.0.1"
-let port = 8000
-let peer = Peer.create host port
+let port = 6630
+let peer = Peer.create host
 
 module Peer_tests = struct
   let peer_builds_with_host () =
@@ -11,15 +11,8 @@ module Peer_tests = struct
       host
       (Peer.host peer)
 
-  let peer_builds_with_port () =
-    Alcotest.(check int)
-      "Checks port is stored and retrieved correctly from Peer"
-      port
-      (Peer.port peer)
-
   let tests = [
     ("Correctly builds with host", `Quick, peer_builds_with_host);
-    ("Correctly builds with port", `Quick, peer_builds_with_port);
   ]
 end
 
@@ -82,7 +75,7 @@ module Cryptography_tests = struct
 
   let can_mediate_key_exchange () =
     let ks = KS.empty ~address:peer ~capacity:4 ~master:(Cstruct.of_string "test") in
-    let peer = Peer.create "localhost" 8000 in
+    let peer = Peer.create "localhost" in
     let peer_secret,peer_public = Nocrypto.Dh.gen_key group in
     let ks2,my_public = KS.mediate ~ks ~peer ~group ~public:peer_public in
     let my_shared,ks3 = 
