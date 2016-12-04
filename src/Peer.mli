@@ -3,14 +3,15 @@
 type t
 (* Internal representation for a peer *)
 
-val create : string -> int -> t
-(** [create host port] builds a [t] from a string host and integer port *)
+val create : string -> t
+(** [create host] builds a [t] from a string host *)
 
 val host : t -> string
 (** [host peer] gives the string representing the host name of [peer] *)
 
 val port : t -> int
-(** [port peer] gives the integer representing the port number of [peer] *)
+(** [port peer] gives the integer representing the port number of [peer], this 
+is fixed at 6620. *)
 
 val compare : t -> t-> int
 (** [compare p1 p2] is necessary for Peer.t to be used as a key in the [Lru_map.F] cache 

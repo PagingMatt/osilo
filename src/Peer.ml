@@ -3,8 +3,8 @@ type t = {
   port : int    ;
 }
 
-let create h p =
-  { host = h ; port = p ; } 
+let create h =
+  { host = h ; port = 6620 ; } 
 
 let host p = p.host
 
