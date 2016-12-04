@@ -44,3 +44,12 @@ Test osilo_tests
   Run$: flag(tests)
   Command: $osilo_tests
   WorkingDirectory: tests
+
+AlphaFeatures: ocamlbuild_more_args 
+Document "Osilo_Library" 
+  Type: ocamlbuild (0.4) 
+  BuildTools: ocamldoc
+  Title: API reference for osilo library stack 
+  XOCamlbuildPath: . 
+  XOCamlbuildExtraArgs: "-docflags '-colorize-code -short-functors -charset utf-8'" 
+  XOCamlbuildLibraries: osilo
