@@ -11,15 +11,8 @@ module Peer_tests = struct
       host
       (Peer.host peer)
 
-  let peer_builds_with_port () =
-    Alcotest.(check int)
-      "Checks port is stored and retrieved correctly from Peer"
-      port
-      (Peer.port peer)
-
   let tests = [
     ("Correctly builds with host", `Quick, peer_builds_with_host);
-    ("Correctly builds with port", `Quick, peer_builds_with_port);
   ]
 end
 
