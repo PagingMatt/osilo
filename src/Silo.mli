@@ -26,6 +26,18 @@ exception Checkout_failed
 exception Write_failed
 exception Read_failed
 
+val write :
+  client:Client.t            ->
+  peer:Peer.t                ->
+  service:string             ->
+  contents:Yojson.Basic.json ->
+  unit
+(** [write ~client ~peer ~service ~contents] will take the JSON [contents], it expects this to be 
+[`Assoc of (string * Yojson.Basic.t) list], the [string]s are file paths and the [Yojson.Basic.json]
+is the file contents to write to these file paths. [client] is the client pointing to the correct
+Datakit instance, [peer] is the peer that owns the data that is about to be written and the 
+[service] is the service this data is for. *)
+
 val read :
   client:Client.t   ->
   peer:Peer.t       ->
