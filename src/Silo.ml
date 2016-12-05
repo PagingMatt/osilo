@@ -49,20 +49,28 @@ exception Checkout_failed
 exception Write_failed
 exception Read_failed
 
-let checkout client service = 
+let connect client =
   Client.Silo_9p_client.connect "tcp" (Client.server client) () 
   >|= begin function
-      | Ok conn_9p  -> (conn_9p |> Client.Silo_datakit_client.connect)
+      | Ok conn_9p  -> (conn_9p,(conn_9p |> Client.Silo_datakit_client.connect))
       | Error error -> raise Checkout_failed
       end
-  >>= fun conn_dk -> (Client.Silo_datakit_client.branch conn_dk service) 
+
+let disconnect conn_9p conn_dk =
+  Client.Silo_datakit_client.disconnect conn_dk
+  >>= fun () -> 
+  Client.Silo_9p_client.disconnect conn_9p
+
+let checkout service conn_dk = 
+  Client.Silo_datakit_client.branch conn_dk service 
   >|= begin function
       | Ok branch   -> branch
       | Error error -> raise Checkout_failed
       end
 
 let write ~client ~service ~file ~contents =
-  checkout client service
+  connect client
+  >>= fun (c9p,cdk) -> checkout service cdk
   >>= fun branch -> 
     Client.Silo_datakit_client.Branch.with_transaction branch 
       (fun tr -> 
@@ -79,24 +87,27 @@ let write ~client ~service ~file ~contents =
 
 let read ~client ~peer ~service ~files =
   let branch = Printf.sprintf "%s" service in
-  checkout client branch
-  >>= Client.Silo_datakit_client.Branch.head
-  >|= begin function 
-      | Ok ptr      -> ptr
-      | Error error -> raise Read_failed
-      end
-  >|= begin function
-      | Some head -> head
-      | None      -> raise Read_failed
-      end
-  >|= Client.Silo_datakit_client.Commit.tree
-  >>= fun tree ->
-        let f file = 
-          Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
-          >|= begin function
-              | Ok cstruct  -> (Printf.sprintf "%s" file),(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
-              | Error error -> (Printf.sprintf "%s" file),`Null
-              end
-        in
-          (Lwt_list.map_s f files)
-  >|= fun l -> `Assoc l
+  connect client
+  >>= fun (c9p,cdk) -> 
+    (checkout service cdk
+     >>= fun branch -> Client.Silo_datakit_client.Branch.head branch
+     >|= begin function 
+         | Ok ptr      -> ptr
+         | Error error -> raise Read_failed
+         end
+     >|= begin function
+         | Some head -> head
+         | None      -> raise Read_failed
+         end
+     >|= Client.Silo_datakit_client.Commit.tree
+     >>= fun tree ->
+       let f file = 
+         Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
+         >|= begin function
+             | Ok cstruct  -> (Printf.sprintf "%s" file),(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
+             | Error error -> (Printf.sprintf "%s" file),`Null
+             end
+       in
+         ((Lwt_list.map_s f files)
+         >|= (fun l -> (`Assoc l)) 
+         >>= fun r -> (disconnect c9p cdk >|= fun () -> r)))
