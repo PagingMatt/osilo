@@ -48,8 +48,7 @@ let connect client =
 
 let disconnect conn_9p conn_dk =
   Client.Silo_datakit_client.disconnect conn_dk
-  >>= fun () -> 
-  Client.Silo_9p_client.disconnect conn_9p
+  >>= fun () -> Client.Silo_9p_client.disconnect conn_9p
 
 let checkout service conn_dk = 
   Client.Silo_datakit_client.branch conn_dk service 
@@ -58,22 +57,31 @@ let checkout service conn_dk =
       | Error error -> raise Checkout_failed
       end
 
-let write ~client ~service ~file ~contents =
-  connect client
-  >>= fun (c9p,cdk) -> checkout service cdk
-  >>= fun branch -> 
-    Client.Silo_datakit_client.Branch.with_transaction branch 
-      (fun tr -> 
-      let contents' = Yojson.Basic.to_string contents |> Cstruct.of_string in
-      Client.Silo_datakit_client.Transaction.create_or_replace_file tr (Datakit_path.of_string_exn file) contents' >>=
-      begin function
-      | Ok ()   -> Client.Silo_datakit_client.Transaction.commit tr "Write"
-      | Error e -> raise Write_failed
-      end)
-  >|= begin function
-      | Ok () -> ()
-      | Error e -> raise Write_failed
-      end
+let write ~client ~peer ~service ~contents =
+  let content = 
+    match contents with
+    | `Assoc l -> l
+    | _        -> raise Write_failed
+  in connect client
+  >>= fun (c9p,cdk) -> 
+    (checkout service cdk
+     >>= (fun branch -> 
+       Client.Silo_datakit_client.Branch.with_transaction branch 
+         (fun tr -> 
+           (Lwt_list.iter_s 
+             (fun (f,c) ->
+               let c' = Yojson.Basic.to_string c |> Cstruct.of_string in
+               Client.Silo_datakit_client.Transaction.create_or_replace_file tr (Datakit_path.of_string_exn f) c' 
+               >|= begin function
+                   | Ok ()   -> ()
+                   | Error e -> raise Write_failed
+                   end)
+              content)
+           >>= fun () -> Client.Silo_datakit_client.Transaction.commit tr ~message:"Write to silo")
+     >>= begin function
+         | Ok ()   -> disconnect c9p cdk
+         | Error e -> raise Write_failed 
+         end))
 
 let read ~client ~peer ~service ~files =
   let branch = Printf.sprintf "%s" service in
