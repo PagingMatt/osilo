@@ -39,21 +39,23 @@ exception Checkout_failed
 exception Write_failed
 exception Read_failed
 
+open Client.Silo_datakit_client
+
 let connect client =
   Client.Silo_9p_client.connect "tcp" (Client.server client) () 
   >|= begin function
-      | Ok conn_9p  -> (conn_9p,(conn_9p |> Client.Silo_datakit_client.connect))
+      | Ok conn_9p  -> (conn_9p,(conn_9p |> connect))
       | Error error -> raise Checkout_failed
       end
 
 let disconnect conn_9p conn_dk =
-  Client.Silo_datakit_client.disconnect conn_dk
+  disconnect conn_dk
   >>= fun () -> Client.Silo_9p_client.disconnect conn_9p
 
 let checkout service conn_dk = 
-  Client.Silo_datakit_client.branch conn_dk service 
+  branch conn_dk service 
   >|= begin function
-      | Ok branch   -> branch
+      | Ok branch   -> Log.info (fun m -> m "Checked out %s" (Branch.name branch)); branch
       | Error error -> raise Checkout_failed
       end
 
@@ -66,18 +68,18 @@ let write ~client ~peer ~service ~contents =
   >>= fun (c9p,cdk) -> 
     (checkout service cdk
      >>= (fun branch -> 
-       Client.Silo_datakit_client.Branch.with_transaction branch 
+       Branch.with_transaction branch 
          (fun tr -> 
-           (Lwt_list.iter_s 
-             (fun (f,c) ->
-               let c' = Yojson.Basic.to_string c |> Cstruct.of_string in
-               Client.Silo_datakit_client.Transaction.create_or_replace_file tr (Datakit_path.of_string_exn f) c' 
-               >|= begin function
-                   | Ok ()   -> ()
-                   | Error e -> raise Write_failed
-                   end)
-              content)
-           >>= fun () -> Client.Silo_datakit_client.Transaction.commit tr ~message:"Write to silo")
+            let write_file (f,c) =
+              let c' = Yojson.Basic.to_string c |> Cstruct.of_string in
+              Transaction.create_or_replace_file tr (Datakit_path.of_string_exn f) c' 
+              >|= begin function
+                  | Ok ()   -> Log.info (fun m -> m "Created file"); ()
+                  | Error e -> raise Write_failed
+                  end
+            in
+              (Lwt_list.iter_s write_file content
+              >>= fun () -> (Transaction.commit tr ~message:"Write to silo")))
      >>= begin function
          | Ok ()   -> disconnect c9p cdk
          | Error e -> raise Write_failed 
