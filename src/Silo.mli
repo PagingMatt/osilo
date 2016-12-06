@@ -31,7 +31,7 @@ val write :
   peer:Peer.t                ->
   service:string             ->
   contents:Yojson.Basic.json ->
-  unit
+  unit Lwt.t
 (** [write ~client ~peer ~service ~contents] will take the JSON [contents], it expects this to be 
 [`Assoc of (string * Yojson.Basic.t) list], the [string]s are file paths and the [Yojson.Basic.json]
 is the file contents to write to these file paths. [client] is the client pointing to the correct
