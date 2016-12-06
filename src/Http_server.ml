@@ -10,6 +10,69 @@ open Silo
 let src = Logs.Src.create ~doc:"logger for osilo REST server" "osilo.http_server"
 module Log = (val Logs.src_log src : Logs.LOG)
 
+class set s = object(self)
+  inherit [Cohttp_lwt_body.t] Wm.resource
+
+  method content_types_provided rd =
+
+    Wm.continue [("text/plain", self#to_text)] rd
+
+  method content_types_accepted rd = Wm.continue [] rd
+  method allowed_methods rd = Wm.continue [`POST] rd
+  
+  method private get_file_content_list plaintext =
+    Cstruct.to_string plaintext
+    |> Yojson.Basic.from_string 
+
+  method private get_path_info_exn rd wildcard =
+    match Wm.Rd.lookup_path_info wildcard rd with 
+    | Some p -> p
+    | None   -> raise (Path_info_exn wildcard) 
+
+  method private encrypt_message_to_client message =
+    Cstruct.of_string message
+    |> (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
+    |> (fun (ciphertext,iv) -> Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv)  
+  method private decrypt_message_from_client ciphertext iv =
+
+    CS.decrypt' ~key:(s#get_secret_key) ~ciphertext ~iv
+  method private client_set_my_data service ciphertext iv =
+
+    let plaintext = self#decrypt_message_from_client ciphertext iv  in
+    let contents  = self#get_file_content_list plaintext            in
+    Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service ~contents
+  method process_post rd =
+
+    try
+      Log.debug (fun m -> m "A write request for some data has been received."); 
+      let target_peer = Peer.create (self#get_path_info_exn rd "peer") in 
+      let service     = self#get_path_info_exn rd "service" in
+      Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+      Log.debug (fun m -> m "The write request is for data for %s on %s." service (Peer.host target_peer));
+      >|= (fun message -> Coding.decode_message ~message)
+      >>= (fun (source_peer,ciphertext,iv) -> 
+        Log.debug (fun m -> m "The write request originated from someone claiming to be %s and has ciphertext '%s' and initial vector '%s'."
+        if target_peer = s#get_address then
+          (Peer.host source_peer) (Cstruct.to_string ciphertext) (Cstruct.to_string iv));
+          (Log.debug (fun m -> m "The write request is to be performed on my repository.");
+            (Log.debug (fun m -> m "The write request is from someone claiming to be my client.");
+          if source_peer = s#get_address then
+            self#client_set_my_data service ciphertext iv
+          else
+            >>= fun () -> Wm.continue true {rd with resp_body = (Cohttp_lwt_body.of_string "Successfully written.");})
+            (Log.debug (fun m -> m "The write request is not from my client.");
+            raise Cannot_set))
+        else
+          raise Cannot_set)
+    | _ -> Wm.continue false rd
+    with
+
+    Log.debug (fun m -> m "Sending response for write request.");
+  method private to_text rd = 
+    Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+    >>= fun s -> Wm.continue (`String s) rd
+end
+  
 class server hostname key silo = object(self)
   val address : Peer.t = Peer.create hostname
   method get_address = address 
