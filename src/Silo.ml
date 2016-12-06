@@ -55,7 +55,7 @@ let disconnect conn_9p conn_dk =
 let checkout service conn_dk = 
   branch conn_dk service 
   >|= begin function
-      | Ok branch   -> Log.info (fun m -> m "Checked out %s" (Branch.name branch)); branch
+      | Ok branch   -> branch
       | Error error -> raise Checkout_failed
       end
 
@@ -68,21 +68,28 @@ let write ~client ~peer ~service ~contents =
   >>= fun (c9p,cdk) -> 
     (checkout service cdk
      >>= (fun branch -> 
-       Branch.with_transaction branch 
-         (fun tr -> 
-            let write_file (f,c) =
-              let c' = Yojson.Basic.to_string c |> Cstruct.of_string in
-              Transaction.create_or_replace_file tr (Datakit_path.of_string_exn f) c' 
-              >|= begin function
-                  | Ok ()   -> Log.info (fun m -> m "Created file"); ()
-                  | Error e -> raise Write_failed
-                  end
-            in
-              (Lwt_list.iter_s write_file content
-              >>= fun () -> (Transaction.commit tr ~message:"Write to silo")))
+       Branch.transaction branch 
+       >|= begin function 
+           | Ok tr   -> tr
+           | Error r -> raise Write_failed
+           end 
+       >>= fun tr ->
+         (let write_file (f,c) =
+            let c' = Yojson.Basic.to_string c |> Cstruct.of_string in
+            Transaction.create_or_replace_file tr (Datakit_path.of_string_exn f) c' 
+            >|= begin function
+                | Ok ()   -> ()
+                | Error e -> raise Write_failed
+                end
+          in
+            (try 
+               Lwt_list.iter_s write_file content
+               >>= fun () -> (Transaction.commit tr ~message:"Write to silo")
+             with 
+             | Write_failed -> Transaction.abort tr >|= fun () -> Ok ()))
      >>= begin function
-         | Ok ()   -> disconnect c9p cdk
-         | Error e -> raise Write_failed 
+         | Ok () -> Log.info (fun m -> m "Disconnecting"); disconnect c9p cdk
+         | Error (`Msg msg) -> Log.info (fun m -> m "%s" msg); raise Write_failed 
          end))
 
 let read ~client ~peer ~service ~files =
