@@ -28,7 +28,7 @@ let set_my () =
   let peer = Peer.create "localhost" in
   let plaintext = (`Assoc [("test-file",`String "test value in file")]) |> Yojson.Basic.to_string |> Cstruct.of_string in
   let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
-  let body = Coding.encode_message ~peer ~ciphertext:c ~iv:i in
+  let body = Coding.encode_client_message ~ciphertext:c ~iv:i in
   let path = "/set/localhost/test" in
   Http_client.post ~peer ~path ~body
   >|= fun _ -> ()
