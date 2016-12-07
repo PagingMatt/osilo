@@ -23,6 +23,7 @@ depends: [
   "datakit-client"
   "lru"
   "lwt"
+  "macaroons"
   "nocrypto"
   "ocamlfind" {build}
   "ocamlbuild" {build}
