@@ -12,7 +12,7 @@ end = struct
 
   let init_dh ~this ~peer ~public ~group =
     let body = encode_kx_init ~peer:this ~public ~group in
-    Http_client.post ~peer ~path:"/kx/init" ~body >|= fun (c,b) -> 
+    Http_client.post ~peer ~path:"/peer/kx/init" ~body >|= fun (c,b) -> 
       if c=200 then 
         try decode_kx_reply b with
         | Decoding_failed -> raise Key_exchange_failed

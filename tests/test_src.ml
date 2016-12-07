@@ -34,9 +34,9 @@ module Coding_tests = struct
   let symm_message () =
     let c     = Coding.decode_cstruct a          in
     let i     = Coding.decode_cstruct b          in
-    let s     = Coding.encode_message ~peer ~ciphertext:c ~iv:i   in
-    let p,c',i' = Coding.decode_message s        in
-    let s'    = Coding.encode_message ~peer ~ciphertext:c' ~iv:i' in
+    let s     = Coding.encode_peer_message ~peer ~ciphertext:c ~iv:i   in
+    let p,c',i' = Coding.decode_peer_message s        in
+    let s'    = Coding.encode_peer_message ~peer ~ciphertext:c' ~iv:i' in
     Alcotest.(check cstruct)
       "Checks decoding and re-encoding a message produces the same ciphertext"
       c c';

@@ -17,12 +17,20 @@ val encode_group : Nocrypto.Dh.group -> string
 val decode_group : string -> Nocrypto.Dh.group
 (** [decode_group message] decodes a Diffie-Helmann group from a string representation. *)
 
-val encode_message : peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> string
-(** [encode_encrypted ~peer ~ciphertext ~iv] constructs the JSON string encoding [ciphertext] and
+val encode_client_message : ciphertext:Cstruct.t -> iv:Cstruct.t -> string
+(** [encode_client_message ~ciphertext ~iv] constructs the JSON string encoding [ciphertext] and
+[iv] to send between server and client. *)
+
+val decode_client_message : message:string -> Cstruct.t * Cstruct.t 
+(** [decode_peer_message ~message] takes the JSON string [message] which encodes an initial vector and
+ciphertext, sent by some client. The result is the pair containing these. *)
+
+val encode_peer_message : peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> string
+(** [encode_peer_message ~peer ~ciphertext ~iv] constructs the JSON string encoding [ciphertext] and
 [iv] for this endpoint, [peer]. *)
 
-val decode_message : message:string -> Peer.t * Cstruct.t * Cstruct.t 
-(** [decode_encrypted ~message] takes the JSON string [message] which encodes an initial vector and
+val decode_peer_message : message:string -> Peer.t * Cstruct.t * Cstruct.t 
+(** [decode_peer_message ~message] takes the JSON string [message] which encodes an initial vector and
 ciphertext, sent by some [peer]. The result is the tuple containing these. *)
 
 val encode_kx_init : peer:Peer.t -> public:Cstruct.t -> group:Nocrypto.Dh.group -> string
