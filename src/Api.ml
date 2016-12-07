@@ -50,7 +50,7 @@ let encrypt_message_to_peer peer plaintext s =
   CS.encrypt ~ks:(s#get_keying_service) ~peer ~plaintext
   >|= fun (ks,ciphertext,iv) -> 
     s#set_keying_service ks; 
-    Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv
+    Coding.encode_peer_message ~peer:(s#get_address) ~ciphertext ~iv
 
 module Client = struct
   let decrypt_message_from_client ciphertext iv s =
@@ -59,7 +59,7 @@ module Client = struct
   let encrypt_message_to_client message s =
     Cstruct.of_string message
     |> (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
-    |> (fun (ciphertext,iv) -> Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv) 
+    |> (fun (ciphertext,iv) -> Coding.encode_client_message ~ciphertext ~iv) 
 
   class get_local s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -89,8 +89,8 @@ module Client = struct
       try
         let service     = get_path_info_exn rd "service" in
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_message ~message)
-        >>= (fun (source_peer,ciphertext,iv) -> 
+        >|= (fun message -> Coding.decode_client_message ~message)
+        >>= (fun (ciphertext,iv) -> 
             self#client_get_my_data service ciphertext iv)
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
@@ -126,7 +126,7 @@ module Client = struct
           ~body) 
       >|= (fun (c,b) -> 
         if c=200 then 
-          let _,ciphertext,iv = Coding.decode_message b in
+          let _,ciphertext,iv = Coding.decode_peer_message b in
           let plaintext = decrypt_message_from_peer target ciphertext iv s in
           encrypt_message_to_client (Cstruct.to_string plaintext) s
         else
@@ -137,8 +137,8 @@ module Client = struct
         let target      = Peer.create (get_path_info_exn rd "peer") in
         let service     = get_path_info_exn rd "service"            in
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_message ~message)
-        >>= (fun (source_peer,ciphertext,iv) -> 
+        >|= (fun message -> Coding.decode_client_message ~message)
+        >>= (fun (ciphertext,iv) -> 
             self#client_get_peer_data target service ciphertext iv)
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
@@ -213,7 +213,7 @@ module Peer = struct
       try
         let service     = get_path_info_exn rd "service" in
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_message ~message)
+        >|= (fun message -> Coding.decode_peer_message ~message)
         >>= (fun (source_peer,ciphertext,iv) -> 
           self#peer_get_my_data service source_peer ciphertext iv)
         >>= fun response -> 
