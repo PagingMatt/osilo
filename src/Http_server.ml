@@ -24,9 +24,11 @@ class server hostname key silo = object(self)
 
   method private callback _ request body =
     let api = [
-      ("/ping/"             , fun () -> new Api.ping    self);
-      ("/kx/init/"          , fun () -> new Api.kx_init self);
-      ("/get/:peer/:service", fun () -> new Api.get     self);
+      ("/ping/"                           , fun () -> new Api.ping              self);
+      ("/client/get/local/:service"       , fun () -> new Api.Client.get_local  self);
+      ("/client/get/remote/:peer/:service", fun () -> new Api.Client.get_remote self);
+      ("/peer/kx/init/"                   , fun () -> new Api.Peer.kx_init      self);
+      ("/peer/get/:service"               , fun () -> new Api.Peer.get          self);
       (*("/set/:peer/:service", fun () -> new set     self);*)
     ] in
     Wm.dispatch' api ~body ~request 
