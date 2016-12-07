@@ -29,7 +29,6 @@ class server hostname key silo = object(self)
       ("/client/get/:peer/:service", fun () -> new Api.Client.get_remote self);
       ("/peer/kx/init/"            , fun () -> new Api.Peer.kx_init      self);
       ("/peer/get/:service"        , fun () -> new Api.Peer.get          self);
-      (*("/set/:peer/:service", fun () -> new set     self);*)
     ] in
     Wm.dispatch' api ~body ~request 
     >|= begin function
