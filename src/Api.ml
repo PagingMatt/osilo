@@ -122,7 +122,7 @@ module Client = struct
       >>= (fun body -> 
         Http_client.post 
           ~peer:target 
-          ~path:(Printf.sprintf "/get/%s/%s" (Peer.host target) service) 
+          ~path:(Printf.sprintf "/peer/get/%s" service) 
           ~body) 
       >|= (fun (c,b) -> 
         if c=200 then 
