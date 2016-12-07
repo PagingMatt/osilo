@@ -48,7 +48,9 @@ let decrypt_message_from_peer peer ciphertext iv s =
 
 let encrypt_message_to_peer peer plaintext s =
   CS.encrypt ~ks:(s#get_keying_service) ~peer ~plaintext
-  >|= fun (ks,ciphertext,iv) -> s#set_keying_service ks; Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv
+  >|= fun (ks,ciphertext,iv) -> 
+    s#set_keying_service ks; 
+    Coding.encode_message ~peer:(s#get_address) ~ciphertext ~iv
 
 module Client = struct
   let decrypt_message_from_client ciphertext iv s =
@@ -93,12 +95,9 @@ module Client = struct
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
       with
-      | Path_info_exn w -> 
-          Wm.continue false rd  
-      | Malformed_data -> 
-          Wm.continue false rd
-      | Fetch_failed t -> 
-          Wm.continue false rd
+      | Path_info_exn w -> Wm.continue false rd  
+      | Malformed_data  -> Wm.continue false rd
+      | Fetch_failed t  -> Wm.continue false rd
 
     method private to_text rd = 
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
@@ -120,7 +119,11 @@ module Client = struct
     method private client_get_peer_data target service ciphertext iv =   
       let plaintext = decrypt_message_from_client ciphertext iv s in
       encrypt_message_to_peer target plaintext s
-      >>= (fun body -> Http_client.post ~peer:target ~path:(Printf.sprintf "/get/%s/%s" (Peer.host target) service) ~body) 
+      >>= (fun body -> 
+        Http_client.post 
+          ~peer:target 
+          ~path:(Printf.sprintf "/get/%s/%s" (Peer.host target) service) 
+          ~body) 
       >|= (fun (c,b) -> 
         if c=200 then 
           let _,ciphertext,iv = Coding.decode_message b in
@@ -171,7 +174,10 @@ module Peer = struct
       Cohttp_lwt_body.to_string rd.Wm.Rd.req_body 
       >>= fun message -> 
         let (peer,public,group) = Coding.decode_kx_init ~message in
-        let ks,public' = Cryptography.KS.mediate ~ks:s#get_keying_service ~peer ~group ~public in
+        let ks,public' = 
+          Cryptography.KS.mediate 
+            ~ks:s#get_keying_service 
+            ~peer ~group ~public in
         (s#set_keying_service ks);
         let reply = Coding.encode_kx_reply ~peer:(s#get_address) ~public:public' in
         let r     = reply |> Cohttp_lwt_body.of_string in
@@ -213,12 +219,9 @@ module Peer = struct
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
         with
-        | Path_info_exn w -> 
-            Wm.continue false rd  
-        | Malformed_data -> 
-            Wm.continue false rd
-        | Fetch_failed t -> 
-            Wm.continue false rd
+        | Path_info_exn w -> Wm.continue false rd  
+        | Malformed_data  -> Wm.continue false rd
+        | Fetch_failed t  -> Wm.continue false rd
 
     method private to_text rd = 
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
