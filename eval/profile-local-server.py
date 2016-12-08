@@ -39,13 +39,13 @@ if __name__ == "__main__":
     exec_client = sys.argv[2]
     path_repo = sys.argv[3]
 
-    logger.info("Starting up server at " + exec_server)
-    server = Server(exec_server)
-    server.start()
-
     logger.info("Starting datakit instance for repository " + path_repo)
     datakit = Datakit(path_repo)
     datakit.start()
+
+    logger.info("Starting up server at " + exec_server)
+    server = Server(exec_server)
+    server.start()
 
   else:
     logger.error("Usage: python profile-local-server.py <server executable> <client executable> <path to profile repo>")
