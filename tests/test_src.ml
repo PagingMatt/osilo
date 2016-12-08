@@ -31,10 +31,11 @@ module Api_tests = struct
       |> Yojson.Basic.to_string
       |> Cstruct.of_string in
     try
-      let fl = Api.get_file_list file_list in 
+      let _ = Api.get_file_list file_list in 
       Alcotest.fail "Did not throw."
     with 
-    | Api.Malformed_data -> Alcotest.pass; ()
+    | Api.Malformed_data -> 
+        let _ = Alcotest.pass in ()
 
   let malformed_file_list_raises_malformed_data () = 
     let file_list = 
@@ -42,10 +43,11 @@ module Api_tests = struct
       |> Yojson.Basic.to_string
       |> Cstruct.of_string in
     try
-      let fl = Api.get_file_list file_list in 
+      let _ = Api.get_file_list file_list in 
       Alcotest.fail "Did not throw."
     with 
-    | Api.Malformed_data -> Alcotest.pass; ()
+    | Api.Malformed_data -> 
+        let _ = Alcotest.pass in ()
 
   let tests = [
     ("Can extract list of files.", `Quick, can_get_valid_file_list);
