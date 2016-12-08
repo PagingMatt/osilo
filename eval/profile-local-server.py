@@ -8,11 +8,11 @@ logger = logging.getLogger('local server profiler')
 
 class Server(threading.Thread):
   def __init__(self,exec_server):
-  	Thread.__init__(self)
+    Thread.__init__(self)
     self.executable = exec_server
 
   def run(self):
-  	cmd = [self.executable,"start","-h","127.0.0.1","-k","testtesttesttesttesttesttesttest","-ds","172.17.0.2"]
+    cmd = [self.executable,"start","-h","127.0.0.1","-k","testtesttesttesttesttesttesttest","-ds","172.17.0.2"]
     logger.debug(" ".join(cmd))
     exit = subprocess.call(cmd)
     if exit != 0:
@@ -20,11 +20,11 @@ class Server(threading.Thread):
 
 class Datakit(threading.Thread):
   def __init__(self,path_repo):
-  	  Thread.__init__(self)
-      self.repository = path_repo
+    Thread.__init__(self)
+    self.repository = path_repo
 
   def run(self):
-  	cmd = ["docker","run","-ti","-v",self.repository + ":/data","docker/datakit"]
+    cmd = ["docker","run","-ti","-v",self.repository + ":/data","docker/datakit"]
     logger.debug(" ".join(cmd))
     exit = subprocess.call(cmd)
     if exit != 0:
@@ -45,4 +45,4 @@ if __name__ == "__main__":
     datakit.start()
 
   else:
-  	logger.error("Usage: python profile-local-server.py <server executable> <client executable> <path to profile repo>")
+    logger.error("Usage: python profile-local-server.py <server executable> <client executable> <path to profile repo>")
