@@ -14,99 +14,79 @@ logging.basicConfig(format='%(message)s')
 logger = logging.getLogger('local server profiler')
 logger.setLevel(10)
 
+server = ""
+
 class Pinger(threading.Thread):
   latency = 0
   size = 0
   def run(self):
     start = time.time()
-    response = requests.get('http://127.0.0.1:6620/ping/')
+    response = requests.get("http://" + server + ":6620/ping/")
     stop = time.time()
     self.latency = stop - start
     if response.status_code == 200:
       self.size = sys.getsizeof(response.content)
 
-class Server(threading.Thread):
-  def __init__(self,exec_server):
-    threading.Thread.__init__(self)
-    self.executable = exec_server
+def run_ping_trials(num_clients,num_trials):
+  latency_mean = []
+  throughput = []
 
-  def run(self):
-    cmd = [self.executable,"start","-h","127.0.0.1","-k","testtesttesttesttesttesttesttest","-ds","172.17.0.2"]
-    logger.debug(" ".join(cmd))
-    exit = subprocess.call(cmd)
-    if exit != 0:
-      logger.error("Server quit with exit code " + str(exit))
-
-class Datakit(threading.Thread):
-  def __init__(self,path_repo):
-    threading.Thread.__init__(self)
-    self.repository = path_repo
-
-  def run(self):
-    cmd = ["docker","run","-ti","-v",self.repository + ":/data","docker/datakit"]
-    logger.debug(" ".join(cmd))
-    exit = subprocess.call(cmd)
-    if exit != 0:
-      logger.error("Datakit server quit with exit code " + str(exit))
-
-def run_local_pings(max_concurrent):
-  results = []
-
-  for n in range(2,max_concurrent,1):
-    clients = [Pinger() for i in range(n)]
+  for n in range(num_trials):
+    clients = [Pinger() for i in range(num_clients)]
     start = time.time()
     map(lambda c: c.start(), clients)
     map(lambda c: c.join(), clients)
     stop = time.time()
 
     latencies = map(lambda c: c.latency, clients)
-    latency_mean = statistics.mean(latencies)
+    latency_mean += (latencies)
+    throughput.append(sum(map(lambda c: c.size, clients)) / (1000 * (stop - start)))
 
-    throughput = sum(map(lambda c: c.size, clients)) / (stop - start)
+  l = statistics.mean(latency_mean)
+  t = statistics.mean(throughput)
+  if num_clients > 1:
+    lv = statistics.pvariance(latencies,l)
+    tv = statistics.pvariance(throughput,t)
+  else:
+    lv = 0
+    tv = 0
+  return (l,lv,t,tv)
 
-    results.append((latency_mean,throughput))
+def profile_local_ping(max_concurrent, trials):
+  ls = []
+  lvs = []
+  ts = []
+  tvs = []
+  con = range(1,max_concurrent)
+  for n in con:
+    l,lv,t,tv = run_ping_trials(n,trials)
+    ls.append(l)
+    lvs.append(lv)
+    ts.append(t)
+    tvs.append(tv)
 
-  return results # [(mean latency, throughput),...]
-
-def profile_local_pings(max_concurrent, trials):
-  lt = []
-  for n in range(trials):
-    lt.append(run_local_pings(max_concurrent))      # [[(l1,t1),...], [trial 2], ...]
-
-  latencies = map(lambda i: list(zip(*i)[0]), lt)   # [[l1,l2,l3,...], [trial 2], ...]
-  throughputs = map(lambda i: list(zip(*i)[1]), lt) # [[t1,t2,t3,...], trial 2], ...]
-
-  average_latency = []
-  average_throughput = []
-
-  for n in range(2,max_concurrent,1):
-    average_latency.append(statistics.mean(map(lambda l: l[n-2], latencies)))      # [l1,l2,l3,...]
-    average_throughput.append(statistics.mean(map(lambda t: t[n-2], throughputs))) # [t1,t2,t3,...]
-    
   pyplot.figure()
   pyplot.ylabel('Mean latency /s')
-  pyplot.xlabel('Throughput /bytes s^-1')
+  pyplot.xlabel('Concurrent clients')
+  pyplot.title("Mean latency against concurrent clients for pinging a local Osilo server")
+  pyplot.errorbar(con, ls, yerr=lvs, linestyle="None")
+  pyplot.scatter(con, ls, c='b')
+  pyplot.show()
+
+  pyplot.figure()
+  pyplot.ylabel('Mean latency /s')
+  pyplot.xlabel('Throughput /Kbytes s^-1')
   pyplot.title("Mean latency against throughput for pinging a local Osilo server")
-  pyplot.scatter(average_throughput, average_latency, c='b')
+  pyplot.errorbar(ts, ls, yerr=lvs, linestyle="None")
+  pyplot.errorbar(ts, ls, xerr=tvs, linestyle="None")
+  pyplot.scatter(ts, ls, c='b')
   pyplot.show()
 
 if __name__ == "__main__":
-  if len(sys.argv) == 4:
-    exec_server = sys.argv[1]
+  if len(sys.argv) == 3:
+    server = sys.argv[1]
     exec_client = sys.argv[2]
-    path_repo = sys.argv[3]
 
-    logger.info("Starting datakit instance for repository " + path_repo)
-    datakit = Datakit(path_repo)
-    datakit.start()
-
-    logger.info("Starting up server at " + exec_server)
-    server = Server(exec_server)
-    server.start()
-
-    time.sleep(2)
-    print ""
-
-    profile_local_pings(20,10)
+    profile_local_ping(100,5)
   else:
     logger.error("Usage: python profile-local-server.py <server executable> <client executable> <path to profile repo>")
