@@ -3,12 +3,15 @@
 import logging
 import subprocess
 import sys
+import threading
 
+logging.basicConfig(format='%(message)s')
 logger = logging.getLogger('local server profiler')
+logger.setLevel(10)
 
 class Server(threading.Thread):
   def __init__(self,exec_server):
-    Thread.__init__(self)
+    threading.Thread.__init__(self)
     self.executable = exec_server
 
   def run(self):
@@ -20,7 +23,7 @@ class Server(threading.Thread):
 
 class Datakit(threading.Thread):
   def __init__(self,path_repo):
-    Thread.__init__(self)
+    threading.Thread.__init__(self)
     self.repository = path_repo
 
   def run(self):
@@ -31,17 +34,17 @@ class Datakit(threading.Thread):
       logger.error("Datakit server quit with exit code " + str(exit))
 
 if __name__ == "__main__":
-  if len(sys.argv) == 3:
-    exec_server = sys.argv[0]
-    exec_client = sys.argv[1]
-    path_repo = sys.argv[2]
+  if len(sys.argv) == 4:
+    exec_server = sys.argv[1]
+    exec_client = sys.argv[2]
+    path_repo = sys.argv[3]
 
     logger.info("Starting up server at " + exec_server)
-    server = new Server(exec_server)
+    server = Server(exec_server)
     server.start()
 
     logger.info("Starting datakit instance for repository " + path_repo)
-    datakit = new Datakit(path_repo)
+    datakit = Datakit(path_repo)
     datakit.start()
 
   else:
