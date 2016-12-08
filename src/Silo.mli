@@ -1,5 +1,9 @@
 (** Interface to Datakit server pointing to my silo *)
 
+module Log : sig
+  include Logs.LOG
+end
+
 module Client : sig
   type t
   exception Failed_to_make_silo_client of Uri.t
@@ -8,20 +12,11 @@ module Client : sig
   val create : server:string -> t
   (** [make ~server] gives a [t] for [server]*)
   module Silo_9p_client : sig
-    include Protocol_9p.Client.S
-    val connect:
-      string -> 
-      string -> 
-      ?msize:int32 -> 
-      ?username:string -> 
-      ?aname:string ->
-      unit -> 
-      t Protocol_9p.Error.t Lwt.t
+    include (module type of Client9p_unix.Make(Log))
   end
   (** A 9P UNIX client made by applying a source log to the functor *)
   module Silo_datakit_client : sig
-    include Datakit_S.CLIENT with type error = Protocol_9p_error.error
-    val connect : Silo_9p_client.t -> t
+    include (module type of Datakit_client_9p.Make(Silo_9p_client))
   end
   (** Datakit client made by applying [Silo_9p_client] to the functor *)
 end

@@ -1,0 +1,11 @@
+# OASIS_START
+# DO NOT EDIT (digest: f673a6145a6fcf12000618d96c4095d4)
+src/Api
+src/Coding
+src/Cryptography
+src/Http_client
+src/Http_server
+src/Peer
+src/Silo
+src/Wm
+# OASIS_STOP

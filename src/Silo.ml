@@ -11,19 +11,10 @@ module Client : sig
   val create : server:string -> t
   val server : t -> string
   module Silo_9p_client : sig
-    include Protocol_9p.Client.S
-    val connect:
-      string -> 
-      string -> 
-      ?msize:int32 -> 
-      ?username:string -> 
-      ?aname:string ->
-      unit -> 
-      t Protocol_9p.Error.t Lwt.t
+    include (module type of Client9p_unix.Make(Log))
   end
   module Silo_datakit_client : sig
-    include Datakit_S.CLIENT with type error = Protocol_9p_error.error
-    val connect : Silo_9p_client.t -> t
+    include (module type of Datakit_client_9p.Make(Silo_9p_client))
   end
 end = struct
   type t = {
@@ -39,8 +30,7 @@ end = struct
 
   let server c = c.server
 
-  module Silo_9p_client = Client9p_unix.Make(
-    (val Logs.src_log (Logs.Src.create "osilo datakit client") : Logs.LOG) )
+  module Silo_9p_client = Client9p_unix.Make(Log)
   
   module Silo_datakit_client = Datakit_client_9p.Make(Silo_9p_client)
 end
