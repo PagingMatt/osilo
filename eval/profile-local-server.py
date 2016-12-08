@@ -49,7 +49,7 @@ class Datakit(threading.Thread):
     if exit != 0:
       logger.error("Datakit server quit with exit code " + str(exit))
 
-def profile_local_pings(max_concurrent):
+def run_local_pings(max_concurrent):
   results = []
 
   for n in range(2,max_concurrent,1):
@@ -61,13 +61,34 @@ def profile_local_pings(max_concurrent):
 
     latencies = map(lambda c: c.latency, clients)
     latency_mean = statistics.mean(latencies)
-    latency_var = statistics.variance(latencies,latency_mean)
 
     throughput = sum(map(lambda c: c.size, clients)) / (stop - start)
 
-    results.append(((latency_mean,latency_var),throughput))
+    results.append((latency_mean,throughput))
 
-  return results
+  return results # [(mean latency, throughput),...]
+
+def profile_local_pings(max_concurrent, trials):
+  lt = []
+  for n in range(trials):
+    lt.append(run_local_pings(max_concurrent))      # [[(l1,t1),...], [trial 2], ...]
+
+  latencies = map(lambda i: list(zip(*i)[0]), lt)   # [[l1,l2,l3,...], [trial 2], ...]
+  throughputs = map(lambda i: list(zip(*i)[1]), lt) # [[t1,t2,t3,...], trial 2], ...]
+
+  average_latency = []
+  average_throughput = []
+
+  for n in range(2,max_concurrent,1):
+    average_latency.append(statistics.mean(map(lambda l: l[n-2], latencies)))      # [l1,l2,l3,...]
+    average_throughput.append(statistics.mean(map(lambda t: t[n-2], throughputs))) # [t1,t2,t3,...]
+    
+  pyplot.figure()
+  pyplot.ylabel('Mean latency /s')
+  pyplot.xlabel('Throughput /bytes s^-1')
+  pyplot.title("Mean latency against throughput for pinging a local Osilo server")
+  pyplot.scatter(average_throughput, average_latency, c='b')
+  pyplot.show()
 
 if __name__ == "__main__":
   if len(sys.argv) == 4:
@@ -86,16 +107,6 @@ if __name__ == "__main__":
     time.sleep(2)
     print ""
 
-    results = zip(*profile_local_pings(50))
-    l = zip(*results[0])
-    mean_latency = l[0]
-    var_latency = l[1]
-    throughput = results[1]
-    pyplot.figure()
-    pyplot.ylabel('Mean latency /s')
-    pyplot.xlabel('Throughput /bytes s^-1')
-    pyplot.title("Mean latency against throughput for pinging a local Osilo server")
-    pyplot.scatter(throughput, mean_latency, c='b')
-    pyplot.show()
+    profile_local_pings(20,10)
   else:
     logger.error("Usage: python profile-local-server.py <server executable> <client executable> <path to profile repo>")
