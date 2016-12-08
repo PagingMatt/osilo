@@ -16,7 +16,19 @@ class Server(threading.Thread):
     logger.debug(" ".join(cmd))
     exit = subprocess.call(cmd)
     if exit != 0:
-    	logger.error("Server quit with exit code " + str(exit))
+      logger.error("Server quit with exit code " + str(exit))
+
+class Datakit(threading.Thread):
+  def __init__(self,path_repo):
+  	  Thread.__init__(self)
+      self.repository = path_repo
+
+  def run(self):
+  	cmd = ["docker","run","-ti","-v",self.repository + ":/data","docker/datakit"]
+    logger.debug(" ".join(cmd))
+    exit = subprocess.call(cmd)
+    if exit != 0:
+      logger.error("Datakit server quit with exit code " + str(exit))
 
 if __name__ == "__main__":
   if len(sys.argv) == 3:
@@ -27,6 +39,10 @@ if __name__ == "__main__":
     logger.info("Starting up server at " + exec_server)
     server = new Server(exec_server)
     server.start()
+
+    logger.info("Starting datakit instance for repository " + path_repo)
+    datakit = new Datakit(path_repo)
+    datakit.start()
 
   else:
   	logger.error("Usage: python profile-local-server.py <server executable> <client executable> <path to profile repo>")
