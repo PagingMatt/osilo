@@ -1,0 +1,13 @@
+# OASIS_START
+# DO NOT EDIT (digest: 381c4333bafcdf8cea095201b7480ba7)
+version = "0.1"
+description = "Peer to peer secure sharing of personal data"
+requires =
+"core cstruct cohttp.lwt datakit-client lwt nocrypto.unix lru protocol-9p.unix sexplib uri webmachine yojson threads logs.fmt"
+archive(byte) = "osilo.cma"
+archive(byte, plugin) = "osilo.cma"
+archive(native) = "osilo.cmxa"
+archive(native, plugin) = "osilo.cmxs"
+exists_if = "osilo.cma"
+# OASIS_STOP
+
