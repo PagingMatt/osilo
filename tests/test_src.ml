@@ -4,15 +4,53 @@ let host = "127.0.0.1"
 let port = 6630
 let peer = Peer.create host
 
-module Peer_tests = struct
-  let peer_builds_with_host () =
-    Alcotest.(check string)
-      "Checks host is stored and retrieved correctly from Peer"
-      host
-      (Peer.host peer)
+module Api_tests = struct
+
+  let can_get_valid_file_list () =
+    let file_list = 
+      `List [(`String "file_0"); (`String "file_1")] 
+      |> Yojson.Basic.to_string
+      |> Cstruct.of_string in
+    let fl = Api.get_file_list file_list in 
+    Alcotest.(check int) 
+      "Checks lists are the same length"
+      2 (Core.Std.List.length fl);
+    match fl with
+    | a::b::[] -> 
+        Alcotest.(check string) 
+          "Check first item is 'file_0'"
+          "file_0" a;
+        Alcotest.(check string) 
+          "Check second item is 'file_1'"
+          "file_1" b;
+    | _        -> Alcotest.fail "Should be a two item list."
+
+  let empty_file_list_raises_malformed_data () = 
+    let file_list = 
+      `List [`Null] 
+      |> Yojson.Basic.to_string
+      |> Cstruct.of_string in
+    try
+      let fl = Api.get_file_list file_list in 
+      Alcotest.fail "Did not throw."
+    with 
+    | Api.Malformed_data -> Alcotest.pass; ()
+
+  let malformed_file_list_raises_malformed_data () = 
+    let file_list = 
+      `String "Should throw."
+      |> Yojson.Basic.to_string
+      |> Cstruct.of_string in
+    try
+      let fl = Api.get_file_list file_list in 
+      Alcotest.fail "Did not throw."
+    with 
+    | Api.Malformed_data -> Alcotest.pass; ()
 
   let tests = [
-    ("Correctly builds with host", `Quick, peer_builds_with_host);
+    ("Can extract list of files.", `Quick, can_get_valid_file_list);
+    ("Empty list of files throws 'Malformed_data'.", `Quick, empty_file_list_raises_malformed_data);
+    ("Malformed data throws 'Malformed_data'.", `Quick, malformed_file_list_raises_malformed_data);
   ]
 end
 
@@ -111,8 +149,21 @@ module Cryptography_tests = struct
   ]
 end
 
+module Peer_tests = struct
+  let peer_builds_with_host () =
+    Alcotest.(check string)
+      "Checks host is stored and retrieved correctly from Peer"
+      host
+      (Peer.host peer)
+
+  let tests = [
+    ("Correctly builds with host", `Quick, peer_builds_with_host);
+  ]
+end
+
 let () = 
   Alcotest.run "Osilo Tests" [
+    "API module"         , Api_tests.tests;
     "Peer module"        , Peer_tests.tests;
     "Coding module"      , Coding_tests.tests;
     "Cryptography module", Cryptography_tests.tests; 
