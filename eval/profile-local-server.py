@@ -44,12 +44,9 @@ def run_ping_trials(num_clients,num_trials):
 
   l = statistics.mean(latency_mean)
   t = statistics.mean(throughput)
-  if num_clients > 1:
-    lv = statistics.stdev(latency_mean,l)
-    tv = statistics.stdev(throughput,t)
-  else:
-    lv = 0
-    tv = 0
+  lv = statistics.stdev(latency_mean,l)
+  tv = statistics.stdev(throughput,t)
+
   return (l,lv,t,tv)
 
 def profile_local_ping(max_concurrent, trials):
