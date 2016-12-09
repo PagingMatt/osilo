@@ -45,7 +45,7 @@ def run_ping_trials(num_clients,num_trials):
   l = statistics.mean(latency_mean)
   t = statistics.mean(throughput)
   if num_clients > 1:
-    lv = statistics.stdev(latencies,l)
+    lv = statistics.stdev(latency_mean,l)
     tv = statistics.stdev(throughput,t)
   else:
     lv = 0
@@ -87,6 +87,6 @@ if __name__ == "__main__":
     server = sys.argv[1]
     exec_client = sys.argv[2]
 
-    profile_local_ping(100,5)
+    profile_local_ping(100,10)
   else:
     logger.error("Usage: python profile-local-server.py <server> <client executable>")
