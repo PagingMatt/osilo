@@ -45,8 +45,8 @@ def run_ping_trials(num_clients,num_trials):
   l = statistics.mean(latency_mean)
   t = statistics.mean(throughput)
   if num_clients > 1:
-    lv = statistics.pvariance(latencies,l)
-    tv = statistics.pvariance(throughput,t)
+    lv = statistics.stdev(latencies,l)
+    tv = statistics.stdev(throughput,t)
   else:
     lv = 0
     tv = 0
@@ -89,4 +89,4 @@ if __name__ == "__main__":
 
     profile_local_ping(100,5)
   else:
-    logger.error("Usage: python profile-local-server.py <server executable> <client executable> <path to profile repo>")
+    logger.error("Usage: python profile-local-server.py <server> <client executable>")
