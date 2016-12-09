@@ -14,25 +14,25 @@ logging.basicConfig(format='%(message)s')
 logger = logging.getLogger('local server profiler')
 logger.setLevel(10)
 
-server = ""
-
 class Pinger(threading.Thread):
   latency = 0
   size = 0
+  def __init__(self,server):
+    threading.Thread.__init__(self)
+    self.server = server
   def run(self):
     start = time.time()
-    response = requests.get("http://" + server + ":6620/ping/")
+    response = requests.get("http://" + self.server + ":6620/ping/", headers={'Connection':'close'})
     stop = time.time()
     self.latency = stop - start
-    if response.status_code == 200:
-      self.size = sys.getsizeof(response.content)
+    self.size = sys.getsizeof(response.content)
 
-def run_ping_trials(num_clients,num_trials):
+def run_ping_trials(server,num_clients,num_trials):
   latency_mean = []
   throughput = []
 
   for n in range(num_trials):
-    clients = [Pinger() for i in range(num_clients)]
+    clients = [Pinger(server) for i in range(num_clients)]
     start = time.time()
     map(lambda c: c.start(), clients)
     map(lambda c: c.join(), clients)
@@ -50,40 +50,55 @@ def run_ping_trials(num_clients,num_trials):
   return (l,lv,t,tv)
 
 def profile_local_ping(max_concurrent, trials):
-  ls = []
-  lvs = []
-  ts = []
-  tvs = []
+  ls1 = []
+  lvs1 = []
+  ts1 = []
+  tvs1 = []
+  ls2 = []
+  lvs2 = []
+  ts2 = []
+  tvs2 = []
   con = range(1,max_concurrent)
   for n in con:
-    l,lv,t,tv = run_ping_trials(n,trials)
-    ls.append(l)
-    lvs.append(lv)
-    ts.append(t)
-    tvs.append(tv)
+    l,lv,t,tv = run_ping_trials("127.0.0.1",n,trials)
+    ls1.append(l)
+    lvs1.append(lv)
+    ts1.append(t)
+    tvs1.append(tv)
+
+  for n in con:
+    l,lv,t,tv = run_ping_trials("172.16.54.52",n,trials)
+    ls2.append(l)
+    lvs2.append(lv)
+    ts2.append(t)
+    tvs2.append(tv)
 
   pyplot.figure()
   pyplot.ylabel('Mean latency /s')
   pyplot.xlabel('Concurrent clients')
-  pyplot.title("Mean latency against concurrent clients for pinging a local Osilo server")
-  pyplot.errorbar(con, ls, yerr=lvs, linestyle="None")
-  pyplot.scatter(con, ls, c='b')
+  pyplot.title("Mean latency against concurrent clients for pinging a local and a remote Osilo server")
+  pyplot.errorbar(con, ls1, yerr=lvs1, linestyle="None", color="blue")
+  pyplot.scatter(con, ls1, c='b')
+  pyplot.errorbar(con, ls2, yerr=lvs2, linestyle="None", color="green")
+  pyplot.scatter(con, ls2, c='g')
   pyplot.show()
 
   pyplot.figure()
   pyplot.ylabel('Mean latency /s')
   pyplot.xlabel('Throughput /Kbytes s^-1')
-  pyplot.title("Mean latency against throughput for pinging a local Osilo server")
-  pyplot.errorbar(ts, ls, yerr=lvs, linestyle="None")
-  pyplot.errorbar(ts, ls, xerr=tvs, linestyle="None")
-  pyplot.scatter(ts, ls, c='b')
+  pyplot.title("Mean latency against throughput for pinging a local and a remote Osilo server")
+  pyplot.errorbar(ts1, ls1, yerr=lvs1, linestyle="None", color="blue")
+  pyplot.errorbar(ts1, ls1, xerr=tvs1, linestyle="None", color="blue")
+  pyplot.scatter(ts1, ls1, c='b')
+  pyplot.errorbar(ts2, ls2, yerr=lvs2, linestyle="None", color="green")
+  pyplot.errorbar(ts2, ls2, xerr=tvs2, linestyle="None", color="green")
+  pyplot.scatter(ts2, ls2, c='g')
   pyplot.show()
 
 if __name__ == "__main__":
-  if len(sys.argv) == 3:
-    server = sys.argv[1]
-    exec_client = sys.argv[2]
+  if len(sys.argv) == 2:
+    exec_client = sys.argv[1]
 
-    profile_local_ping(100,10)
+    profile_local_ping(75,25)
   else:
-    logger.error("Usage: python profile-local-server.py <server> <client executable>")
+    logger.error("Usage: python profile-local-server.py <client executable>")
