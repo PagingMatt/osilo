@@ -50,11 +50,14 @@ end = struct
     | R  -> false
     | W  -> (t2 = R)
 
+  exception Path_empty
+
   let insert service permission macaroon =
     let location = M.location macaroon in
     let location' = Core.Std.String.split location ~on:'/' in
     let rec ins path service =
       match path with
+      | []    -> raise Path_empty
       | x::[] -> 
           (match service with 
           | Leaf -> Node (x, Some (permission,macaroon), Leaf, Leaf, Leaf) (* When get to singleton at correct level so do normal binary insert *)
