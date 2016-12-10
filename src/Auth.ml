@@ -34,6 +34,7 @@ module CS : sig
   val token_of_string : string -> token
   val create : t
   val insert : token -> M.t -> t -> t
+  val shortest_prefix_match : token -> string -> t -> M.t option
 end = struct
   type t =
     | Node of string * capabilities option * t * t * t
@@ -123,6 +124,10 @@ end = struct
     in find service location'
 end
 
+(* TODO dedup this *)
+let find_permissions capability_service requests =
+  Core.Std.List.map requests ~f:(fun (perm,path) -> CS.shortest_prefix_match perm path capability_service)
+
 let record_permissions capability_service permissions (* perm,mac pairs *) = 
   Core.Std.List.fold 
     permissions 
@@ -142,13 +147,23 @@ let create_service_capability server service (perm,path) =
 let mint server service permissions =
   Core.Std.List.map permissions ~f:(create_service_capability server service)
 
-let serialise_capabilities capabilities = 
+let serialise_presented_capabilities capabilities = 
   `Assoc (Core.Std.List.map capabilities ~f:(fun (p,c) -> p, `String (M.serialize c)))
   |> Yojson.Basic.to_string
 
+let serialise_request_capabilities capabilities = 
+  let serialised = (Core.Std.List.map capabilities 
+    ~f:(
+    begin function 
+    | Some c -> M.serialize c
+    | None -> ""
+    end))
+  in let serialised' = Core.Std.List.filter serialised ~f:(fun s -> not(s=""))
+  in `List (Core.Std.List.map serialised' ~f:(fun s -> `String s))
+
 exception Malformed_data 
  
-let deserialise_capabilities capabilities = 
+let deserialise_presented_capabilities capabilities = 
   Yojson.Basic.from_string capabilities 
   |> begin function 
      | `Assoc j ->  
@@ -158,6 +173,23 @@ let deserialise_capabilities capabilities =
              (M.deserialize s |> 
                begin function  
                | `Ok c    -> (CS.token_of_string p),c  
+               | `Error _ -> raise Malformed_data 
+               end) 
+         | _ -> raise Malformed_data  
+         end) 
+     | _ -> raise Malformed_data 
+     end 
+
+let deserialise_request_capabilities capabilities = 
+  Yojson.Basic.from_string capabilities 
+  |> begin function 
+     | `List j ->  
+         Core.Std.List.map j 
+         ~f:(begin function 
+         | `String s -> 
+             (M.deserialize s |> 
+               begin function  
+               | `Ok c    -> c  
                | `Error _ -> raise Malformed_data 
                end) 
          | _ -> raise Malformed_data  

@@ -43,6 +43,9 @@ let get_file_list plaintext =
      | _ -> raise Malformed_data
      end
 
+let make_file_list lst =
+  `List (Core.Std.List.map lst ~f:(fun s -> `String s))
+
 let get_permission_list plaintext = 
   Cstruct.to_string plaintext
   |> Yojson.Basic.from_string
@@ -65,6 +68,16 @@ let encrypt_message_to_peer peer plaintext s =
   >|= fun (ks,ciphertext,iv) -> 
     s#set_keying_service ks; 
     Coding.encode_peer_message ~peer:(s#get_address) ~ciphertext ~iv
+
+let attach_required_capabilities plaintext s =
+  let files    = get_file_list plaintext in
+  let requests = Core.Std.List.map files ~f:(fun c -> (Auth.CS.token_of_string "R"),c) in
+  let caps     = Auth.find_permissions s#get_capability_service requests in
+  let caps'    = Auth.serialise_request_capabilities caps in 
+  `Assoc [
+    ("files"       , (make_file_list files));
+    ("capabilities", caps');
+  ] |> Yojson.Basic.to_string |> Cstruct.of_string
 
 module Client = struct
   let decrypt_message_from_client ciphertext iv s =
@@ -132,7 +145,8 @@ module Client = struct
 
     method private client_get_peer_data target service ciphertext iv =   
       let plaintext = decrypt_message_from_client ciphertext iv s in
-      encrypt_message_to_peer target plaintext s
+      let plaintext'= attach_required_capabilities plaintext s    in
+      encrypt_message_to_peer target plaintext' s
       >>= (fun body -> 
         Http_client.post 
           ~peer:target 
@@ -180,7 +194,7 @@ module Client = struct
       let plaintext    = decrypt_message_from_client ciphertext iv s  in
       let permissions  = get_permission_list plaintext                in
       let capabilities = Auth.mint s service permissions              in 
-      let p_body       = Auth.serialise_capabilities capabilities     in
+      let p_body       = Auth.serialise_presented_capabilities capabilities     in
       let path         = 
         (Printf.sprintf "/peer/permit/%s/%s" 
           (s#get_address |> Peer.host) service)                       in
@@ -295,7 +309,7 @@ module Peer = struct
 
     method private peer_permit source service ciphertext iv =
       let plaintext    = decrypt_message_from_peer source ciphertext iv s  in
-      let capabilities = Auth.deserialise_capabilities (plaintext |> Cstruct.to_string) in
+      let capabilities = Auth.deserialise_presented_capabilities (plaintext |> Cstruct.to_string) in
       Auth.record_permissions s#get_capability_service capabilities
       |> s#set_capability_service
 
