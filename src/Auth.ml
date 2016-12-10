@@ -30,15 +30,35 @@ module M = Macaroons.Make(Crypto)
 
 module CS : sig
   type t
+  type token = R | W | RW
   val create : t
 end = struct
   type t =
     | Node of string * capabilities option * t * t * t
     | Leaf
+    (* A [Node] is of the form (name, (token,macaroon), subtree, left child, right child). For a 
+    macaroon which gives a capability on [peer] for [service] at [path], the node with this 
+    capability will be in the subtree of [peer], in the subtree of [service] and in the bottom 
+    subtree of [path] *)
   and capabilities = token * M.t
   and token = R | W | RW
 
   let create = Leaf
+
+  let insert service permission macaroon =
+    let location = M.location macaroon in
+    let location' = Core.Std.String.split location ~on:'/' in
+    let rec ins path service =
+      match path with
+      | x::[] -> bin_ins x permission macaroon service (* When get to singleton at correct level so do normal binary insert *)
+      | y::ys -> 
+          match service with (* Above target level so find/insert this level's node and drop to next *)
+          | Leaf -> Node (y, None, (ins ys Leaf), Leaf, Leaf) (* If currently bottoming out, need to excavate down *)
+          | Node (name,caps,sub,l,r) -> 
+              if name > t then (name, caps, sub, (ins path l), r) else (* If this node is string greater than target move left in this level *)
+              if name < t then (name, caps, sub, l, (ins path r)) else (* If this node is string less than target move right in this level*)
+              (name, caps, (ins ys sub), l, r) (* If this node is string equal to target move down to next level *)
+    in ins location' service
 end
 
 let record_permissions capability_service permissions = capability_service
