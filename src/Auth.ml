@@ -69,3 +69,22 @@ let mint server service permissions =
 let serialise_capabilities capabilities = 
   `List (Core.Std.List.map capabilities ~f:(fun c -> `String (M.serialize c)))
   |> Yojson.Basic.to_string
+
+exception Malformed_data 
+ 
+let deserialise_capabilities capabilities = 
+  Yojson.Basic.from_string capabilities 
+  |> begin function 
+     | `List j ->  
+         Core.Std.List.map j 
+         ~f:(begin function 
+         | `String s -> 
+             (M.deserialize s |> 
+               begin function  
+               | `Ok c    -> c  
+               | `Error _ -> raise Malformed_data 
+               end) 
+         | _ -> raise Malformed_data  
+         end) 
+     | _ -> raise Malformed_data 
+     end 
