@@ -30,7 +30,7 @@ module M = Macaroons.Make(Crypto)
 
 module CS : sig
   type t
-  type token = R | W | RW
+  type token = R | W 
   val create : t
 end = struct
   type t =
@@ -41,23 +41,39 @@ end = struct
     capability will be in the subtree of [peer], in the subtree of [service] and in the bottom 
     subtree of [path] *)
   and capabilities = token * M.t
-  and token = R | W | RW
+  and token = R | W 
 
   let create = Leaf
+
+  let (@>) t1 t2 =
+    match t1 with
+    | R  -> false
+    | W  -> (t2 = R)
 
   let insert service permission macaroon =
     let location = M.location macaroon in
     let location' = Core.Std.String.split location ~on:'/' in
     let rec ins path service =
       match path with
-      | x::[] -> bin_ins x permission macaroon service (* When get to singleton at correct level so do normal binary insert *)
+      | x::[] -> 
+          (match service with 
+          | Leaf -> Node (x, Some (permission,macaroon), Leaf, Leaf, Leaf) (* When get to singleton at correct level so do normal binary insert *)
+          | Node (name, caps, sub, l, r) -> 
+              if name > x then Node (name, caps, sub, (ins path l), r) else (* If this node is string greater than target move left in this level *)
+              if name < x then Node (name, caps, sub, l, (ins path r)) else (* If this node is string less than target move right in this level*)
+              (* Need to determine if this macaroon is more powerful than current *)
+              match caps with
+              | None -> Node (name, Some (permission,macaroon), sub, l, r)
+              | Some (t,m) ->
+                  if permission @> t then Node (name, Some (permission,macaroon), sub, l, r)
+                  else Node (name, Some (t,m), sub, l, r))
       | y::ys -> 
           match service with (* Above target level so find/insert this level's node and drop to next *)
-          | Leaf -> Node (y, None, (ins ys Leaf), Leaf, Leaf) (* If currently bottoming out, need to excavate down *)
+          | Leaf -> Node (y, Some (permission, macaroon), (ins ys Leaf), Leaf, Leaf) (* If currently bottoming out, need to excavate down *)
           | Node (name,caps,sub,l,r) -> 
-              if name > t then (name, caps, sub, (ins path l), r) else (* If this node is string greater than target move left in this level *)
-              if name < t then (name, caps, sub, l, (ins path r)) else (* If this node is string less than target move right in this level*)
-              (name, caps, (ins ys sub), l, r) (* If this node is string equal to target move down to next level *)
+              if name > y then Node (name, caps, sub, (ins path l), r) else (* If this node is string greater than target move left in this level *)
+              if name < y then Node (name, caps, sub, l, (ins path r)) else (* If this node is string less than target move right in this level*)
+              Node (name, caps, (ins ys sub), l, r) (* If this node is string equal to target move down to next level *)
     in ins location' service
 end
 
