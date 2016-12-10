@@ -53,6 +53,8 @@ end = struct
   let create = Leaf
 end
 
+let record_permissions capability_service permissions = ()
+
 let create_service_capability server service (perm,path) =
   let m = M.create 
     ~location:(server#get_address |> Peer.host)
