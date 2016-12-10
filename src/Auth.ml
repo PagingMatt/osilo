@@ -74,15 +74,14 @@ end = struct
           | Node (name, caps, sub, l, r) -> 
               if name > x then Node (name, caps, sub, (ins path l), r) else (* If this node is string greater than target move left in this level *)
               if name < x then Node (name, caps, sub, l, (ins path r)) else (* If this node is string less than target move right in this level*)
-              (* Need to determine if this macaroon is more powerful than current *)
               match caps with
               | None -> Node (name, Some (permission,macaroon), sub, l, r)
-              | Some (t,m) ->
+              | Some (t,m) -> (* Need to determine if this macaroon is more powerful than current *)
                   if permission >> t then Node (name, Some (permission,macaroon), sub, l, r)
                   else Node (name, Some (t,m), sub, l, r))
       | y::ys -> 
           match service with (* Above target level so find/insert this level's node and drop to next *)
-          | Leaf -> Node (y, Some (permission, macaroon), (ins ys Leaf), Leaf, Leaf) (* If currently bottoming out, need to excavate down *)
+          | Leaf -> Node (y, None, (ins ys Leaf), Leaf, Leaf) (* If currently bottoming out, need to excavate down *)
           | Node (name,caps,sub,l,r) -> 
               if name > y then Node (name, caps, sub, (ins path l), r) else (* If this node is string greater than target move left in this level *)
               if name < y then Node (name, caps, sub, l, (ins path r)) else (* If this node is string less than target move right in this level*)
