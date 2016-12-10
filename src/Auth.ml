@@ -55,7 +55,7 @@ end = struct
 
   let create = Leaf
 
-  let (@>) t1 t2 =
+  let (>>) t1 t2 =
     match t1 with
     | R  -> false
     | W  -> (t2 = R)
@@ -78,7 +78,7 @@ end = struct
               match caps with
               | None -> Node (name, Some (permission,macaroon), sub, l, r)
               | Some (t,m) ->
-                  if permission @> t then Node (name, Some (permission,macaroon), sub, l, r)
+                  if permission >> t then Node (name, Some (permission,macaroon), sub, l, r)
                   else Node (name, Some (t,m), sub, l, r))
       | y::ys -> 
           match service with (* Above target level so find/insert this level's node and drop to next *)
