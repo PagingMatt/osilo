@@ -80,7 +80,7 @@ end = struct
     in ins location' service
 end
 
-let record_permissions capability_service permissions = capability_service
+let record_permissions capability_service permissions (* perm,mac pairs *) = capability_service
 
 let create_service_capability server service (perm,path) =
   let location = Printf.sprintf "%s/%s/%s" (server#get_address |> Peer.host) service path in
@@ -90,13 +90,13 @@ let create_service_capability server service (perm,path) =
     ~id:"foo"
   in let ms = M.add_first_party_caveat m  service
   in let mp = M.add_first_party_caveat ms path
-  in M.add_first_party_caveat ms perm
+  in perm,M.add_first_party_caveat ms perm
 
 let mint server service permissions =
   Core.Std.List.map permissions ~f:(create_service_capability server service)
 
 let serialise_capabilities capabilities = 
-  `List (Core.Std.List.map capabilities ~f:(fun c -> `String (M.serialize c)))
+  `Assoc (Core.Std.List.map capabilities ~f:(fun (p,c) -> p, `String (M.serialize c)))
   |> Yojson.Basic.to_string
 
 exception Malformed_data 
@@ -104,13 +104,13 @@ exception Malformed_data
 let deserialise_capabilities capabilities = 
   Yojson.Basic.from_string capabilities 
   |> begin function 
-     | `List j ->  
+     | `Assoc j ->  
          Core.Std.List.map j 
          ~f:(begin function 
-         | `String s -> 
+         | p,`String s -> 
              (M.deserialize s |> 
                begin function  
-               | `Ok c    -> c  
+               | `Ok c    -> p,c  
                | `Error _ -> raise Malformed_data 
                end) 
          | _ -> raise Malformed_data  
