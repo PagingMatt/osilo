@@ -282,4 +282,37 @@ module Peer = struct
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
       >>= fun s -> Wm.continue (`String s) rd
   end
+
+  class permit s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    method content_types_provided rd = 
+      Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`POST] rd
+
+    method private peer_permit source service ciphertext iv =
+      let plaintext    = decrypt_message_from_peer source ciphertext iv s  in
+      Auth.record_permissions s#get_capability_service plaintext 
+
+    method process_post rd =
+      try
+        let source      = get_path_info_exn rd "peer" |> Peer.create in
+        let service     = get_path_info_exn rd "service"             in
+        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+        >|= (fun message -> Coding.decode_peer_message ~message)
+        >|= (fun (_,ciphertext,iv) -> 
+            self#peer_permit source service ciphertext iv)
+        >>= fun () -> Wm.continue true rd
+      with
+      | Path_info_exn w -> Wm.continue false rd  
+      | Malformed_data  -> Wm.continue false rd
+      | Fetch_failed t  -> Wm.continue false rd
+
+    method private to_text rd = 
+      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+      >>= fun s -> Wm.continue (`String s) rd
+  end
 end  
