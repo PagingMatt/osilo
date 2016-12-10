@@ -31,7 +31,9 @@ module M = Macaroons.Make(Crypto)
 module CS : sig
   type t
   type token = R | W 
+  val token_of_string : string -> token
   val create : t
+  val insert : token -> M.t -> t -> t
 end = struct
   type t =
     | Node of string * capabilities option * t * t * t
@@ -43,6 +45,14 @@ end = struct
   and capabilities = token * M.t
   and token = R | W 
 
+  exception Invalid_token
+
+  let token_of_string t =
+    match t with
+    | "R" -> R 
+    | "W" -> W 
+    | _   -> raise Invalid_token
+
   let create = Leaf
 
   let (@>) t1 t2 =
@@ -52,7 +62,7 @@ end = struct
 
   exception Path_empty
 
-  let insert service permission macaroon =
+  let insert permission macaroon service =
     let location = M.location macaroon in
     let location' = Core.Std.String.split location ~on:'/' in
     let rec ins path service =
@@ -80,7 +90,11 @@ end = struct
     in ins location' service
 end
 
-let record_permissions capability_service permissions (* perm,mac pairs *) = capability_service
+let record_permissions capability_service permissions (* perm,mac pairs *) = 
+  Core.Std.List.fold 
+    permissions 
+    ~init:capability_service 
+    ~f:(fun s -> fun (p,m) -> CS.insert p m s)
 
 let create_service_capability server service (perm,path) =
   let location = Printf.sprintf "%s/%s/%s" (server#get_address |> Peer.host) service path in
@@ -107,10 +121,10 @@ let deserialise_capabilities capabilities =
      | `Assoc j ->  
          Core.Std.List.map j 
          ~f:(begin function 
-         | p,`String s -> 
+         | p, `String s -> 
              (M.deserialize s |> 
                begin function  
-               | `Ok c    -> p,c  
+               | `Ok c    -> (CS.token_of_string p),c  
                | `Error _ -> raise Malformed_data 
                end) 
          | _ -> raise Malformed_data  
