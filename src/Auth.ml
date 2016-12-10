@@ -28,6 +28,31 @@ end
 
 module M = Macaroons.Make(Crypto)
 
+module CS : sig
+  type t
+  val create : t
+end = struct
+  type tokens = {
+    r : bool ;
+    w : bool ;
+  }
+
+  (* This isn't a BST as I want to be able to do SPM on the file paths *)
+  type ft =
+    | Node of tokens * string * M.t * (ft list)
+    | Leaf
+
+  type ('a, 'b) bst = 
+    | Node of ('a * 'b) * ('a, 'b) bst * ('a, 'b) bst
+    | Leaf
+
+  type st = (string, ft) bst
+
+  type t  = (Peer.t, st) bst
+
+  let create = Leaf
+end
+
 let create_service_capability server service (perm,path) =
   let m = M.create 
     ~location:(server#get_address |> Peer.host)
