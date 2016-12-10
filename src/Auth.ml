@@ -32,23 +32,11 @@ module CS : sig
   type t
   val create : t
 end = struct
-  type tokens = {
-    r : bool ;
-    w : bool ;
-  }
-
-  (* This isn't a BST as I want to be able to do SPM on the file paths *)
-  type ft =
-    | Node of tokens * string * M.t * (ft list)
+  type t =
+    | Node of string * capabilities option * t * t * t
     | Leaf
-
-  type ('a, 'b) bst = 
-    | Node of ('a * 'b) * ('a, 'b) bst * ('a, 'b) bst
-    | Leaf
-
-  type st = (string, ft) bst
-
-  type t  = (Peer.t, st) bst
+  and capabilities = token * M.t
+  and token = R | W | RW
 
   let create = Leaf
 end
