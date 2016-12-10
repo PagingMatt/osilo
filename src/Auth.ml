@@ -60,16 +60,21 @@ end = struct
     | R  -> false
     | W  -> (t2 = R)
 
+  let (>=) t1 t2 =
+    match t1 with
+    | W -> true
+    | R -> (t2 = R)
+
   exception Path_empty
 
   let insert permission macaroon service =
     let location = M.location macaroon in
     let location' = Core.Std.String.split location ~on:'/' in
-    let rec ins path service =
+    let rec ins path tree =
       match path with
       | []    -> raise Path_empty
       | x::[] -> 
-          (match service with 
+          (match tree with 
           | Leaf -> Node (x, Some (permission,macaroon), Leaf, Leaf, Leaf) (* When get to singleton at correct level so do normal binary insert *)
           | Node (name, caps, sub, l, r) -> 
               if name > x then Node (name, caps, sub, (ins path l), r) else (* If this node is string greater than target move left in this level *)
@@ -80,13 +85,42 @@ end = struct
                   if permission >> t then Node (name, Some (permission,macaroon), sub, l, r) (* TODO trim sub *)
                   else Node (name, Some (t,m), sub, l, r))
       | y::ys -> 
-          match service with (* Above target level so find/insert this level's node and drop to next *)
+          match tree with (* Above target level so find/insert this level's node and drop to next *)
           | Leaf -> Node (y, None, (ins ys Leaf), Leaf, Leaf) (* If currently bottoming out, need to excavate down *)
           | Node (name,caps,sub,l,r) -> 
               if name > y then Node (name, caps, sub, (ins path l), r) else (* If this node is string greater than target move left in this level *)
               if name < y then Node (name, caps, sub, l, (ins path r)) else (* If this node is string less than target move right in this level*)
               Node (name, caps, (ins ys sub), l, r) (* If this node is string equal to target move down to next level *)
     in ins location' service
+
+  let shortest_prefix_match permission path service =
+    let location' = Core.Std.String.split path ~on:'/' in
+    let rec find tree loc =
+      match loc with 
+      | []    -> None
+      | x::[] -> (* At singleton walk down this level in normal bin tree traversal *)
+          (match tree with
+          | Leaf -> None
+          | Node (name, caps, sub, l, r) -> 
+              if name > x then find l loc else (* If this node is string greater than target move left in this level *)
+              if name < x then find r loc else (* If this node is string less than target move right in this level*)
+              match caps with
+              | None -> None
+              | Some (t,m) -> (* Need to determine if this macaroon is powerful enough *)
+                  if t >= permission then Some m else None)
+      | y::ys -> (* Find correct member to drop down from and see if can short circuit *)
+          match tree with 
+          | Leaf -> None
+          | Node (name,caps,sub,l,r) -> 
+              if name > y then find l loc else (* If this node is string greater than target move left in this level *)
+              if name < y then find r loc else (* If this node is string less than target move right in this level*)
+              (match caps with
+              | None       -> find sub ys (* No capabilities to try to short circuit with *)
+              | Some (t,m) -> 
+                  if t >= permission 
+                  then Some m 
+                  else find sub ys)
+    in find service location'
 end
 
 let record_permissions capability_service permissions (* perm,mac pairs *) = 
@@ -103,7 +137,7 @@ let create_service_capability server service (perm,path) =
     ~id:"foo"
   in let ms = M.add_first_party_caveat m  service
   in let mp = M.add_first_party_caveat ms path
-  in perm,M.add_first_party_caveat ms perm
+  in perm,M.add_first_party_caveat mp perm
 
 let mint server service permissions =
   Core.Std.List.map permissions ~f:(create_service_capability server service)
