@@ -35,10 +35,24 @@ let get_file_list plaintext =
   |> Yojson.Basic.from_string 
   |> begin function
      | `List j -> 
-         List.map j begin function
+         List.map j 
+         ~f:(begin function
          | `String s -> s
          | _         -> raise Malformed_data 
-         end
+         end)
+     | _ -> raise Malformed_data
+     end
+
+let get_permission_list plaintext = 
+  Cstruct.to_string plaintext
+  |> Yojson.Basic.from_string
+  |> begin function
+     | `Assoc j -> 
+         List.map j 
+         ~f:(begin function
+         | (permission, `String path) -> (permission, path)
+         | _                          -> raise Malformed_data 
+         end)
      | _ -> raise Malformed_data
      end
 
@@ -142,6 +156,47 @@ module Client = struct
             self#client_get_peer_data target service ciphertext iv)
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
+      with
+      | Path_info_exn w -> Wm.continue false rd  
+      | Malformed_data  -> Wm.continue false rd
+      | Fetch_failed t  -> Wm.continue false rd
+
+    method private to_text rd = 
+      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+      >>= fun s -> Wm.continue (`String s) rd
+  end
+
+  class permit s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    method content_types_provided rd = 
+      Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`POST] rd
+
+    method private client_permit peer service ciphertext iv =
+      let plaintext    = decrypt_message_from_client ciphertext iv s  in
+      let permissions  = get_permission_list plaintext                in
+      let capabilities = Auth.mint s service permissions              in 
+      let p_body       = Auth.serialise_capabilities capabilities     in
+      let path         = 
+        (Printf.sprintf "/peer/permit/%s/%s" 
+          (s#get_address |> Peer.host) service)                       in
+      encrypt_message_to_peer peer (Coding.decode_cstruct p_body) s
+      >>= fun body  -> Http_client.post ~peer ~path ~body
+      >|= fun (c,_) -> if c=200 then true else false 
+
+    method process_post rd =
+      try
+        let target      = get_path_info_exn rd "peer" |> Peer.create in
+        let service     = get_path_info_exn rd "service"             in
+        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+        >|= (fun message -> Coding.decode_client_message ~message)
+        >>= (fun (ciphertext,iv) -> 
+            self#client_permit target service ciphertext iv)
+        >>= fun b -> Wm.continue b rd
       with
       | Path_info_exn w -> Wm.continue false rd  
       | Malformed_data  -> Wm.continue false rd

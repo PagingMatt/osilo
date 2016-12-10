@@ -28,27 +28,17 @@ end
 
 module M = Macaroons.Make(Crypto)
 
-module Capability = struct
-  type token =  R | W
+let create_service_capability server service (perm,path) =
+  let m = M.create 
+    ~location:(server#get_address |> Peer.host)
+    ~key:(server#get_secret_key |> Cstruct.to_string)
+    ~id:(path)
+  in let ms = M.add_first_party_caveat m service 
+  in M.add_first_party_caveat ms perm
 
-  type t = {
-    service : string ;
-    path    : string ;
-    token   : token  ;
-  } with sexp
+let mint server service permissions =
+  Core.Std.List.map permissions ~f:(create_service_capability server service)
 
-  let create_read s p =
-    {service = s; path = p; token = R;}
-
-  let create_write s p =
-    {service = s; path = p; token = W;}
-
-  let to_string c = 
-    sexp_of_t c
-    |> Sexp.to_string
-
-  let of_string s =
-    Sexp.of_string s 
-   |> t_of_sexp
-end
-
+let serialise_capabilities capabilities = 
+  `List (Core.Std.List.map capabilities ~f:(fun c -> `String (M.serialize c)))
+  |> Yojson.Basic.to_string
