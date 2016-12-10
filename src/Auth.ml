@@ -83,11 +83,13 @@ end
 let record_permissions capability_service permissions = capability_service
 
 let create_service_capability server service (perm,path) =
+  let location = Printf.sprintf "%s/%s/%s" (server#get_address |> Peer.host) service path in
   let m = M.create 
-    ~location:(server#get_address |> Peer.host)
+    ~location
     ~key:(server#get_secret_key |> Cstruct.to_string)
-    ~id:(path)
-  in let ms = M.add_first_party_caveat m service 
+    ~id:"foo"
+  in let ms = M.add_first_party_caveat m  service
+  in let mp = M.add_first_party_caveat ms path
   in M.add_first_party_caveat ms perm
 
 let mint server service permissions =
