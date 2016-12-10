@@ -77,7 +77,7 @@ end = struct
               match caps with
               | None -> Node (name, Some (permission,macaroon), sub, l, r)
               | Some (t,m) -> (* Need to determine if this macaroon is more powerful than current *)
-                  if permission >> t then Node (name, Some (permission,macaroon), sub, l, r)
+                  if permission >> t then Node (name, Some (permission,macaroon), sub, l, r) (* TODO trim sub *)
                   else Node (name, Some (t,m), sub, l, r))
       | y::ys -> 
           match service with (* Above target level so find/insert this level's node and drop to next *)
