@@ -295,7 +295,8 @@ module Peer = struct
 
     method private peer_permit source service ciphertext iv =
       let plaintext    = decrypt_message_from_peer source ciphertext iv s  in
-      Auth.record_permissions s#get_capability_service plaintext 
+      Auth.record_permissions s#get_capability_service plaintext
+      |> fun c -> s#set_capability_service c
 
     method process_post rd =
       try

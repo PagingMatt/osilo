@@ -53,7 +53,7 @@ end = struct
   let create = Leaf
 end
 
-let record_permissions capability_service permissions = ()
+let record_permissions capability_service permissions = capability_service
 
 let create_service_capability server service (perm,path) =
   let m = M.create 
