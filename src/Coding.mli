@@ -1,7 +1,7 @@
 (** Decoding transmission-suitable (often serialised JSON) [string] types into internal types and
  vice versa. *)
 
-exception Decoding_failed
+exception Decoding_failed of string
 (** Raised if cannot decode a string. *)
 
 val encode_cstruct : Cstruct.t -> string 
