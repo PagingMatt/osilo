@@ -1,3 +1,5 @@
+open Nocrypto
+
 module Crypto : Macaroons.CRYPTO = struct
   let hmac ~key message =
     Nocrypto.Hash.SHA512.hmac
@@ -142,10 +144,10 @@ let record_permissions capability_service permissions (* perm,mac pairs *) =
 
 let create_service_capability server service (perm,path) =
   let location = Printf.sprintf "%s/%s/%s" (server#get_address |> Peer.host) service path in
-  let m = M.create 
+  let m = Nocrypto_entropy_unix.initialize (); M.create 
     ~location
     ~key:(server#get_secret_key |> Cstruct.to_string)
-    ~id:"foo"
+    ~id:(Rng.generate 32 |> Coding.encode_cstruct)
   in perm,M.add_first_party_caveat m perm
 
 let mint server service permissions =
@@ -230,4 +232,3 @@ let deserialise_request_capabilities capabilities =
             | _ -> raise Malformed_data  
             end) 
   | _ -> raise Malformed_data 
-  
