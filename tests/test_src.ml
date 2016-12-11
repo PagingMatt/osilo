@@ -192,6 +192,21 @@ module Auth_tests = struct
     Alcotest.(check bool) "Path below no members of verified paths is not authorised"
     (request_under_verified_path vpaths rpath) false
 
+  let read_macaroon_inserted_into_service_can_be_retrieved () = 
+    let token = R in 
+    match mint server "test" [((token |> string_of_token),"foo/bar")] with
+    | (perm,mac)::[] -> 
+        (let service = insert (perm |> token_of_string) mac (create) in
+        match shortest_prefix_match token "localhost/test/foo/bar" service with
+        | Some mac' ->
+            Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
+            (M.identifier mac') (M.identifier mac);
+            Alcotest.(check bool) "Checks that the stored macaroon is valid"
+            (verify token key mac') true
+        | None -> Alcotest.fail "Could not get Macaroon back out of capability service")
+    | _ -> Alcotest.fail "Minting failed" (* Caught in more detail in separate test *)
+
+
   let tests = [
     ("Valid tokens can be symmetrically serialised/deserailised.", `Quick, symm_token_serialisation);
     ("Invalid tokens throw on deserialisation.", `Quick, invalid_string_throws);
@@ -207,7 +222,8 @@ module Auth_tests = struct
     ("Does not verify a parent path", `Quick, verified_paths_doesnt_subsume_path);
     ("Authorises a path under some member of verified paths", `Quick, request_under_a_verified_path_authorised);
     ("Path above all verified paths not authroised", `Quick, request_above_a_verified_path_not_authorised);
-    ("Path below no verified paths not authroised", `Quick, request_not_below_a_verified_path_not_authorised);   
+    ("Path below no verified paths not authroised", `Quick, request_not_below_a_verified_path_not_authorised);
+    ("Can add Macaroon to Capabilities Service and get it out again", `Quick, read_macaroon_inserted_into_service_can_be_retrieved);   
   ]
 end
 
