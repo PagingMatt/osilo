@@ -207,7 +207,7 @@ module Client = struct
       let path         = 
         (Printf.sprintf "/peer/permit/%s/%s" 
           (s#get_address |> Peer.host) service)                       in
-      encrypt_message_to_peer peer (Coding.decode_cstruct p_body) s
+      encrypt_message_to_peer peer (Cstruct.of_string p_body) s
       >>= fun body  -> Http_client.post ~peer ~path ~body
       >|= fun (c,_) -> if c=200 then true else false 
 
