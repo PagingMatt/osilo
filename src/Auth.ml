@@ -181,8 +181,9 @@ let vpath_subsumes_request vpath rpath =
 let request_under_verified_path vpaths rpath =
   Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
 
+(* Because of the API definition a collection of requests is always all reads or all writes *)
 let authorise requests capabilities tok key target service =
-  let key' = Cstruct.to_string key in
+  let key' = Coding.encode_cstruct key in
   let verified_capabilities = Core.Std.List.filter capabilities ~f:(verify tok key') in
   let locations = Core.Std.List.map verified_capabilities ~f:(M.location) in 
   let verified_paths = (* The paths below which it is verified the requester has access of at least [tok] *)
