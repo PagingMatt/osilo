@@ -78,9 +78,9 @@ let encrypt_message_to_peer peer plaintext s =
     s#set_keying_service ks; 
     Coding.encode_peer_message ~peer:(s#get_address) ~ciphertext ~iv
 
-let attach_required_capabilities plaintext s =
+let attach_required_capabilities target service plaintext s =
   let files    = get_file_list plaintext in
-  let requests = Core.Std.List.map files ~f:(fun c -> (Auth.CS.token_of_string "R"),c) in
+  let requests = Core.Std.List.map files ~f:(fun c -> (Auth.CS.token_of_string "R"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
   let caps     = Auth.find_permissions s#get_capability_service requests in
   let caps'    = Auth.serialise_request_capabilities caps in 
   `Assoc [
@@ -154,7 +154,7 @@ module Client = struct
 
     method private client_get_peer_data target service ciphertext iv =   
       let plaintext = decrypt_message_from_client ciphertext iv s in
-      let plaintext'= attach_required_capabilities plaintext s    in
+      let plaintext'= attach_required_capabilities target service plaintext s    in
       encrypt_message_to_peer target plaintext' s
       >>= (fun body -> 
         Http_client.post 
