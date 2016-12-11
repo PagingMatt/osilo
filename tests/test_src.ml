@@ -56,6 +56,55 @@ module Api_tests = struct
   ]
 end
 
+module Auth_tests = struct
+  open Auth
+
+  let symm_token_serialisation () =
+    let r = "R" in
+    let w = "W" in 
+    let tr = CS.token_of_string r in 
+    let tw = CS.token_of_string w in 
+    let r' = CS.string_of_token tr in
+    let w' = CS.string_of_token tw in 
+    Alcotest.(check string) 
+      "No exception should have been thrown and should have equal string read tokens"
+      r r';
+    Alcotest.(check string) 
+      "No exception should have been thrown and should have equal string write tokens"
+      w w'
+
+  let invalid_string_throws () =
+    let t = "foo" in
+    try (CS.token_of_string t; Alcotest.fail "Tokenised invalid string")
+    with 
+    | CS.Invalid_token s -> 
+        Alcotest.(check string) "Invalid token throws." s t
+
+  open CS
+  let greater_than_token_tests () = 
+    let r = R in
+    let w = W in
+    Alcotest.(check bool) "W is greater than R."     (w >> r) true ;
+    Alcotest.(check bool) "R is not greater than W." (r >> w) false;
+    Alcotest.(check bool) "W is not greater than W." (w >> w) false;
+    Alcotest.(check bool) "R is not greater than R." (r >> r) false
+
+  let greater_than_equal_token_tests () = 
+    let r = R in
+    let w = W in
+    Alcotest.(check bool) "W is greater or equal to than R."     (w >= r) true ;
+    Alcotest.(check bool) "R is not greater than or equal to W." (r >= w) false;
+    Alcotest.(check bool) "W is greater than or equal to W."     (w >= w) true ;
+    Alcotest.(check bool) "R is greater than or equal to R."     (r >= r) true
+
+  let tests = [
+    ("Valid tokens can be symmetrically serialised/deserailised.", `Quick, symm_token_serialisation);
+    ("Invalid tokens throw on deserialisation.", `Quick, invalid_string_throws);
+    ("Checks token 'greater than' infix holds.", `Quick, greater_than_token_tests);
+    ("Checks token 'greater than or equal to' infix holds.", `Quick, greater_than_equal_token_tests);
+  ]
+end
+
 module Coding_tests = struct
   let a = "fooBARfooBARfooBARfooBARfooBARfo"
   let b = "FOObarFOObarFOObarFOObarFOObarFO" 
@@ -166,6 +215,7 @@ end
 let () = 
   Alcotest.run "Osilo Tests" [
     "API module"         , Api_tests.tests;
+    "Auth module"         , Auth_tests.tests;
     "Peer module"        , Peer_tests.tests;
     "Coding module"      , Coding_tests.tests;
     "Cryptography module", Cryptography_tests.tests; 
