@@ -161,7 +161,7 @@ let verify tok key mac = (* Verify that I minted this macaroon and it is suffici
 
 let verify_location target service l = 
   match Core.Std.String.split l ~on:'/' with
-  | x::y::zs -> Core.Std.String.concat ~sep:"/" zs
+  | x::y::zs -> if (x=Peer.host target) && (y=service) then Core.Std.String.concat ~sep:"/" zs else ""
   | _        -> ""
 
 let vpath_subsumes_request vpath rpath =
