@@ -97,11 +97,23 @@ module Auth_tests = struct
     Alcotest.(check bool) "W is greater than or equal to W."     (w >= w) true ;
     Alcotest.(check bool) "R is greater than or equal to R."     (r >= r) true
 
+  let can_mint_read_macaroons_for_test () =
+    let server = new Http_server.server "localhost" (Coding.decode_cstruct "fooBARfooBARfooBARfooBARfooBARfo") "localhost" in
+    let ps = Auth.mint server "test" [("R","test_file.json")] in 
+    match ps with
+    | ((perm,mac)::[]) ->
+        Alcotest.(check string) "Passed back read token with macaroon" "R" perm;
+        Alcotest.(check string) "Macaroon has desired location" "localhost/test/test_file.json" (M.location mac);
+        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (verify R "fooBARfooBARfooBARfooBARfooBARfo" mac) true
+    | [] -> Alcotest.fail "Minted no macaroons"
+    | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
+
   let tests = [
     ("Valid tokens can be symmetrically serialised/deserailised.", `Quick, symm_token_serialisation);
     ("Invalid tokens throw on deserialisation.", `Quick, invalid_string_throws);
     ("Checks token 'greater than' infix holds.", `Quick, greater_than_token_tests);
     ("Checks token 'greater than or equal to' infix holds.", `Quick, greater_than_equal_token_tests);
+    ("Checks location and caveat in minted read macaroon", `Quick, can_mint_read_macaroons_for_test);
   ]
 end
 
