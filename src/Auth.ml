@@ -171,7 +171,7 @@ let vpath_subsumes_request vpath rpath =
   let rpath' = Core.Std.String.split rpath ~on:'/' in
   let rec walker v r =
     match v with 
-    | []    -> (r = [])
+    | []    -> true
     | x::xs -> 
       match r with
       | []    -> false
