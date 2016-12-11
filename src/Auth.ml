@@ -149,7 +149,7 @@ let create_service_capability server service (perm,path) =
   let location = Printf.sprintf "%s/%s/%s" (server#get_address |> Peer.host) service path in
   let m = Nocrypto_entropy_unix.initialize (); M.create 
     ~location
-    ~key:(server#get_secret_key |> Cstruct.to_string)
+    ~key:(server#get_secret_key |> Coding.encode_cstruct)
     ~id:(Rng.generate 32 |> Coding.encode_cstruct)
   in perm,M.add_first_party_caveat m perm
 
