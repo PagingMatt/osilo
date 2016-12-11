@@ -156,6 +156,24 @@ module Auth_tests = struct
     Alcotest.(check string) "Wrong host, wrong service gives empty string"
     location3 ""
 
+  let verified_paths_subsume_sub_path () = 
+    let vpath = "test/foo" in 
+    let rpath = "test/foo/bar" in
+    Alcotest.(check bool) "Subsumed path gets authorised"
+    (vpath_subsumes_request vpath rpath) true
+
+  let verified_paths_verifies_equal () = 
+    let vpath = "test/foo/bar" in 
+    let rpath = "test/foo/bar" in
+    Alcotest.(check bool) "Equal path gets authorised"
+    (vpath_subsumes_request vpath rpath) true
+
+  let verified_paths_doesnt_subsume_path () = 
+    let vpath = "test/foo/bar" in 
+    let rpath = "test/foo" in
+    Alcotest.(check bool) "Not subsumed path doesn't get authorised"
+    (vpath_subsumes_request vpath rpath) false
+
   let tests = [
     ("Valid tokens can be symmetrically serialised/deserailised.", `Quick, symm_token_serialisation);
     ("Invalid tokens throw on deserialisation.", `Quick, invalid_string_throws);
@@ -166,6 +184,9 @@ module Auth_tests = struct
     ("Write macaroon can be used for read request", `Quick, write_macaroons_verifies_read_request);
     ("Valid location should have peer and service stripped off location", `Quick, valid_location_should_verify);
     ("Invalid location should have empty string at validation", `Quick, wrong_service_and_or_host_should_fail);
+    ("Can verify a sub path", `Quick, verified_paths_subsume_sub_path);
+    ("Can verify a equal path", `Quick, verified_paths_verifies_equal);
+    ("Does not verify a parent path", `Quick, verified_paths_doesnt_subsume_path);
   ]
 end
 
