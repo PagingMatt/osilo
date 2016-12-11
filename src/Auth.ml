@@ -92,9 +92,9 @@ end = struct
               if name > x then Node (name, caps, sub, (ins path l), r) else (* If this node is string greater than target move left in this level *)
               if name < x then Node (name, caps, sub, l, (ins path r)) else (* If this node is string less than target move right in this level*)
               match caps with
-              | None -> Node (name, Some (permission,macaroon), sub, l, r)
+              | None -> Node (name, Some (permission,macaroon), sub, l, r) (* TODO trim sub *)
               | Some (t,m) -> (* Need to determine if this macaroon is more powerful than current *)
-                  if permission >> t then Node (name, Some (permission,macaroon), sub, l, r) (* TODO trim sub *)
+                  if permission >> t then Node (name, Some (permission,macaroon), Leaf, l, r) (* If there was Some capability and this was greater then this is W and old was R so can drop subtree *)
                   else Node (name, Some (t,m), sub, l, r))
       | y::ys -> 
           match tree with (* Above target level so find/insert this level's node and drop to next *)
