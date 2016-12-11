@@ -1,7 +1,7 @@
 open Core.Std
 open Lwt.Infix
 
-exception Decoding_failed
+exception Decoding_failed of string
 
 let encode_cstruct m = 
   m
@@ -11,7 +11,7 @@ let encode_cstruct m =
 let decode_cstruct m =
   match m |> Cstruct.of_string |> Nocrypto.Base64.decode with
   | Some m' -> m'
-  | None    -> raise Decoding_failed
+  | None    -> raise (Decoding_failed m)
 
 let encode_group g = 
   g
@@ -26,12 +26,12 @@ let decode_group g =
 let string_member s j = 
   match Yojson.Basic.Util.member s j with
   | `String m -> m
-  | _         -> raise Decoding_failed
+  | _         -> raise (Decoding_failed s)
 
 let int_member s j = 
   match Yojson.Basic.Util.member s j with
   | `Int i -> i
-  | _      -> raise Decoding_failed
+  | _      -> raise (Decoding_failed s)
 
 (* TODO pull these into a module *)
 let tag_ct = "ciphertext"

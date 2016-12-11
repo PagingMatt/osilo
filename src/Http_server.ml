@@ -19,16 +19,22 @@ class server hostname key silo = object(self)
   method set_keying_service k = keying_service <- k
   method get_secret_key = KS.secret keying_service
 
+  val mutable capability_service : Auth.CS.t = Auth.CS.create
+  method get_capability_service = capability_service
+  method set_capability_service c = capability_service <- c
+
   val mutable silo_client : Client.t = Client.create ~server:silo
   method get_silo_client = silo_client
 
   method private callback _ request body =
     let api = [
-      ("/ping/"                    , fun () -> new Api.ping              self);
-      ("/client/get/local/:service", fun () -> new Api.Client.get_local  self);
-      ("/client/get/:peer/:service", fun () -> new Api.Client.get_remote self);
-      ("/peer/kx/init/"            , fun () -> new Api.Peer.kx_init      self);
-      ("/peer/get/:service"        , fun () -> new Api.Peer.get          self);
+      ("/ping/"                       , fun () -> new Api.ping              self);
+      ("/client/get/local/:service"   , fun () -> new Api.Client.get_local  self);
+      ("/client/get/:peer/:service"   , fun () -> new Api.Client.get_remote self);
+      ("/client/permit/:peer/:service", fun () -> new Api.Client.permit     self);
+      ("/peer/kx/init/"               , fun () -> new Api.Peer.kx_init      self);
+      ("/peer/get/:service"           , fun () -> new Api.Peer.get          self);
+      ("/peer/permit/:peer/:service"  , fun () -> new Api.Peer.permit       self);
     ] in
     Wm.dispatch' api ~body ~request 
     >|= begin function

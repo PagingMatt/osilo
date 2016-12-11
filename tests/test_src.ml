@@ -56,6 +56,193 @@ module Api_tests = struct
   ]
 end
 
+module Auth_tests = struct
+  open Auth
+
+  let symm_token_serialisation () =
+    let r = "R" in
+    let w = "W" in 
+    let tr = CS.token_of_string r in 
+    let tw = CS.token_of_string w in 
+    let r' = CS.string_of_token tr in
+    let w' = CS.string_of_token tw in 
+    Alcotest.(check string) 
+      "No exception should have been thrown and should have equal string read tokens"
+      r r';
+    Alcotest.(check string) 
+      "No exception should have been thrown and should have equal string write tokens"
+      w w'
+
+  let invalid_string_throws () =
+    let t = "foo" in
+    try (CS.token_of_string t; Alcotest.fail "Tokenised invalid string")
+    with 
+    | CS.Invalid_token s -> 
+        Alcotest.(check string) "Invalid token throws." s t
+
+  open CS
+  let greater_than_token_tests () = 
+    let r = R in
+    let w = W in
+    Alcotest.(check bool) "W is greater than R."     (w >> r) true ;
+    Alcotest.(check bool) "R is not greater than W." (r >> w) false;
+    Alcotest.(check bool) "W is not greater than W." (w >> w) false;
+    Alcotest.(check bool) "R is not greater than R." (r >> r) false
+
+  let greater_than_equal_token_tests () = 
+    let r = R in
+    let w = W in
+    Alcotest.(check bool) "W is greater or equal to than R."     (w >= r) true ;
+    Alcotest.(check bool) "R is not greater than or equal to W." (r >= w) false;
+    Alcotest.(check bool) "W is greater than or equal to W."     (w >= w) true ;
+    Alcotest.(check bool) "R is greater than or equal to R."     (r >= r) true
+
+  let key = "fooBARfooBARfooBARfooBARfooBARfo"
+  let server = new Http_server.server "localhost" (Coding.decode_cstruct key) "localhost" 
+
+  let can_mint_read_macaroons_for_test () =
+    let ps = Auth.mint server "test" [("R","test_file.json")] in 
+    match ps with
+    | ((perm,mac)::[]) ->
+        Alcotest.(check string) "Passed back read token with macaroon" "R" perm;
+        Alcotest.(check string) "Macaroon has desired location" "localhost/test/test_file.json" (M.location mac);
+        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (verify R key mac) true
+    | [] -> Alcotest.fail "Minted no macaroons"
+    | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
+
+  let can_mint_write_macaroons_for_test () =
+    let ps = Auth.mint server "test" [("W","test_file.json")] in 
+    match ps with
+    | ((perm,mac)::[]) ->
+        Alcotest.(check string) "Passed back write token with macaroon" "W" perm;
+        Alcotest.(check string) "Macaroon has desired location" "localhost/test/test_file.json" (M.location mac);
+        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (verify W key mac) true
+    | [] -> Alcotest.fail "Minted no macaroons"
+    | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
+
+  let write_macaroons_verifies_read_request () =
+    let ps = Auth.mint server "test" [("W","test_file.json")] in 
+    match ps with
+    | ((perm,mac)::[]) ->
+        Alcotest.(check string) "Passed back write token with macaroon" "W" perm;
+        Alcotest.(check string) "Macaroon has desired location" "localhost/test/test_file.json" (M.location mac);
+        Alcotest.(check bool)   "Verify that can read with this write token." (verify R key mac) true
+    | [] -> Alcotest.fail "Minted no macaroons"
+    | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
+
+  let valid_location_should_verify () =
+    let path = "dir/file.json" in
+    let service = "foo" in
+    let host = "bar" |> Peer.create in
+    let location = Printf.sprintf "%s/%s/%s" (Peer.host host) service path in 
+    let location' = verify_location host service location in 
+    Alcotest.(check string) "Should strip off host and service and give path not empty string"
+    path location'
+
+  let wrong_service_and_or_host_should_fail () = 
+    let path = "dir/file.json" in
+    let service1 = "bar1" in
+    let service2 = "bar2" in
+    let host1 = "foo1" |> Peer.create in
+    let host2 = "foo2" |> Peer.create in
+    let location1 = Printf.sprintf "%s/%s/%s" (Peer.host host1) service1 path in 
+    let location1' = verify_location host2 service1 location1 in 
+    let location2' = verify_location host1 service2 location1 in
+    let location3  = verify_location host2 service2 location1 in 
+    Alcotest.(check string) "Wrong host, correct service gives empty string"
+    location1' "";
+    Alcotest.(check string) "Correct host, wrong service gives empty string"
+    location2' "";
+    Alcotest.(check string) "Wrong host, wrong service gives empty string"
+    location3 ""
+
+  let verified_paths_subsume_sub_path () = 
+    let vpath = "test/foo" in 
+    let rpath = "test/foo/bar" in
+    Alcotest.(check bool) "Subsumed path gets authorised"
+    (vpath_subsumes_request vpath rpath) true
+
+  let verified_paths_verifies_equal () = 
+    let vpath = "test/foo/bar" in 
+    let rpath = "test/foo/bar" in
+    Alcotest.(check bool) "Equal path gets authorised"
+    (vpath_subsumes_request vpath rpath) true
+
+  let verified_paths_doesnt_subsume_path () = 
+    let vpath = "test/foo/bar" in 
+    let rpath = "test/foo" in
+    Alcotest.(check bool) "Not subsumed path doesn't get authorised"
+    (vpath_subsumes_request vpath rpath) false
+
+  let request_under_a_verified_path_authorised () =
+    let vpaths = ["foo/bar/1"; "foo/bar/2"; "foo/bar/3/FOO"] in 
+    let rpath  = "foo/bar/2/1/3/4" in
+    Alcotest.(check bool) "Path under a member of verified paths is authorised"
+    (request_under_verified_path vpaths rpath) true
+
+  let request_above_a_verified_path_not_authorised () =
+    let vpaths = ["foo/bar/1"; "foo/bar/2"; "foo/bar/3/FOO"] in 
+    let rpath  = "foo/bar" in
+    Alcotest.(check bool) "Path above all members of verified paths is not authorised"
+    (request_under_verified_path vpaths rpath) false
+
+  let request_not_below_a_verified_path_not_authorised () =
+    let vpaths = ["foo/bar/1"; "foo/bar/2"; "foo/bar/3/FOO"] in 
+    let rpath  = "foo/bar/4/BAR" in
+    Alcotest.(check bool) "Path below no members of verified paths is not authorised"
+    (request_under_verified_path vpaths rpath) false
+
+  let read_macaroon_inserted_into_service_can_be_retrieved () = 
+    let token = R in 
+    match mint server "test" [((token |> string_of_token),"foo/bar")] with
+    | (perm,mac)::[] -> 
+        (let service = insert (perm |> token_of_string) mac (create) in
+        match shortest_prefix_match token "localhost/test/foo/bar" service with
+        | Some mac' ->
+            Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
+            (M.identifier mac') (M.identifier mac);
+            Alcotest.(check bool) "Checks that the stored macaroon is valid"
+            (verify token key mac') true
+        | None -> Alcotest.fail "Could not get Macaroon back out of capability service")
+    | _ -> Alcotest.fail "Minting failed" (* Caught in more detail in separate test *)
+
+  let short_circuit_on_find () = 
+    let token = R in
+    match mint server "test" [((token |> string_of_token),"foo/bar"); ((token |> string_of_token),"foo/bar/FOO/BAR")] with
+    | (perm1,mac1)::(perm2,mac2)::[] -> 
+        (let service = insert (perm1 |> token_of_string) mac1 (create) in
+        let service' = insert (perm2 |> token_of_string) mac2 service  in
+        match shortest_prefix_match token "localhost/test/foo/bar/FOO/BAR" service' with
+        | Some mac' ->
+            Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
+            (M.identifier mac') (M.identifier mac1);
+            Alcotest.(check bool) "Checks that the stored macaroon is valid"
+            (verify token key mac') true
+        | None -> Alcotest.fail "Could not get short circuiting Macaroon back out of capability service")
+    | _ -> Alcotest.fail "Minting failed"
+
+
+  let tests = [
+    ("Valid tokens can be symmetrically serialised/deserailised.", `Quick, symm_token_serialisation);
+    ("Invalid tokens throw on deserialisation.", `Quick, invalid_string_throws);
+    ("Checks token 'greater than' infix holds.", `Quick, greater_than_token_tests);
+    ("Checks token 'greater than or equal to' infix holds.", `Quick, greater_than_equal_token_tests);
+    ("Checks location and caveat in minted read macaroon", `Quick, can_mint_read_macaroons_for_test);
+    ("Checks location and caveat in minted write macaroon", `Quick, can_mint_write_macaroons_for_test);
+    ("Write macaroon can be used for read request", `Quick, write_macaroons_verifies_read_request);
+    ("Valid location should have peer and service stripped off location", `Quick, valid_location_should_verify);
+    ("Invalid location should have empty string at validation", `Quick, wrong_service_and_or_host_should_fail);
+    ("Can verify a sub path", `Quick, verified_paths_subsume_sub_path);
+    ("Can verify a equal path", `Quick, verified_paths_verifies_equal);
+    ("Does not verify a parent path", `Quick, verified_paths_doesnt_subsume_path);
+    ("Authorises a path under some member of verified paths", `Quick, request_under_a_verified_path_authorised);
+    ("Path above all verified paths not authorised", `Quick, request_above_a_verified_path_not_authorised);
+    ("Path below no verified paths not authorised", `Quick, request_not_below_a_verified_path_not_authorised);
+    ("Can add Macaroon to Capabilities Service and get it out again", `Quick, read_macaroon_inserted_into_service_can_be_retrieved);
+    ("Will short circuit on find for Macaroon", `Quick, short_circuit_on_find);   
+  ]
+end
+
 module Coding_tests = struct
   let a = "fooBARfooBARfooBARfooBARfooBARfo"
   let b = "FOObarFOObarFOObarFOObarFOObarFO" 
@@ -166,6 +353,7 @@ end
 let () = 
   Alcotest.run "Osilo Tests" [
     "API module"         , Api_tests.tests;
+    "Auth module"         , Auth_tests.tests;
     "Peer module"        , Peer_tests.tests;
     "Coding module"      , Coding_tests.tests;
     "Cryptography module", Cryptography_tests.tests; 

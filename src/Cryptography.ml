@@ -15,7 +15,7 @@ end = struct
     Http_client.post ~peer ~path:"/peer/kx/init" ~body >|= fun (c,b) -> 
       if c=200 then 
         try decode_kx_reply b with
-        | Decoding_failed -> raise Key_exchange_failed
+        | Decoding_failed _ -> raise Key_exchange_failed
       else raise Key_exchange_failed
 end
 
