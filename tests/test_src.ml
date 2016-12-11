@@ -212,7 +212,7 @@ module Auth_tests = struct
     | (perm1,mac1)::(perm2,mac2)::[] -> 
         (let service = insert (perm1 |> token_of_string) mac1 (create) in
         let service' = insert (perm2 |> token_of_string) mac2 service  in
-        match shortest_prefix_match token "localhost/test/foo/bar/FOO/BAR" service with
+        match shortest_prefix_match token "localhost/test/foo/bar/FOO/BAR" service' with
         | Some mac' ->
             Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
             (M.identifier mac') (M.identifier mac1);
