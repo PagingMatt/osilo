@@ -174,6 +174,24 @@ module Auth_tests = struct
     Alcotest.(check bool) "Not subsumed path doesn't get authorised"
     (vpath_subsumes_request vpath rpath) false
 
+  let request_under_a_verified_path_authorised () =
+    let vpaths = ["foo/bar/1"; "foo/bar/2"; "foo/bar/3/FOO"] in 
+    let rpath  = "foo/bar/2/1/3/4" in
+    Alcotest.(check bool) "Path under a member of verified paths is authorised"
+    (request_under_verified_path vpaths rpath) true
+
+  let request_above_a_verified_path_not_authorised () =
+    let vpaths = ["foo/bar/1"; "foo/bar/2"; "foo/bar/3/FOO"] in 
+    let rpath  = "foo/bar" in
+    Alcotest.(check bool) "Path above all members of verified paths is not authorised"
+    (request_under_verified_path vpaths rpath) false
+
+  let request_not_below_a_verified_path_not_authorised () =
+    let vpaths = ["foo/bar/1"; "foo/bar/2"; "foo/bar/3/FOO"] in 
+    let rpath  = "foo/bar/4/BAR" in
+    Alcotest.(check bool) "Path below no members of verified paths is not authorised"
+    (request_under_verified_path vpaths rpath) false
+
   let tests = [
     ("Valid tokens can be symmetrically serialised/deserailised.", `Quick, symm_token_serialisation);
     ("Invalid tokens throw on deserialisation.", `Quick, invalid_string_throws);
@@ -187,6 +205,9 @@ module Auth_tests = struct
     ("Can verify a sub path", `Quick, verified_paths_subsume_sub_path);
     ("Can verify a equal path", `Quick, verified_paths_verifies_equal);
     ("Does not verify a parent path", `Quick, verified_paths_doesnt_subsume_path);
+    ("Authorises a path under some member of verified paths", `Quick, request_under_a_verified_path_authorised);
+    ("Path above all verified paths not authroised", `Quick, request_above_a_verified_path_not_authorised);
+    ("Path below no verified paths not authroised", `Quick, request_not_below_a_verified_path_not_authorised);   
   ]
 end
 
