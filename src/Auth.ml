@@ -95,7 +95,7 @@ end = struct
               | None -> Node (name, Some (permission,macaroon), sub, l, r) (* TODO trim sub *)
               | Some (t,m) -> (* Need to determine if this macaroon is more powerful than current *)
                   if permission >> t then Node (name, Some (permission,macaroon), Leaf, l, r) (* If there was Some capability and this was greater then this is W and old was R so can drop subtree *)
-                  else Node (name, Some (t,m), sub, l, r))
+                  else Node (name, Some (t,m), sub, l, r)) (* If old was greater than this then old was W and this was R so sub will be leaf so no need to explicitly trim *)
       | y::ys -> 
           match tree with (* Above target level so find/insert this level's node and drop to next *)
           | Leaf -> Node (y, None, (ins ys Leaf), Leaf, Leaf) (* If currently bottoming out, need to excavate down *)
