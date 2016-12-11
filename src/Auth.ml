@@ -1,5 +1,8 @@
 open Nocrypto
 
+let src = Logs.Src.create ~doc:"logger for osilo authorisation" "osilo.auth"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Crypto : Macaroons.CRYPTO = struct
   let hmac ~key message =
     Nocrypto.Hash.SHA512.hmac
@@ -191,8 +194,8 @@ let authorise requests capabilities tok key target service =
     |> Core.Std.List.filter ~f:(fun s -> not(s="")) in 
   Core.Std.List.filter requests ~f:(request_under_verified_path verified_paths)
 
-let serialise_presented_capabilities capabilities = 
-  `Assoc (Core.Std.List.map capabilities ~f:(fun (p,c) -> p, `String (M.serialize c)))
+let serialise_presented_capabilities capabilities =
+  `Assoc (Core.Std.List.map capabilities ~f:(fun (p,c) -> (p, `String (M.serialize c))))
   |> Yojson.Basic.to_string
 
 let serialise_request_capabilities capabilities = 
