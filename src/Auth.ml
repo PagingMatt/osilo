@@ -3,26 +3,26 @@ open Nocrypto
 module Crypto : Macaroons.CRYPTO = struct
   let hmac ~key message =
     Nocrypto.Hash.SHA512.hmac
-      ~key:(Coding.decode_cstruct key)
-      (Coding.decode_cstruct message)
+      ~key:(Cstruct.of_string key)
+      (Cstruct.of_string message)
     |> Coding.encode_cstruct
 
   let hash message =
     Nocrypto.Hash.SHA512.digest
-      (Coding.decode_cstruct message)
+      (Cstruct.of_string message)
     |> Coding.encode_cstruct
 
   let encrypt ~key message = 
     let ciphertext,iv = 
       Cryptography.CS.encrypt' 
-        ~key:(Coding.decode_cstruct key) 
-        ~plaintext:(Coding.decode_cstruct message)
+        ~key:(Cstruct.of_string key) 
+        ~plaintext:(Cstruct.of_string message)
     in Coding.encode_client_message ~ciphertext ~iv
 
     let decrypt ~key message =
       let ciphertext,iv = Coding.decode_client_message ~message in
         Cryptography.CS.decrypt' 
-          ~key:(Coding.decode_cstruct key) 
+          ~key:(Cstruct.of_string key) 
           ~ciphertext 
           ~iv
       |> Coding.encode_cstruct
@@ -147,10 +147,12 @@ let record_permissions capability_service permissions (* perm,mac pairs *) =
 
 let create_service_capability server service (perm,path) =
   let location = Printf.sprintf "%s/%s/%s" (server#get_address |> Peer.host) service path in
-  let m = Nocrypto_entropy_unix.initialize (); M.create 
-    ~location
-    ~key:(server#get_secret_key |> Coding.encode_cstruct)
-    ~id:(Rng.generate 32 |> Coding.encode_cstruct)
+  let m = 
+    Nocrypto_entropy_unix.initialize (); 
+    M.create 
+      ~location
+      ~key:(server#get_secret_key |> Coding.encode_cstruct)
+      ~id:(Rng.generate 32 |> Coding.encode_cstruct)
   in perm,M.add_first_party_caveat m perm
 
 let mint server service permissions =
