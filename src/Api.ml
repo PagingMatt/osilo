@@ -30,18 +30,20 @@ let get_path_info_exn rd wildcard =
   | Some p -> p
   | None   -> raise (Path_info_exn wildcard) 
 
+let pull_out_strings l = 
+  match l with
+  | `List j -> 
+      List.map j 
+        ~f:(begin function
+            | `String s -> s
+            | _         -> raise Malformed_data 
+            end)
+  | _ -> raise Malformed_data
+
 let get_file_list plaintext =
   Cstruct.to_string plaintext
   |> Yojson.Basic.from_string 
-  |> begin function
-     | `List j -> 
-         List.map j 
-         ~f:(begin function
-         | `String s -> s
-         | _         -> raise Malformed_data 
-         end)
-     | _ -> raise Malformed_data
-     end
+  |> pull_out_strings
 
 let make_file_list lst =
   `List (Core.Std.List.map lst ~f:(fun s -> `String s))
@@ -58,6 +60,13 @@ let get_permission_list plaintext =
          end)
      | _ -> raise Malformed_data
      end
+
+let get_file_and_capability_list plaintext =
+  let plaintext' = Cstruct.to_string plaintext in
+  let json = Yojson.Basic.from_string plaintext' in 
+  let files = Yojson.Basic.Util.member "files" json |> pull_out_strings in
+  let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_request_capabilities in
+  files,capabilities
 
 let decrypt_message_from_peer peer ciphertext iv s =
   let ks,message = CS.decrypt ~ks:(s#get_keying_service) ~peer ~ciphertext ~iv
@@ -268,8 +277,9 @@ module Peer = struct
 
     method private peer_get_my_data service source ciphertext iv =
       let plaintext = decrypt_message_from_peer source ciphertext iv s in
-      let files = get_file_list plaintext in
-      Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service ~files
+      let files,capabilities = get_file_and_capability_list plaintext in
+      let authorised_files = Auth.authorise files capabilities (Auth.CS.token_of_string "R") s#get_secret_key s#get_address service in
+      Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service ~files:authorised_files
       >>= fun j -> 
         (data <- j);
         match j with 

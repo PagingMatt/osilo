@@ -32,6 +32,7 @@ module CS : sig
   type t
   type token = R | W 
   val token_of_string : string -> token
+  val string_of_token : token -> string
   val create : t
   val insert : token -> M.t -> t -> t
   val shortest_prefix_match : token -> string -> t -> M.t option
@@ -53,6 +54,11 @@ end = struct
     | "R" -> R 
     | "W" -> W 
     | _   -> raise Invalid_token
+
+  let string_of_token t =
+    match t with
+    | R -> "R"
+    | W -> "W"
 
   let create = Leaf
 
@@ -140,12 +146,42 @@ let create_service_capability server service (perm,path) =
     ~location
     ~key:(server#get_secret_key |> Cstruct.to_string)
     ~id:"foo"
-  in let ms = M.add_first_party_caveat m  service
-  in let mp = M.add_first_party_caveat ms path
-  in perm,M.add_first_party_caveat mp perm
+  in perm,M.add_first_party_caveat m perm
 
 let mint server service permissions =
   Core.Std.List.map permissions ~f:(create_service_capability server service)
+
+let verify tok key mac = (* Verify that I minted this macaroon and it is sufficient for the required operation *)
+  M.verify mac ~key ~check:(fun s -> (CS.token_of_string s) >= tok) [] (* Presented a capability at least powerful enough *)
+
+let verify_location target service l = 
+  match Core.Std.String.split l ~on:'/' with
+  | x::y::zs -> Core.Std.String.concat ~sep:"/" zs
+  | _        -> ""
+
+let vpath_subsumes_request vpath rpath =
+  let vpath' = Core.Std.String.split vpath ~on:'/' in
+  let rpath' = Core.Std.String.split rpath ~on:'/' in
+  let rec walker v r =
+    match v with 
+    | []    -> (r = [])
+    | x::xs -> 
+      match r with
+      | []    -> false
+      | y::ys -> x=y && (walker xs ys)
+  in walker vpath' rpath'
+
+let request_under_verified_path vpaths rpath =
+  Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
+
+let authorise requests capabilities tok key target service =
+  let key' = Cstruct.to_string key in
+  let verified_capabilities = Core.Std.List.filter capabilities ~f:(verify tok key') in
+  let locations = Core.Std.List.map verified_capabilities ~f:(M.location) in 
+  let verified_paths = (* The paths below which it is verified the requester has access of at least [tok] *)
+    (Core.Std.List.map locations ~f:(verify_location target service))
+    |> Core.Std.List.filter ~f:(fun s -> not(s="")) in 
+  Core.Std.List.filter requests ~f:(request_under_verified_path verified_paths)
 
 let serialise_presented_capabilities capabilities = 
   `Assoc (Core.Std.List.map capabilities ~f:(fun (p,c) -> p, `String (M.serialize c)))
@@ -181,18 +217,17 @@ let deserialise_presented_capabilities capabilities =
      end 
 
 let deserialise_request_capabilities capabilities = 
-  Yojson.Basic.from_string capabilities 
-  |> begin function 
-     | `List j ->  
-         Core.Std.List.map j 
-         ~f:(begin function 
-         | `String s -> 
-             (M.deserialize s |> 
-               begin function  
-               | `Ok c    -> c  
-               | `Error _ -> raise Malformed_data 
-               end) 
-         | _ -> raise Malformed_data  
-         end) 
-     | _ -> raise Malformed_data 
-     end 
+  match capabilities with
+  | `List j ->  
+      Core.Std.List.map j 
+        ~f:(begin function 
+            | `String s -> 
+                (M.deserialize s |> 
+                 begin function  
+                 | `Ok c    -> c  
+                 | `Error _ -> raise Malformed_data 
+                 end) 
+            | _ -> raise Malformed_data  
+            end) 
+  | _ -> raise Malformed_data 
+  
