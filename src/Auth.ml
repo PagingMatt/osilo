@@ -33,8 +33,11 @@ module M = Macaroons.Make(Crypto)
 module CS : sig
   type t
   type token = R | W 
+  exception Invalid_token of string
   val token_of_string : string -> token
   val string_of_token : token -> string
+  val (>>) : token -> token -> bool
+  val (>=) : token -> token -> bool
   val create : t
   val insert : token -> M.t -> t -> t
   val shortest_prefix_match : token -> string -> t -> M.t option
@@ -49,13 +52,13 @@ end = struct
   and capabilities = token * M.t
   and token = R | W 
 
-  exception Invalid_token
+  exception Invalid_token of string
 
   let token_of_string t =
     match t with
     | "R" -> R 
     | "W" -> W 
-    | _   -> raise Invalid_token
+    | _   -> raise (Invalid_token t)
 
   let string_of_token t =
     match t with
