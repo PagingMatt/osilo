@@ -5,6 +5,20 @@ open Logs
 exception Get_failed
 exception Kx_failed
 
+let give server peer service file key token =
+  let key  = 
+    match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
+    | Some c -> c
+    | None   -> raise Get_failed
+  in
+  let server' = Peer.create server in
+  let plaintext = (`Assoc [(token, `String file)]) |> Yojson.Basic.to_string |> Cstruct.of_string in
+  let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
+  let body = Coding.encode_client_message ~ciphertext:c ~iv:i in
+  let path = Printf.sprintf "/client/permit/%s/%s" peer service in
+  Http_client.post ~peer:server' ~path ~body
+  >|= (fun (c,_) -> Printf.printf "%d" c) 
+
 let get_my host port service file key =
   let key  = 
     match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
@@ -67,6 +81,19 @@ module Terminal = struct
       )
       (fun h p s f k () -> Lwt_main.run (get_my h p s f k))
 
+  let give =
+    Command.basic
+      ~summary:"Give a host capabilities to a file on a service in my databox"
+      Command.Spec.(
+        empty
+        +> flag "-h" (required string) ~doc:" My server."
+        +> flag "-p" (required string) ~doc:" Peer to give capability to."
+        +> flag "-s" (required string) ~doc:" Service data is on."
+        +> flag "-f" (required string) ~doc:" Logical file name."
+        +> flag "-k" (required string) ~doc:" Base64 string private key."
+        +> flag "-t" (required string) ~doc:" Token [ W | R ] to express permission to give"
+      )
+      (fun h p s f k t () -> Lwt_main.run (give h p s f k t))
 
   let ping = 
     Command.basic
@@ -81,7 +108,7 @@ module Terminal = struct
   let commands = 
     Command.group 
       ~summary:"Terminal entry point for osilo terminal client."
-      [("get-my",get_my);("kx",kx_test);("ping", ping)]
+      [("get-my",get_my);("kx",kx_test);("ping", ping);("give",give)]
 end
 
 let () = 
