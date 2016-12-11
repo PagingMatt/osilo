@@ -97,14 +97,36 @@ module Auth_tests = struct
     Alcotest.(check bool) "W is greater than or equal to W."     (w >= w) true ;
     Alcotest.(check bool) "R is greater than or equal to R."     (r >= r) true
 
+  let key = "fooBARfooBARfooBARfooBARfooBARfo"
+  let server = new Http_server.server "localhost" (Coding.decode_cstruct key) "localhost" 
+
   let can_mint_read_macaroons_for_test () =
-    let server = new Http_server.server "localhost" (Coding.decode_cstruct "fooBARfooBARfooBARfooBARfooBARfo") "localhost" in
     let ps = Auth.mint server "test" [("R","test_file.json")] in 
     match ps with
     | ((perm,mac)::[]) ->
         Alcotest.(check string) "Passed back read token with macaroon" "R" perm;
         Alcotest.(check string) "Macaroon has desired location" "localhost/test/test_file.json" (M.location mac);
-        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (verify R "fooBARfooBARfooBARfooBARfooBARfo" mac) true
+        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (verify R key mac) true
+    | [] -> Alcotest.fail "Minted no macaroons"
+    | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
+
+  let can_mint_write_macaroons_for_test () =
+    let ps = Auth.mint server "test" [("W","test_file.json")] in 
+    match ps with
+    | ((perm,mac)::[]) ->
+        Alcotest.(check string) "Passed back write token with macaroon" "W" perm;
+        Alcotest.(check string) "Macaroon has desired location" "localhost/test/test_file.json" (M.location mac);
+        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (verify W key mac) true
+    | [] -> Alcotest.fail "Minted no macaroons"
+    | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
+
+  let write_macaroons_verifies_read_request () =
+    let ps = Auth.mint server "test" [("W","test_file.json")] in 
+    match ps with
+    | ((perm,mac)::[]) ->
+        Alcotest.(check string) "Passed back write token with macaroon" "W" perm;
+        Alcotest.(check string) "Macaroon has desired location" "localhost/test/test_file.json" (M.location mac);
+        Alcotest.(check bool)   "Verify that can read with this write token." (verify R key mac) true
     | [] -> Alcotest.fail "Minted no macaroons"
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
@@ -114,6 +136,8 @@ module Auth_tests = struct
     ("Checks token 'greater than' infix holds.", `Quick, greater_than_token_tests);
     ("Checks token 'greater than or equal to' infix holds.", `Quick, greater_than_equal_token_tests);
     ("Checks location and caveat in minted read macaroon", `Quick, can_mint_read_macaroons_for_test);
+    ("Checks location and caveat in minted write macaroon", `Quick, can_mint_write_macaroons_for_test);
+    ("Write macaroon can be used for read request", `Quick, write_macaroons_verifies_read_request);
   ]
 end
 
