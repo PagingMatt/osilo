@@ -130,6 +130,32 @@ module Auth_tests = struct
     | [] -> Alcotest.fail "Minted no macaroons"
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
+  let valid_location_should_verify () =
+    let path = "dir/file.json" in
+    let service = "foo" in
+    let host = "bar" |> Peer.create in
+    let location = Printf.sprintf "%s/%s/%s" (Peer.host host) service path in 
+    let location' = verify_location host service location in 
+    Alcotest.(check string) "Should strip off host and service and give path not empty string"
+    path location'
+
+  let wrong_service_and_or_host_should_fail () = 
+    let path = "dir/file.json" in
+    let service1 = "bar1" in
+    let service2 = "bar2" in
+    let host1 = "foo1" |> Peer.create in
+    let host2 = "foo2" |> Peer.create in
+    let location1 = Printf.sprintf "%s/%s/%s" (Peer.host host1) service1 path in 
+    let location1' = verify_location host2 service1 location1 in 
+    let location2' = verify_location host1 service2 location1 in
+    let location3  = verify_location host2 service2 location1 in 
+    Alcotest.(check string) "Wrong host, correct service gives empty string"
+    location1' "";
+    Alcotest.(check string) "Correct host, wrong service gives empty string"
+    location2' "";
+    Alcotest.(check string) "Wrong host, wrong service gives empty string"
+    location3 ""
+
   let tests = [
     ("Valid tokens can be symmetrically serialised/deserailised.", `Quick, symm_token_serialisation);
     ("Invalid tokens throw on deserialisation.", `Quick, invalid_string_throws);
@@ -138,6 +164,8 @@ module Auth_tests = struct
     ("Checks location and caveat in minted read macaroon", `Quick, can_mint_read_macaroons_for_test);
     ("Checks location and caveat in minted write macaroon", `Quick, can_mint_write_macaroons_for_test);
     ("Write macaroon can be used for read request", `Quick, write_macaroons_verifies_read_request);
+    ("Valid location should have peer and service stripped off location", `Quick, valid_location_should_verify);
+    ("Invalid location should have empty string at validation", `Quick, wrong_service_and_or_host_should_fail);
   ]
 end
 
