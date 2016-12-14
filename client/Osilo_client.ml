@@ -26,7 +26,7 @@ let set_my () =
     | None   -> raise Get_failed
   in
   let peer = Peer.create "172.16.54.52" in
-  let plaintext = (`Assoc [("test-file",`String "test value in file")]) |> Yojson.Basic.to_string |> Cstruct.of_string in
+  let plaintext = (`Assoc [("new-dir/test-file",`String "test value in file")]) |> Yojson.Basic.to_string |> Cstruct.of_string in
   let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
   let body = Coding.encode_client_message ~ciphertext:c ~iv:i in
   let path = "/client/set/local/master" in
