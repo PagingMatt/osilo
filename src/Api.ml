@@ -212,13 +212,17 @@ module Client = struct
       let plaintext    = decrypt_message_from_client ciphertext iv s  in
       let permissions  = get_permission_list plaintext                in
       let capabilities = Auth.mint s service permissions              in 
-      let p_body       = Auth.serialise_presented_capabilities capabilities     in
+      let p_body       = Auth.serialise_presented_capabilities capabilities in
       let path         = 
         (Printf.sprintf "/peer/permit/%s/%s" 
-          (s#get_address |> Peer.host) service)                       in
+        (s#get_address |> Peer.host) service) in
       encrypt_message_to_peer peer (Cstruct.of_string p_body) s
       >>= fun body  -> Http_client.post ~peer ~path ~body
-      >|= fun (c,_) -> if c=200 then true else false 
+      >|= fun (c,_) -> 
+        if c=204 then true 
+        else 
+          (Log.debug (fun m -> m "Server responded to presented capabilities with %d" c); 
+          false)
 
     method process_post rd =
       try
