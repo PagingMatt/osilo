@@ -37,8 +37,10 @@ end
   
 exception Checkout_failed of string * string
 exception Connection_failed of string * string
+exception Cannot_get_head_commit of string * string
+exception Cannot_create_transaction of string * string
+exception No_head_commit of string
 exception Write_failed
-exception Read_failed
 
 open Client.Silo_datakit_client
 
@@ -75,7 +77,7 @@ let write ~client ~peer ~service ~contents =
        Branch.transaction branch 
        >|= begin function 
            | Ok tr   -> Log.info (fun m -> m "Created transaction."); tr
-           | Error r -> raise Write_failed
+           | Error (`Msg msg) -> raise (Cannot_create_transaction (service, msg))
            end 
        >>= fun tr ->
          (let write_file (f,c) =
@@ -105,11 +107,11 @@ let read ~client ~peer ~service ~files =
      >>= fun branch -> Client.Silo_datakit_client.Branch.head branch
      >|= begin function 
          | Ok ptr      -> ptr
-         | Error error -> raise Read_failed
+         | Error (`Msg msg) -> raise (Cannot_get_head_commit (service, msg))
          end
      >|= begin function
          | Some head -> head
-         | None      -> raise Read_failed
+         | None      -> raise (No_head_commit service)
          end
      >|= Client.Silo_datakit_client.Commit.tree
      >>= fun tree ->
