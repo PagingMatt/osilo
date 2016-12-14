@@ -120,7 +120,6 @@ let write ~client ~peer ~service ~contents =
          end))
 
 let read ~client ~peer ~service ~files =
-  let branch = Printf.sprintf "%s" service in
   connect client
   >>= fun (c9p,cdk) -> 
     (checkout service cdk
