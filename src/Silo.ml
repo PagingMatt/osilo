@@ -1,5 +1,4 @@
 open Lwt.Infix
-open Result
 open Protocol_9p
 
 let src = Logs.Src.create ~doc:"logger for datakit entrypoint" "osilo.silo"
@@ -40,7 +39,9 @@ exception Connection_failed of string * string
 exception Cannot_get_head_commit of string * string
 exception Cannot_create_transaction of string * string
 exception No_head_commit of string
-exception Write_failed
+exception Create_or_replace_file_failed of string
+exception Cannot_create_parents of string * string
+exception Write_failed of string
 
 open Client.Silo_datakit_client
 
@@ -58,16 +59,31 @@ let disconnect conn_9p conn_dk =
 let checkout service conn_dk = 
   branch conn_dk service 
   >|= begin function
-      | Ok branch   -> branch
+      | Ok branch -> branch
       | Error (`Msg msg) -> raise (Checkout_failed (service, msg))
       end
+
+let walk_path_exn p tr =
+  let path = Datakit_path.of_string_exn p in
+  match Core.Std.String.split ~on:'/' p with
+  | []    -> Lwt.return path
+  | x::[] -> Lwt.return path
+  | path' -> 
+      Core.Std.List.take path' ((List.length path') - 1) 
+      |> String.concat "/" 
+      |> Datakit_path.of_string_exn
+      |> Transaction.make_dirs tr
+      >|= begin function
+          | Ok ()            -> path
+          | Error (`Msg msg) -> raise (Cannot_create_parents (p,msg))
+          end
 
 let write ~client ~peer ~service ~contents =
   Log.info (fun m -> m "Writing %s to %s on %s" (Yojson.Basic.to_string contents) service (Client.server client));
   let content = 
     match contents with
     | `Assoc l -> l
-    | _        -> raise Write_failed
+    | _        -> raise (Write_failed "Invalid file content.")
   in connect client
   >>= fun (c9p,cdk) -> 
      Log.info(fun m -> m "Connected to Datakit server.");
@@ -76,16 +92,17 @@ let write ~client ~peer ~service ~contents =
        Log.info (fun m -> m "Checked out %s" service);
        Branch.transaction branch 
        >|= begin function 
-           | Ok tr   -> Log.info (fun m -> m "Created transaction."); tr
+           | Ok tr -> Log.info (fun m -> m "Created transaction."); tr
            | Error (`Msg msg) -> raise (Cannot_create_transaction (service, msg))
            end 
        >>= fun tr ->
          (let write_file (f,c) =
             let c' = Yojson.Basic.to_string c |> Cstruct.of_string in
-            Transaction.create_or_replace_file tr (Datakit_path.of_string_exn f) c' 
+            walk_path_exn f tr
+            >>= (fun p -> Transaction.create_or_replace_file tr p c')
             >|= begin function
                 | Ok ()   -> ()
-                | Error e -> raise Write_failed
+                | Error (`Msg msg) -> raise (Create_or_replace_file_failed msg)
                 end
           in
             (try
@@ -93,10 +110,10 @@ let write ~client ~peer ~service ~contents =
                Lwt_list.iter_s write_file content
                >>= fun () -> Log.info (fun m -> m "Committing transaction."); (Transaction.commit tr ~message:"Write to silo")
              with 
-             | Write_failed -> Log.info (fun m -> m "Aborting transaction."); Transaction.abort tr >|= fun () -> Ok ()))
+             | Create_or_replace_file_failed msg -> Log.info (fun m -> m "Aborting transaction.\n%s" msg); Transaction.abort tr >|= fun () -> Ok ()))
      >>= begin function
          | Ok () -> Log.info (fun m -> m "Disconnecting"); disconnect c9p cdk
-         | Error (`Msg msg) -> Log.info (fun m -> m "%s" msg); raise Write_failed 
+         | Error (`Msg msg) -> raise (Write_failed msg)
          end))
 
 let read ~client ~peer ~service ~files =
