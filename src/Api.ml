@@ -427,7 +427,10 @@ module Peer = struct
       | Coding.Decoding_failed e -> 
           Log.debug (fun m -> m "Failed to decode message at /peer/permit/:peer/:service: \n%s" e);
           Wm.continue false rd
-      | Malformed_data -> Wm.continue false rd
+      | Malformed_data -> 
+          Wm.continue false rd
+      | Cryptography.CS.Decryption_failed -> 
+          Wm.continue false rd
 
     method process_post rd =
       let cs = Auth.record_permissions s#get_capability_service capabilities
