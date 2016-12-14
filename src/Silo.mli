@@ -26,8 +26,10 @@ exception Checkout_failed of string * string
 exception Connection_failed of string * string
 exception Cannot_get_head_commit of string * string
 exception Cannot_create_transaction of string * string
+exception Cannot_create_parents of string * string
+exception Create_or_replace_file_failed of string
 exception No_head_commit of string
-exception Write_failed
+exception Write_failed of string
 
 val write :
   client:Client.t            ->
