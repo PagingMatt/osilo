@@ -62,8 +62,9 @@ let get_permission_list plaintext =
      end
 
 let get_file_content_list plaintext = 
-  Cstruct.to_string plaintext
-  |> Yojson.Basic.from_string
+  let s = Cstruct.to_string plaintext in
+  Log.info (fun m -> m "Setting %s" s);
+  Yojson.Basic.from_string s
   |> begin function
      | `Assoc j -> `Assoc j
      | _ -> raise Malformed_data
@@ -250,7 +251,7 @@ module Client = struct
 
     method private client_set_my_data service ciphertext iv =
       let plaintext = decrypt_message_from_client ciphertext iv s in
-      let contents  = get_file_content_list plaintext             in
+      let contents  = Log.info (fun m -> m "Setting inside %s" service); get_file_content_list plaintext             in
       Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service ~contents
 
     method process_post rd =
