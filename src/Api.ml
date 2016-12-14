@@ -96,6 +96,19 @@ let attach_required_capabilities target service plaintext s =
     ("capabilities", caps');
   ] |> Yojson.Basic.to_string |> Cstruct.of_string
 
+exception Send_failing_on_retry
+
+let rec send_retry target path body is_retry s =
+  encrypt_message_to_peer target (Cstruct.of_string body) s
+  >>= fun body' -> Http_client.post ~peer:target ~path ~body:body'
+  >>= fun (c,b) -> 
+    if (c >= 200 && c < 300) 
+    then Lwt.return (c,b) 
+    else if not(is_retry) then
+      (s#set_keying_service (KS.invalidate s#get_keying_service target);
+      send_retry target path body true s)
+    else raise Send_failing_on_retry
+
 module Client = struct
   let decrypt_message_from_client ciphertext iv s =
     CS.decrypt' ~key:(s#get_secret_key) ~ciphertext ~iv
@@ -200,42 +213,62 @@ module Client = struct
   class permit s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
+    val mutable service : string option = None
+
+    val mutable target : Peer.t option = None
+
+    val mutable permission_list : (string * string) list = []
+
     method content_types_provided rd = 
       Wm.continue [("text/plain", self#to_text)] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
-    method allowed_methods rd = Wm.continue [`POST] rd
+    method allowed_methods rd = Wm.continue [`POST] rd      
 
-    method private client_permit peer service ciphertext iv =
-      let plaintext    = decrypt_message_from_client ciphertext iv s  in
-      let permissions  = get_permission_list plaintext                in
-      let capabilities = Auth.mint s service permissions              in 
-      let p_body       = Auth.serialise_presented_capabilities capabilities in
-      let path         = 
-        (Printf.sprintf "/peer/permit/%s/%s" 
-        (s#get_address |> Peer.host) service) in
-      encrypt_message_to_peer peer (Cstruct.of_string p_body) s
-      >>= fun body  -> Http_client.post ~peer ~path ~body
-      >|= fun (c,_) -> 
-        if c=204 then true 
-        else 
-          (Log.debug (fun m -> m "Server responded to presented capabilities with %d" c); 
-          false)
-
-    method process_post rd =
+    method malformed_request rd =
       try
-        let target      = get_path_info_exn rd "peer" |> Peer.create in
-        let service     = get_path_info_exn rd "service"             in
+        match Wm.Rd.lookup_path_info "peer" rd with
+        | None       -> Wm.continue false rd
+        | Some peer' -> let peer = Peer.create peer' in
+        match Wm.Rd.lookup_path_info "service" rd with
+        | None          -> Wm.continue false rd
+        | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >|= (fun message -> Coding.decode_client_message ~message)
         >>= (fun (ciphertext,iv) -> 
-            self#client_permit target service ciphertext iv)
-        >>= fun b -> Wm.continue b rd
+          let plaintext    = decrypt_message_from_client ciphertext iv s  in
+          service <- Some service';
+          target <- Some (Peer.create peer');
+          permission_list <- get_permission_list plaintext; 
+          Wm.continue true rd)
+      with 
+      | Coding.Decoding_failed e -> 
+          Wm.continue false rd
+      | Cryptography.CS.Decryption_failed ->
+          Wm.continue false rd
+      | Malformed_data ->
+          Wm.continue false rd
+
+    method process_post rd =
+      try
+        match target with
+        | None -> Wm.continue false rd
+        | Some target' ->
+        match service with
+        | None -> Wm.continue false rd
+        | Some service' ->
+        let capabilities = Auth.mint s service' permission_list in 
+        let p_body       = Auth.serialise_presented_capabilities capabilities in
+        let path         = 
+          (Printf.sprintf "/peer/permit/%s/%s" 
+          (s#get_address |> Peer.host) service') in
+        send_retry target' path p_body false s
+        >>= fun (c,b) -> 
+          (Log.debug (fun m -> m "Server responded to presented capabilities with %d" c); 
+          Wm.continue true rd)
       with
-      | Path_info_exn w -> Wm.continue false rd  
-      | Malformed_data  -> Wm.continue false rd
-      | Fetch_failed t  -> Wm.continue false rd
+      | Send_failing_on_retry -> Wm.continue false rd
 
     method private to_text rd = 
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
@@ -258,7 +291,9 @@ module Client = struct
 
     method malformed_request rd =
       try
-        let service' = get_path_info_exn rd "service" in
+        match Wm.Rd.lookup_path_info "service" rd with
+        | None       -> Wm.continue false rd
+        | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >|= (fun message -> Coding.decode_client_message ~message)
         >>= (fun (ciphertext,iv) -> 
