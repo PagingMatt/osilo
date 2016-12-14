@@ -368,11 +368,13 @@ module Peer = struct
 
     method private to_text rd = 
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun s -> Wm.continue (`String s) rd
+      >>= fun st -> Wm.continue (`String st) rd
   end
 
   class permit s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
+
+    val mutable capabilities : (Auth.CS.token * Auth.M.t) list = []
 
     method content_types_provided rd = 
       Wm.continue [("text/plain", self#to_text)] rd
@@ -381,28 +383,34 @@ module Peer = struct
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
-    method private peer_permit source service ciphertext iv =
-      let plaintext    = decrypt_message_from_peer source ciphertext iv s  in
-      let capabilities = Auth.deserialise_presented_capabilities (plaintext |> Cstruct.to_string) in
-      Auth.record_permissions s#get_capability_service capabilities
-      |> s#set_capability_service
-
-    method process_post rd =
-      try
-        let source      = get_path_info_exn rd "peer" |> Peer.create in
-        let service     = get_path_info_exn rd "service"             in
+    method malformed_request rd =
+      try 
+        match Wm.Rd.lookup_path_info "peer" rd with
+        | None       -> Wm.continue false rd
+        | Some peer' -> 
+        match Wm.Rd.lookup_path_info "service" rd with
+        | None          -> Wm.continue false rd
+        | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >|= (fun message -> Coding.decode_peer_message ~message)
-        >|= (fun (_,ciphertext,iv) -> 
-            self#peer_permit source service ciphertext iv)
-        >>= fun () -> Wm.continue true rd
+        >>= (fun (peer'',ciphertext,iv) -> 
+          if not(Peer.create peer' = peer'') then raise Malformed_data
+          else 
+            let plaintext = 
+              decrypt_message_from_peer peer'' ciphertext iv s in
+            let capabilities' = 
+              Auth.deserialise_presented_capabilities 
+              (plaintext |> Cstruct.to_string) in
+            (capabilities <- capabilities'; Wm.continue true rd))
       with
-      | Path_info_exn w -> Wm.continue false rd  
       | Malformed_data  -> Wm.continue false rd
-      | Fetch_failed t  -> Wm.continue false rd
+
+    method process_post rd =
+      let cs = Auth.record_permissions s#get_capability_service capabilities
+      in s#set_capability_service cs; Wm.continue true rd
 
     method private to_text rd = 
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun s -> Wm.continue (`String s) rd
+      >>= fun st -> Wm.continue (`String st) rd
   end
 end  
