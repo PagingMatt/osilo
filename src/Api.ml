@@ -121,7 +121,9 @@ module Client = struct
   class get_local s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
-    val mutable data : Yojson.Basic.json = `Null
+    val mutable service : string option = None
+
+    val mutable files : string list = []
 
     method content_types_provided rd = 
       Wm.continue [("text/plain", self#to_text)] rd
@@ -130,31 +132,39 @@ module Client = struct
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
-    method private client_get_my_data service ciphertext iv =
-      let plaintext = decrypt_message_from_client ciphertext iv s in
-      let files     = get_file_list plaintext           in
-      Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service ~files
-      >|= fun j -> 
-        (data <- j);
-        match j with 
-        | `Assoc _  -> 
-            let message = Yojson.Basic.to_string j 
-            in encrypt_message_to_client message s
-        | _         -> raise Malformed_data
+    method malformed_request rd =
+      try 
+        match Wm.Rd.lookup_path_info "service" rd with
+        | None          -> Wm.continue false rd
+        | Some service' -> 
+        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+        >|= (fun message -> Coding.decode_client_message ~message)
+        >>= (fun (ciphertext,iv) ->
+          let plaintext = decrypt_message_from_client ciphertext iv s in
+          let files' = get_file_list plaintext in
+          service <- Some service';
+          files <- files';
+          Wm.continue true rd)
+      with
+      | Coding.Decoding_failed e -> Wm.continue false rd 
+      | Cryptography.CS.Decryption_failed -> Wm.continue false rd
 
     method process_post rd =
       try
-        let service     = get_path_info_exn rd "service" in
-        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_client_message ~message)
-        >>= (fun (ciphertext,iv) -> 
-            self#client_get_my_data service ciphertext iv)
+        match service with
+        | None          -> Wm.continue false rd
+        | Some service' -> 
+        Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~files
+        >|= begin function
+            | `Assoc _ as j -> 
+                let message = Yojson.Basic.to_string j 
+                in encrypt_message_to_client message s
+            | _ -> raise Malformed_data
+            end
         >>= fun response -> 
-          Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
-      with
-      | Path_info_exn w -> Wm.continue false rd  
-      | Malformed_data  -> Wm.continue false rd
-      | Fetch_failed t  -> Wm.continue false rd
+          Wm.continue true {rd with resp_body = (Cohttp_lwt_body.of_string response)}
+      with 
+      | _  -> Wm.continue false rd
 
     method private to_text rd = 
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
