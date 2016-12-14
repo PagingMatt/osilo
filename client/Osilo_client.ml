@@ -25,11 +25,11 @@ let set_my () =
     | Some c -> c
     | None   -> raise Get_failed
   in
-  let peer = Peer.create "localhost" in
+  let peer = Peer.create "172.16.54.52" in
   let plaintext = (`Assoc [("test-file",`String "test value in file")]) |> Yojson.Basic.to_string |> Cstruct.of_string in
   let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
   let body = Coding.encode_client_message ~ciphertext:c ~iv:i in
-  let path = "/set/localhost/test" in
+  let path = "/client/set/local/master" in
   Http_client.post ~peer ~path ~body
   >|= fun _ -> ()
 
@@ -161,7 +161,7 @@ module Terminal = struct
   let commands = 
     Command.group 
       ~summary:"Terminal entry point for osilo terminal client."
-      [("get-my",get_my);("get-their",get_their);("kx",kx_test);("ping", ping);("give",give)]
+      [("get-my",get_my);("get-their",get_their);("set-my",set_my);("kx",kx_test);("ping", ping);("give",give)]
 end
 
 let () = 
