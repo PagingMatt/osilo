@@ -22,7 +22,7 @@ module Client : sig
 end
 (** [Client] module abstracts some client-specific behaviour *)
 
-exception Checkout_failed
+exception Checkout_failed of string * string
 exception Connection_failed of string * string
 exception Write_failed
 exception Read_failed

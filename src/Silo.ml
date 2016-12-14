@@ -35,7 +35,7 @@ end = struct
   module Silo_datakit_client = Datakit_client_9p.Make(Silo_9p_client)
 end
   
-exception Checkout_failed
+exception Checkout_failed of string * string
 exception Connection_failed of string * string
 exception Write_failed
 exception Read_failed
@@ -57,7 +57,7 @@ let checkout service conn_dk =
   branch conn_dk service 
   >|= begin function
       | Ok branch   -> branch
-      | Error error -> raise Checkout_failed
+      | Error (`Msg msg) -> raise (Checkout_failed (service, msg))
       end
 
 let write ~client ~peer ~service ~contents =
