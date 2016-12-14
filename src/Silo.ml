@@ -79,20 +79,19 @@ let walk_path_exn p tr =
           end
 
 let write ~client ~peer ~service ~contents =
-  Log.info (fun m -> m "Writing %s to %s on %s" (Yojson.Basic.to_string contents) service (Client.server client));
   let content = 
     match contents with
     | `Assoc l -> l
     | _        -> raise (Write_failed "Invalid file content.")
   in connect client
   >>= fun (c9p,cdk) -> 
-     Log.info(fun m -> m "Connected to Datakit server.");
+    Log.debug (fun m -> m "Connected to Datakit server.");
     (checkout service cdk
      >>= (fun branch ->
-       Log.info (fun m -> m "Checked out %s" service);
+       Log.debug (fun m -> m "Checked out branch %s" service);
        Branch.transaction branch 
        >|= begin function 
-           | Ok tr -> Log.info (fun m -> m "Created transaction."); tr
+           | Ok tr -> Log.debug (fun m -> m "Created transaction on branch %s." service); tr
            | Error (`Msg msg) -> raise (Cannot_create_transaction (service, msg))
            end 
        >>= fun tr ->
@@ -106,13 +105,17 @@ let write ~client ~peer ~service ~contents =
                 end
           in
             (try
-               Log.info (fun m -> m "Writing files...");
                Lwt_list.iter_s write_file content
-               >>= fun () -> Log.info (fun m -> m "Committing transaction."); (Transaction.commit tr ~message:"Write to silo")
+               >>= fun () -> 
+                 Log.debug (fun m -> m "Committing transaction."); 
+                 (Transaction.commit tr ~message:"Write to silo")
              with 
              | Create_or_replace_file_failed msg -> Log.info (fun m -> m "Aborting transaction.\n%s" msg); Transaction.abort tr >|= fun () -> Ok ()))
      >>= begin function
-         | Ok () -> Log.info (fun m -> m "Disconnecting"); disconnect c9p cdk
+         | Ok () -> 
+             (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client)); 
+             disconnect c9p cdk
+             >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))
          | Error (`Msg msg) -> raise (Write_failed msg)
          end))
 
