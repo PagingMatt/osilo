@@ -62,9 +62,8 @@ let get_permission_list plaintext =
      end
 
 let get_file_content_list plaintext = 
-  let s = Cstruct.to_string plaintext in
-  Log.info (fun m -> m "Setting %s" s);
-  Yojson.Basic.from_string s
+  Cstruct.to_string plaintext
+  |> Yojson.Basic.from_string
   |> begin function
      | `Assoc j -> `Assoc j
      | _ -> raise Malformed_data
@@ -246,6 +245,10 @@ module Client = struct
   class set_local s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
+    val mutable file_content_to_set : Yojson.Basic.json = `Null
+
+    val mutable service : string option = None
+
     method content_types_provided rd =
       Wm.continue [("text/plain", self#to_text)] rd
 
@@ -253,21 +256,36 @@ module Client = struct
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
-    method private client_set_my_data service ciphertext iv =
-      let plaintext = decrypt_message_from_client ciphertext iv s in
-      let contents  = Log.info (fun m -> m "Setting inside %s" service); get_file_content_list plaintext             in
-      Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service ~contents
-
-    method process_post rd =
+    method malformed_request rd =
       try
-        let service     = get_path_info_exn rd "service" in
+        let service' = get_path_info_exn rd "service" in
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >|= (fun message -> Coding.decode_client_message ~message)
         >>= (fun (ciphertext,iv) -> 
-            self#client_set_my_data service ciphertext iv
-            >>= fun () -> Wm.continue true {rd with resp_body = (Cohttp_lwt_body.of_string "Successfully written.");})
+          let plaintext = decrypt_message_from_client ciphertext iv s in
+            service <- Some service';
+            file_content_to_set <- get_file_content_list plaintext;
+            Wm.continue true rd)
       with
-      | _ -> Wm.continue false rd
+      | Coding.Decoding_failed e -> 
+          Wm.continue false rd
+      | Cryptography.CS.Decryption_failed ->
+          Wm.continue false rd
+      | Malformed_data ->
+          Wm.continue false rd
+
+    method process_post rd =
+      try
+        match service with
+        | None -> raise Malformed_data
+        | Some service' ->
+        match file_content_to_set with
+        | `Assoc j as contents ->
+            (Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~contents
+            >>= fun () -> Wm.continue true {rd with resp_body = (Cohttp_lwt_body.of_string "Successfully written.");})
+        | _ -> raise Malformed_data
+      with
+      | Malformed_data -> Wm.continue false rd
 
     method private to_text rd = 
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
