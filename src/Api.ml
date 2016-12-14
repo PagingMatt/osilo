@@ -135,7 +135,7 @@ module Client = struct
     method malformed_request rd =
       try 
         match Wm.Rd.lookup_path_info "service" rd with
-        | None          -> Wm.continue false rd
+        | None          -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >|= (fun message -> Coding.decode_client_message ~message)
@@ -144,10 +144,10 @@ module Client = struct
           let files' = get_file_list plaintext in
           service <- Some service';
           files <- files';
-          Wm.continue true rd)
+          Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue false rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue false rd
+      | Coding.Decoding_failed e -> Wm.continue true rd 
+      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -190,10 +190,10 @@ module Client = struct
     method malformed_request rd =
       try 
         match Wm.Rd.lookup_path_info "peer" rd with
-        | None       -> Wm.continue false rd
+        | None       -> Wm.continue true rd
         | Some peer' -> let peer = Peer.create peer' in
         match Wm.Rd.lookup_path_info "service" rd with
-        | None          -> Wm.continue false rd
+        | None          -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >|= (fun message -> Coding.decode_client_message ~message)
@@ -202,10 +202,10 @@ module Client = struct
           target <- Some peer;
           service <- Some service';
           plaintext <- Some plaintext';
-          Wm.continue true rd)
+          Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue false rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue false rd
+      | Coding.Decoding_failed e -> Wm.continue true rd 
+      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -253,10 +253,10 @@ module Client = struct
     method malformed_request rd =
       try
         match Wm.Rd.lookup_path_info "peer" rd with
-        | None       -> Wm.continue false rd
+        | None       -> Wm.continue true rd
         | Some peer' -> let peer = Peer.create peer' in
         match Wm.Rd.lookup_path_info "service" rd with
-        | None          -> Wm.continue false rd
+        | None          -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >|= (fun message -> Coding.decode_client_message ~message)
@@ -265,14 +265,14 @@ module Client = struct
           service <- Some service';
           target <- Some (Peer.create peer');
           permission_list <- get_permission_list plaintext; 
-          Wm.continue true rd)
+          Wm.continue false rd)
       with 
       | Coding.Decoding_failed e -> 
-          Wm.continue false rd
+          Wm.continue true rd
       | Cryptography.CS.Decryption_failed ->
-          Wm.continue false rd
+          Wm.continue true rd
       | Malformed_data ->
-          Wm.continue false rd
+          Wm.continue true rd
 
     method process_post rd =
       try
@@ -316,7 +316,7 @@ module Client = struct
     method malformed_request rd =
       try
         match Wm.Rd.lookup_path_info "service" rd with
-        | None       -> Wm.continue false rd
+        | None       -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >|= (fun message -> Coding.decode_client_message ~message)
@@ -324,14 +324,14 @@ module Client = struct
           let plaintext = decrypt_message_from_client ciphertext iv s in
             service <- Some service';
             file_content_to_set <- get_file_content_list plaintext;
-            Wm.continue true rd)
+            Wm.continue false rd)
       with
       | Coding.Decoding_failed e -> 
-          Wm.continue false rd
+          Wm.continue true rd
       | Cryptography.CS.Decryption_failed ->
-          Wm.continue false rd
+          Wm.continue true rd
       | Malformed_data ->
-          Wm.continue false rd
+          Wm.continue true rd
 
     method process_post rd =
       try
@@ -375,11 +375,11 @@ module Peer = struct
         >>= (fun message -> 
           let (source',public',group') = Coding.decode_kx_init ~message
           in source <- Some source'; public <- Some public'; group <- Some group';
-          Wm.continue true rd)
+          Wm.continue false rd)
       with
       | Coding.Decoding_failed e -> 
           (Log.debug (fun m -> m "Failed to decode message at /peer/kx/init: \n%s" e); 
-          Wm.continue false rd)
+          Wm.continue true rd)
 
     method process_post rd =
       match source with
@@ -423,7 +423,7 @@ module Peer = struct
 
     method malformed_request rd = 
       try match Wm.Rd.lookup_path_info "service" rd with
-      | None          -> Wm.continue false rd
+      | None          -> Wm.continue true rd
       | Some service' -> 
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >|= (fun message -> 
@@ -437,13 +437,13 @@ module Peer = struct
               Auth.authorise files' capabilities 
                 (Auth.CS.token_of_string "R")
                 s#get_secret_key s#get_address service' in
-            (service <- Some service'); (files <- authorised_files); Wm.continue true rd)
+            (service <- Some service'); (files <- authorised_files); Wm.continue false rd)
       with
       | Coding.Decoding_failed s -> 
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
-          Wm.continue false rd)
+          Wm.continue true rd)
       | Cryptography.CS.Decryption_failed -> 
-          Wm.continue false rd
+          Wm.continue true rd
 
     method process_post rd =
       try
@@ -484,10 +484,10 @@ module Peer = struct
     method malformed_request rd =
       try 
         match Wm.Rd.lookup_path_info "peer" rd with
-        | None       -> Wm.continue false rd
+        | None       -> Wm.continue true rd
         | Some peer' -> 
         match Wm.Rd.lookup_path_info "service" rd with
-        | None          -> Wm.continue false rd
+        | None          -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >|= (fun message -> Coding.decode_peer_message ~message)
@@ -499,15 +499,15 @@ module Peer = struct
             let capabilities' = 
               Auth.deserialise_presented_capabilities 
               (plaintext |> Cstruct.to_string) in
-            (capabilities <- capabilities'; Wm.continue true rd))
+            (capabilities <- capabilities'; Wm.continue false rd))
       with
       | Coding.Decoding_failed e -> 
           Log.debug (fun m -> m "Failed to decode message at /peer/permit/:peer/:service: \n%s" e);
-          Wm.continue false rd
+          Wm.continue true rd
       | Malformed_data -> 
-          Wm.continue false rd
+          Wm.continue true rd
       | Cryptography.CS.Decryption_failed -> 
-          Wm.continue false rd
+          Wm.continue true rd
 
     method process_post rd =
       let cs = Auth.record_permissions s#get_capability_service capabilities
