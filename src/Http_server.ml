@@ -31,11 +31,11 @@ class server hostname key silo = object(self)
       ("/ping/"                       , fun () -> new Api.ping              self);
       ("/client/get/local/:service"   , fun () -> new Api.Client.get_local  self);
       ("/client/get/:peer/:service"   , fun () -> new Api.Client.get_remote self);
+      ("/client/set/local/:service"   , fun () -> new Api.Client.set_local  self);
       ("/client/permit/:peer/:service", fun () -> new Api.Client.permit     self);
       ("/peer/kx/init/"               , fun () -> new Api.Peer.kx_init      self);
       ("/peer/get/:service"           , fun () -> new Api.Peer.get          self);
       ("/peer/permit/:peer/:service"  , fun () -> new Api.Peer.permit       self);
-      ("/client/set/local/:service", fun () -> new Api.Client.set_local  self);
     ] in
     Wm.dispatch' api ~body ~request 
     >|= begin function
