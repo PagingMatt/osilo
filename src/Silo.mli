@@ -23,6 +23,7 @@ end
 (** [Client] module abstracts some client-specific behaviour *)
 
 exception Checkout_failed
+exception Connection_failed of string * string
 exception Write_failed
 exception Read_failed
 

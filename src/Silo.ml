@@ -36,6 +36,7 @@ end = struct
 end
   
 exception Checkout_failed
+exception Connection_failed of string * string
 exception Write_failed
 exception Read_failed
 
@@ -45,7 +46,7 @@ let connect client =
   Client.Silo_9p_client.connect "tcp" (Client.server client) () 
   >|= begin function
       | Ok conn_9p  -> (conn_9p,(conn_9p |> connect))
-      | Error error -> raise Checkout_failed
+      | Error (`Msg msg) -> raise (Connection_failed ((Client.server client), msg))
       end
 
 let disconnect conn_9p conn_dk =
@@ -60,17 +61,20 @@ let checkout service conn_dk =
       end
 
 let write ~client ~peer ~service ~contents =
+  Log.info (fun m -> m "Writing %s to %s on %s" (Yojson.Basic.to_string contents) service (Client.server client));
   let content = 
     match contents with
     | `Assoc l -> l
     | _        -> raise Write_failed
   in connect client
   >>= fun (c9p,cdk) -> 
+     Log.info(fun m -> m "Connected to Datakit server.");
     (checkout service cdk
-     >>= (fun branch -> 
+     >>= (fun branch ->
+       Log.info (fun m -> m "Checked out %s" service);
        Branch.transaction branch 
        >|= begin function 
-           | Ok tr   -> tr
+           | Ok tr   -> Log.info (fun m -> m "Created transaction."); tr
            | Error r -> raise Write_failed
            end 
        >>= fun tr ->
@@ -82,11 +86,12 @@ let write ~client ~peer ~service ~contents =
                 | Error e -> raise Write_failed
                 end
           in
-            (try 
+            (try
+               Log.info (fun m -> m "Writing files...");
                Lwt_list.iter_s write_file content
-               >>= fun () -> (Transaction.commit tr ~message:"Write to silo")
+               >>= fun () -> Log.info (fun m -> m "Committing transaction."); (Transaction.commit tr ~message:"Write to silo")
              with 
-             | Write_failed -> Transaction.abort tr >|= fun () -> Ok ()))
+             | Write_failed -> Log.info (fun m -> m "Aborting transaction."); Transaction.abort tr >|= fun () -> Ok ()))
      >>= begin function
          | Ok () -> Log.info (fun m -> m "Disconnecting"); disconnect c9p cdk
          | Error (`Msg msg) -> Log.info (fun m -> m "%s" msg); raise Write_failed 
