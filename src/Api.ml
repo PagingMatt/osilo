@@ -94,7 +94,7 @@ let attach_required_capabilities target service plaintext s =
   `Assoc [
     ("files"       , (make_file_list files));
     ("capabilities", caps');
-  ] |> Yojson.Basic.to_string |> Cstruct.of_string
+  ] |> Yojson.Basic.to_string
 
 exception Send_failing_on_retry
 
@@ -164,7 +164,11 @@ module Client = struct
   class get_remote s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
-    val mutable data : Yojson.Basic.json = `Null
+    val mutable target : Peer.t option = None
+
+    val mutable service : string option = None
+
+    val mutable plaintext : Cstruct.t option = None
 
     method content_types_provided rd = 
       Wm.continue [("text/plain", self#to_text)] rd
@@ -173,37 +177,47 @@ module Client = struct
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
-    method private client_get_peer_data target service ciphertext iv =   
-      let plaintext = decrypt_message_from_client ciphertext iv s in
-      let plaintext'= attach_required_capabilities target service plaintext s    in
-      encrypt_message_to_peer target plaintext' s
-      >>= (fun body -> 
-        Http_client.post 
-          ~peer:target 
-          ~path:(Printf.sprintf "/peer/get/%s" service) 
-          ~body) 
-      >|= (fun (c,b) -> 
-        if c=200 then 
-          let _,ciphertext,iv = Coding.decode_peer_message b in
-          let plaintext = decrypt_message_from_peer target ciphertext iv s in
-          encrypt_message_to_client (Cstruct.to_string plaintext) s
-        else
-          raise (Fetch_failed target))
+    method malformed_request rd =
+      try 
+        match Wm.Rd.lookup_path_info "peer" rd with
+        | None       -> Wm.continue false rd
+        | Some peer' -> let peer = Peer.create peer' in
+        match Wm.Rd.lookup_path_info "service" rd with
+        | None          -> Wm.continue false rd
+        | Some service' -> 
+        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+        >|= (fun message -> Coding.decode_client_message ~message)
+        >>= (fun (ciphertext,iv) ->
+          let plaintext' = decrypt_message_from_client ciphertext iv s in
+          target <- Some peer;
+          service <- Some service';
+          plaintext <- Some plaintext';
+          Wm.continue true rd)
+      with
+      | Coding.Decoding_failed e -> Wm.continue false rd 
+      | Cryptography.CS.Decryption_failed -> Wm.continue false rd
 
     method process_post rd =
       try
-        let target      = Peer.create (get_path_info_exn rd "peer") in
-        let service     = get_path_info_exn rd "service"            in
-        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_client_message ~message)
-        >>= (fun (ciphertext,iv) -> 
-            self#client_get_peer_data target service ciphertext iv)
+        match target with
+        | None       -> Wm.continue false rd
+        | Some peer' -> 
+        match service with
+        | None          -> Wm.continue false rd
+        | Some service' -> 
+        match plaintext with
+        | None            -> Wm.continue false rd
+        | Some plaintext' -> 
+        let body = attach_required_capabilities peer' service' plaintext' s in
+        send_retry peer' (Printf.sprintf "/peer/get/%s" service') body false s
+        >|= (fun (c,b) ->
+          let _,ciphertext,iv = Coding.decode_peer_message b in
+          let plaintext = decrypt_message_from_peer peer' ciphertext iv s in
+          encrypt_message_to_client (Cstruct.to_string plaintext) s)
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
       with
-      | Path_info_exn w -> Wm.continue false rd  
-      | Malformed_data  -> Wm.continue false rd
-      | Fetch_failed t  -> Wm.continue false rd
+      | _ -> Wm.continue false rd
 
     method private to_text rd = 
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
