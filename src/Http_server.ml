@@ -9,7 +9,7 @@ open Silo
 
 let src = Logs.Src.create ~doc:"logger for osilo REST server" "osilo.http_server"
 module Log = (val Logs.src_log src : Logs.LOG)
-
+  
 class server hostname key silo = object(self)
   val address : Peer.t = Peer.create hostname
   method get_address = address 
@@ -31,6 +31,7 @@ class server hostname key silo = object(self)
       ("/ping/"                       , fun () -> new Api.ping              self);
       ("/client/get/local/:service"   , fun () -> new Api.Client.get_local  self);
       ("/client/get/:peer/:service"   , fun () -> new Api.Client.get_remote self);
+      ("/client/set/local/:service"   , fun () -> new Api.Client.set_local  self);
       ("/client/permit/:peer/:service", fun () -> new Api.Client.permit     self);
       ("/peer/kx/init/"               , fun () -> new Api.Peer.kx_init      self);
       ("/peer/get/:service"           , fun () -> new Api.Peer.get          self);

@@ -61,6 +61,15 @@ let get_permission_list plaintext =
      | _ -> raise Malformed_data
      end
 
+let get_file_content_list plaintext = 
+  let s = Cstruct.to_string plaintext in
+  Log.info (fun m -> m "Setting %s" s);
+  Yojson.Basic.from_string s
+  |> begin function
+     | `Assoc j -> `Assoc j
+     | _ -> raise Malformed_data
+     end
+
 let get_file_and_capability_list plaintext =
   let plaintext' = Cstruct.to_string plaintext in
   let json = Yojson.Basic.from_string plaintext' in 
@@ -203,13 +212,17 @@ module Client = struct
       let plaintext    = decrypt_message_from_client ciphertext iv s  in
       let permissions  = get_permission_list plaintext                in
       let capabilities = Auth.mint s service permissions              in 
-      let p_body       = Auth.serialise_presented_capabilities capabilities     in
+      let p_body       = Auth.serialise_presented_capabilities capabilities in
       let path         = 
         (Printf.sprintf "/peer/permit/%s/%s" 
-          (s#get_address |> Peer.host) service)                       in
+        (s#get_address |> Peer.host) service) in
       encrypt_message_to_peer peer (Cstruct.of_string p_body) s
       >>= fun body  -> Http_client.post ~peer ~path ~body
-      >|= fun (c,_) -> if c=200 then true else false 
+      >|= fun (c,_) -> 
+        if c=204 then true 
+        else 
+          (Log.debug (fun m -> m "Server responded to presented capabilities with %d" c); 
+          false)
 
     method process_post rd =
       try
@@ -224,6 +237,37 @@ module Client = struct
       | Path_info_exn w -> Wm.continue false rd  
       | Malformed_data  -> Wm.continue false rd
       | Fetch_failed t  -> Wm.continue false rd
+
+    method private to_text rd = 
+      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+      >>= fun s -> Wm.continue (`String s) rd
+  end
+
+  class set_local s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    method content_types_provided rd =
+      Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`POST] rd
+
+    method private client_set_my_data service ciphertext iv =
+      let plaintext = decrypt_message_from_client ciphertext iv s in
+      let contents  = Log.info (fun m -> m "Setting inside %s" service); get_file_content_list plaintext             in
+      Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service ~contents
+
+    method process_post rd =
+      try
+        let service     = get_path_info_exn rd "service" in
+        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+        >|= (fun message -> Coding.decode_client_message ~message)
+        >>= (fun (ciphertext,iv) -> 
+            self#client_set_my_data service ciphertext iv
+            >>= fun () -> Wm.continue true {rd with resp_body = (Cohttp_lwt_body.of_string "Successfully written.");})
+      with
+      | _ -> Wm.continue false rd
 
     method private to_text rd = 
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body

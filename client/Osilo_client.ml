@@ -19,6 +19,20 @@ let give server peer service file key token =
   Http_client.post ~peer:server' ~path ~body
   >|= (fun (c,_) -> Printf.printf "%d" c) 
 
+let set_my () = 
+  let key  = 
+    match "testtesttesttesttesttesttesttest" |> Cstruct.of_string |> Nocrypto.Base64.decode with
+    | Some c -> c
+    | None   -> raise Get_failed
+  in
+  let peer = Peer.create "172.16.54.52" in
+  let plaintext = (`Assoc [("new-dir/test-file",`String "test value in file")]) |> Yojson.Basic.to_string |> Cstruct.of_string in
+  let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
+  let body = Coding.encode_client_message ~ciphertext:c ~iv:i in
+  let path = "/client/set/local/master" in
+  Http_client.post ~peer ~path ~body
+  >|= fun _ -> ()
+
 let get_my host port service file key =
   let key  = 
     match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
@@ -86,6 +100,14 @@ module Terminal = struct
       )
       (fun h p () -> Lwt_main.run (kx_test h p))
 
+  let set_my = 
+    Command.basic
+      ~summary:"Set a piece of my data"
+      Command.Spec.(
+        empty
+      )
+      (fun () -> Lwt_main.run (set_my ()))
+
   let get_my = 
     Command.basic
       ~summary:"Get a piece of my data"
@@ -139,7 +161,7 @@ module Terminal = struct
   let commands = 
     Command.group 
       ~summary:"Terminal entry point for osilo terminal client."
-      [("get-my",get_my);("get-their",get_their);("kx",kx_test);("ping", ping);("give",give)]
+      [("get-my",get_my);("get-their",get_their);("set-my",set_my);("kx",kx_test);("ping", ping);("give",give)]
 end
 
 let () = 

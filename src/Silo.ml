@@ -1,5 +1,4 @@
 open Lwt.Infix
-open Result
 open Protocol_9p
 
 let src = Logs.Src.create ~doc:"logger for datakit entrypoint" "osilo.silo"
@@ -35,59 +34,103 @@ end = struct
   module Silo_datakit_client = Datakit_client_9p.Make(Silo_9p_client)
 end
   
-exception Checkout_failed
-exception Write_failed
-exception Read_failed
+exception Checkout_failed of string * string
+exception Connection_failed of string * string
+exception Cannot_get_head_commit of string * string
+exception Cannot_create_transaction of string * string
+exception No_head_commit of string
+exception Create_or_replace_file_failed of string
+exception Cannot_create_parents of string * string
+exception Write_failed of string
+
+open Client.Silo_datakit_client
 
 let connect client =
   Client.Silo_9p_client.connect "tcp" (Client.server client) () 
   >|= begin function
-      | Ok conn_9p  -> (conn_9p,(conn_9p |> Client.Silo_datakit_client.connect))
-      | Error error -> raise Checkout_failed
+      | Ok conn_9p  -> (conn_9p,(conn_9p |> connect))
+      | Error (`Msg msg) -> raise (Connection_failed ((Client.server client), msg))
       end
 
 let disconnect conn_9p conn_dk =
-  Client.Silo_datakit_client.disconnect conn_dk
-  >>= fun () -> 
-  Client.Silo_9p_client.disconnect conn_9p
+  disconnect conn_dk
+  >>= fun () -> Client.Silo_9p_client.disconnect conn_9p
 
 let checkout service conn_dk = 
-  Client.Silo_datakit_client.branch conn_dk service 
+  branch conn_dk service 
   >|= begin function
-      | Ok branch   -> branch
-      | Error error -> raise Checkout_failed
+      | Ok branch -> branch
+      | Error (`Msg msg) -> raise (Checkout_failed (service, msg))
       end
 
-let write ~client ~service ~file ~contents =
-  connect client
-  >>= fun (c9p,cdk) -> checkout service cdk
-  >>= fun branch -> 
-    Client.Silo_datakit_client.Branch.with_transaction branch 
-      (fun tr -> 
-      let contents' = Yojson.Basic.to_string contents |> Cstruct.of_string in
-      Client.Silo_datakit_client.Transaction.create_or_replace_file tr (Datakit_path.of_string_exn file) contents' >>=
-      begin function
-      | Ok ()   -> Client.Silo_datakit_client.Transaction.commit tr "Write"
-      | Error e -> raise Write_failed
-      end)
-  >|= begin function
-      | Ok () -> ()
-      | Error e -> raise Write_failed
-      end
+let walk_path_exn p tr =
+  let path = Datakit_path.of_string_exn p in
+  match Core.Std.String.split ~on:'/' p with
+  | []    -> Lwt.return path
+  | x::[] -> Lwt.return path
+  | path' -> 
+      Core.Std.List.take path' ((List.length path') - 1) 
+      |> String.concat "/" 
+      |> Datakit_path.of_string_exn
+      |> Transaction.make_dirs tr
+      >|= begin function
+          | Ok ()            -> path
+          | Error (`Msg msg) -> raise (Cannot_create_parents (p,msg))
+          end
+
+let write ~client ~peer ~service ~contents =
+  let content = 
+    match contents with
+    | `Assoc l -> l
+    | _        -> raise (Write_failed "Invalid file content.")
+  in connect client
+  >>= fun (c9p,cdk) -> 
+    Log.debug (fun m -> m "Connected to Datakit server.");
+    (checkout service cdk
+     >>= (fun branch ->
+       Log.debug (fun m -> m "Checked out branch %s" service);
+       Branch.transaction branch 
+       >|= begin function 
+           | Ok tr -> Log.debug (fun m -> m "Created transaction on branch %s." service); tr
+           | Error (`Msg msg) -> raise (Cannot_create_transaction (service, msg))
+           end 
+       >>= fun tr ->
+         (let write_file (f,c) =
+            let c' = Yojson.Basic.to_string c |> Cstruct.of_string in
+            walk_path_exn f tr
+            >>= (fun p -> Transaction.create_or_replace_file tr p c')
+            >|= begin function
+                | Ok ()   -> ()
+                | Error (`Msg msg) -> raise (Create_or_replace_file_failed msg)
+                end
+          in
+            (try
+               Lwt_list.iter_s write_file content
+               >>= fun () -> 
+                 Log.debug (fun m -> m "Committing transaction."); 
+                 (Transaction.commit tr ~message:"Write to silo")
+             with 
+             | Create_or_replace_file_failed msg -> Log.info (fun m -> m "Aborting transaction.\n%s" msg); Transaction.abort tr >|= fun () -> Ok ()))
+     >>= begin function
+         | Ok () -> 
+             (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client)); 
+             disconnect c9p cdk
+             >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))
+         | Error (`Msg msg) -> raise (Write_failed msg)
+         end))
 
 let read ~client ~peer ~service ~files =
-  let branch = Printf.sprintf "%s" service in
   connect client
   >>= fun (c9p,cdk) -> 
     (checkout service cdk
      >>= fun branch -> Client.Silo_datakit_client.Branch.head branch
      >|= begin function 
          | Ok ptr      -> ptr
-         | Error error -> raise Read_failed
+         | Error (`Msg msg) -> raise (Cannot_get_head_commit (service, msg))
          end
      >|= begin function
          | Some head -> head
-         | None      -> raise Read_failed
+         | None      -> raise (No_head_commit service)
          end
      >|= Client.Silo_datakit_client.Commit.tree
      >>= fun tree ->
