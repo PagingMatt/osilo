@@ -350,6 +350,53 @@ module Client = struct
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
       >>= fun s -> Wm.continue (`String s) rd
   end
+
+  class del_local s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    val mutable service : string option = None
+
+    val mutable files : string list = []
+
+    method content_types_provided rd = 
+      Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`POST] rd
+
+    method malformed_request rd =
+      try 
+        match Wm.Rd.lookup_path_info "service" rd with
+        | None          -> Wm.continue true rd
+        | Some service' -> 
+        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+        >|= (fun message -> Coding.decode_client_message ~message)
+        >>= (fun (ciphertext,iv) ->
+          let plaintext = decrypt_message_from_client ciphertext iv s in
+          let files' = get_file_list plaintext in
+          service <- Some service';
+          files <- files';
+          Wm.continue false rd)
+      with
+      | Coding.Decoding_failed e -> Wm.continue true rd 
+      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+
+    method process_post rd =
+      try
+        match service with
+        | None          -> Wm.continue false rd
+        | Some service' -> 
+        Silo.delete ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~files
+        >>= fun () -> 
+          Wm.continue true rd
+      with 
+      | _  -> Wm.continue false rd
+
+    method private to_text rd = 
+      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+      >>= fun s -> Wm.continue (`String s) rd
+  end
 end
 
 module Peer = struct 
