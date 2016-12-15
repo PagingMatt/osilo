@@ -144,3 +144,39 @@ let read ~client ~peer ~service ~files =
          ((Lwt_list.map_s f files)
          >|= (fun l -> (`Assoc l)) 
          >>= fun r -> (disconnect c9p cdk >|= fun () -> r)))
+
+let delete ~client ~peer ~service ~files =
+  connect client
+  >>= fun (c9p,cdk) -> 
+    (checkout service cdk
+     >>= (fun branch ->
+       Log.debug (fun m -> m "Checked out branch %s" service);
+       Branch.transaction branch 
+       >|= begin function 
+           | Ok tr -> Log.debug (fun m -> m "Created transaction on branch %s." service); tr
+           | Error (`Msg msg) -> raise (Cannot_create_transaction (service, msg))
+           end 
+       >>= fun tr ->
+         (let delete_file f =
+            Transaction.remove tr (Datakit_path.of_string_exn f)
+            >|= begin function
+                | Ok ()   -> ()
+                | Error (`Msg msg) -> raise (Delete_file_failed msg)
+                end
+          in
+            (try
+               Lwt_list.iter_s write_file content
+               >>= fun () -> 
+                 Log.debug (fun m -> m "Committing transaction."); 
+                 (Transaction.commit tr ~message:"Delete files from silo")
+             with 
+             | Delete_file_failed msg -> 
+                 Log.info (fun m -> m "Aborting transaction.\n%s" msg); 
+                 Transaction.abort tr >|= fun () -> Ok ()))
+     >>= begin function
+         | Ok () -> 
+             (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client)); 
+             disconnect c9p cdk
+             >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))
+         | Error (`Msg msg) -> raise (Delete_failed msg)
+         end))
