@@ -42,6 +42,8 @@ exception No_head_commit of string
 exception Create_or_replace_file_failed of string
 exception Cannot_create_parents of string * string
 exception Write_failed of string
+exception Delete_failed of string
+exception Delete_file_failed of string
 
 open Client.Silo_datakit_client
 
@@ -165,7 +167,7 @@ let delete ~client ~peer ~service ~files =
                 end
           in
             (try
-               Lwt_list.iter_s write_file content
+               Lwt_list.iter_s delete_file files
                >>= fun () -> 
                  Log.debug (fun m -> m "Committing transaction."); 
                  (Transaction.commit tr ~message:"Delete files from silo")

@@ -30,6 +30,9 @@ exception Cannot_create_parents of string * string
 exception Create_or_replace_file_failed of string
 exception No_head_commit of string
 exception Write_failed of string
+exception Delete_failed of string
+exception Delete_file_failed of string
+
 
 val write :
   client:Client.t            ->
