@@ -118,7 +118,11 @@ let write ~client ~peer ~service ~contents =
              (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client)); 
              disconnect c9p cdk
              >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))
-         | Error (`Msg msg) -> raise (Write_failed msg)
+         | Error (`Msg msg) -> 
+             (Log.err (fun m -> m "Aborted transaction: %s" msg); 
+              Log.debug (fun m -> m "Disconnecting from %s" (Client.server client)); 
+             disconnect c9p cdk
+             >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)); raise (Write_failed msg))
          end))
 
 let read ~client ~peer ~service ~files =
