@@ -174,11 +174,15 @@ let delete ~client ~peer ~service ~files =
              with 
              | Delete_file_failed msg -> 
                  Log.info (fun m -> m "Aborting transaction.\n%s" msg); 
-                 Transaction.abort tr >|= fun () -> Ok ()))
+                 Transaction.abort tr >|= fun () -> Error (`Msg msg)))
      >>= begin function
          | Ok () -> 
              (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client)); 
              disconnect c9p cdk
              >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))
-         | Error (`Msg msg) -> raise (Delete_failed msg)
+         | Error (`Msg msg) -> 
+             (Log.err (fun m -> m "Aborted transaction: %s" msg); 
+              Log.debug (fun m -> m "Disconnecting from %s" (Client.server client)); 
+             disconnect c9p cdk
+             >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)); raise (Delete_failed msg))
          end))
