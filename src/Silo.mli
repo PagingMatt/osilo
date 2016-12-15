@@ -58,7 +58,7 @@ val delete :
   peer:Peer.t       ->
   service:string    ->
   files:string list -> 
-  (Yojson.Basic.json) Lwt.t
+  unit Lwt.t
 (** [delete ~client ~peer ~service ~files] will delete each file (if it exists) from the list of 
 [files] from the [service] on the Datakit server pointed to by [client], for [peer]. [peer] is the
 [Peer.t] for this server. *)
