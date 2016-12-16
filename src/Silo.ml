@@ -80,6 +80,9 @@ let walk_path_exn p tr =
           | Error (`Msg msg) -> raise (Cannot_create_parents (p,msg))
           end
 
+let build_branch ~peer ~service =
+  Printf.sprintf "%s/%s" (Peer.host peer) service
+
 let write ~client ~peer ~service ~contents =
   let content = 
     match contents with
@@ -88,7 +91,7 @@ let write ~client ~peer ~service ~contents =
   in connect client
   >>= fun (c9p,cdk) -> 
     Log.debug (fun m -> m "Connected to Datakit server.");
-    (checkout service cdk
+    (checkout (build_branch ~peer ~service) cdk
      >>= (fun branch ->
        Log.debug (fun m -> m "Checked out branch %s" service);
        Branch.transaction branch 
@@ -132,7 +135,7 @@ let write ~client ~peer ~service ~contents =
 let read ~client ~peer ~service ~files =
   connect client
   >>= fun (c9p,cdk) -> 
-    (checkout service cdk
+    (checkout (build_branch ~peer ~service) cdk
      >>= fun branch -> Client.Silo_datakit_client.Branch.head branch
      >|= begin function 
          | Ok ptr      -> ptr
@@ -160,7 +163,7 @@ let read ~client ~peer ~service ~files =
 let delete ~client ~peer ~service ~files =
   connect client
   >>= fun (c9p,cdk) -> 
-    (checkout service cdk
+    (checkout (build_branch ~peer ~service) cdk
      >>= (fun branch ->
        Log.debug (fun m -> m "Checked out branch %s" service);
        Branch.transaction branch 
