@@ -103,6 +103,9 @@ let read_from_cache peer service files s =
       end 
   >|= fun (cached,not_cached) -> (cached, (Core.Std.List.map not_cached ~f:(fun (n,j) -> n)))
 
+let write_to_cache peer service file_content s =
+  Silo.write ~client:s#get_silo_client ~peer ~service ~contents:(`Assoc file_content)
+
 exception Send_failing_on_retry
 
 let rec send_retry target path body is_retry s =
@@ -230,13 +233,14 @@ module Client = struct
         >>= fun (cached,to_fetch) ->
           let body = attach_required_capabilities peer' service' to_fetch s in
           send_retry peer' (Printf.sprintf "/peer/get/%s" service') body false s
-        >|= (fun (c,b) ->
+        >>= (fun (c,b) ->
           let _,ciphertext,iv = Coding.decode_peer_message b in
           let plaintext = decrypt_message_from_peer peer' ciphertext iv s in
           let `Assoc fetched = get_file_content_list plaintext in
           let results = Core.Std.List.append fetched cached in
           let results' = (`Assoc results) |> Yojson.Basic.to_string in
-          encrypt_message_to_client results' s)
+          write_to_cache peer' service' fetched s
+          >|= fun () -> encrypt_message_to_client results' s)
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
       with
