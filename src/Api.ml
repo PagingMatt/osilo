@@ -86,8 +86,7 @@ let encrypt_message_to_peer peer plaintext s =
     s#set_keying_service ks; 
     Coding.encode_peer_message ~peer:(s#get_address) ~ciphertext ~iv
 
-let attach_required_capabilities target service plaintext s =
-  let files    = get_file_list plaintext in
+let attach_required_capabilities target service files s =
   let requests = Core.Std.List.map files ~f:(fun c -> (Auth.CS.token_of_string "R"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
   let caps     = Auth.find_permissions s#get_capability_service requests in
   let caps'    = Auth.serialise_request_capabilities caps in 
@@ -95,6 +94,14 @@ let attach_required_capabilities target service plaintext s =
     ("files"       , (make_file_list files));
     ("capabilities", caps');
   ] |> Yojson.Basic.to_string
+
+let read_from_cache peer service files s =
+  Silo.read ~client:s#get_silo_client ~peer ~service ~files
+  >|= begin function 
+      | `Assoc l -> Core.Std.List.partition_tf l ~f:(fun (n,j) -> not(j = `Null))
+      | _        -> raise Malformed_data
+      end 
+  >|= fun (cached,not_cached) -> (cached, (Core.Std.List.map not_cached ~f:(fun (n,j) -> n)))
 
 exception Send_failing_on_retry
 
@@ -218,11 +225,15 @@ module Client = struct
         match plaintext with
         | None            -> Wm.continue false rd
         | Some plaintext' -> 
-        let body = attach_required_capabilities peer' service' plaintext' s in
-        send_retry peer' (Printf.sprintf "/peer/get/%s" service') body false s
+        let files = get_file_list plaintext' in
+        read_from_cache peer' service' files s (* Note, if a file is just `Null it is assumed to be not cached *)
+        >>= fun (cached,to_fetch) ->
+          let body = attach_required_capabilities peer' service' to_fetch s in
+          send_retry peer' (Printf.sprintf "/peer/get/%s" service') body false s
         >|= (fun (c,b) ->
           let _,ciphertext,iv = Coding.decode_peer_message b in
           let plaintext = decrypt_message_from_peer peer' ciphertext iv s in
+          (* Pull out files, append with cached, cache new *)
           encrypt_message_to_client (Cstruct.to_string plaintext) s)
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
