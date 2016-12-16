@@ -30,6 +30,9 @@ exception Cannot_create_parents of string * string
 exception Create_or_replace_file_failed of string
 exception No_head_commit of string
 exception Write_failed of string
+exception Delete_failed of string
+exception Delete_file_failed of string
+
 
 val write :
   client:Client.t            ->
@@ -52,3 +55,13 @@ val read :
 (** [read ~client ~peer ~service ~files] will read each file from the list of [files] from the 
 [service] on the Datakit server pointed to by [client], for [peer]. [peer] is the [Peer.t] for this
 server. *)
+
+val delete :
+  client:Client.t   ->
+  peer:Peer.t       ->
+  service:string    ->
+  files:string list -> 
+  unit Lwt.t
+(** [delete ~client ~peer ~service ~files] will delete each file (if it exists) from the list of 
+[files] from the [service] on the Datakit server pointed to by [client], for [peer]. [peer] is the
+[Peer.t] for this server. *)

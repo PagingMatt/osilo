@@ -33,6 +33,20 @@ let set_my () =
   Http_client.post ~peer ~path ~body
   >|= fun _ -> ()
 
+let del_my () = 
+  let key  = 
+    match "testtesttesttesttesttesttesttest" |> Cstruct.of_string |> Nocrypto.Base64.decode with
+    | Some c -> c
+    | None   -> raise Get_failed
+  in
+  let peer = Peer.create "172.16.54.52" in
+  let plaintext = (`List [(`String "new-dir/test-file5")]) |> Yojson.Basic.to_string |> Cstruct.of_string in
+  let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
+  let body = Coding.encode_client_message ~ciphertext:c ~iv:i in
+  let path = "/client/del/local/master" in
+  Http_client.post ~peer ~path ~body
+  >|= fun _ -> ()
+
 let get_my host port service file key =
   let key  = 
     match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
@@ -121,6 +135,14 @@ module Terminal = struct
       )
       (fun h p s f k () -> Lwt_main.run (get_my h p s f k))
 
+  let del_my = 
+    Command.basic
+      ~summary:"Delete a piece of my data"
+      Command.Spec.(
+        empty
+      )
+      (fun () -> Lwt_main.run (del_my ()))
+
   let get_their = 
     Command.basic
       ~summary:"Get a piece of their data"
@@ -161,7 +183,7 @@ module Terminal = struct
   let commands = 
     Command.group 
       ~summary:"Terminal entry point for osilo terminal client."
-      [("get-my",get_my);("get-their",get_their);("set-my",set_my);("kx",kx_test);("ping", ping);("give",give)]
+      [("del-my",del_my);("get-my",get_my);("get-their",get_their);("set-my",set_my);("kx",kx_test);("ping", ping);("give",give)]
 end
 
 let () = 

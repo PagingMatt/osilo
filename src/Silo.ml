@@ -17,7 +17,7 @@ module Client : sig
   end
 end = struct
   type t = {
-    server : string (* Silo_9p_client.connect takes a string not a Uri.t *)
+    server : string
   }
 
   exception Failed_to_make_silo_client of Uri.t
@@ -42,6 +42,8 @@ exception No_head_commit of string
 exception Create_or_replace_file_failed of string
 exception Cannot_create_parents of string * string
 exception Write_failed of string
+exception Delete_failed of string
+exception Delete_file_failed of string
 
 open Client.Silo_datakit_client
 
@@ -110,13 +112,21 @@ let write ~client ~peer ~service ~contents =
                  Log.debug (fun m -> m "Committing transaction."); 
                  (Transaction.commit tr ~message:"Write to silo")
              with 
-             | Create_or_replace_file_failed msg -> Log.info (fun m -> m "Aborting transaction.\n%s" msg); Transaction.abort tr >|= fun () -> Ok ()))
+             | Create_or_replace_file_failed msg -> 
+                 Log.info (fun m -> m "Aborting transaction.\n%s" msg); 
+                 Transaction.abort tr >|= fun () -> Ok ()))
      >>= begin function
          | Ok () -> 
              (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client)); 
              disconnect c9p cdk
              >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))
-         | Error (`Msg msg) -> raise (Write_failed msg)
+         | Error (`Msg msg) -> 
+             (Log.err (fun m -> m "Aborted transaction: %s" msg); 
+              Log.debug (fun m -> m "Disconnecting from %s" (Client.server client)); 
+             disconnect c9p cdk
+             >|= fun () -> 
+               Log.debug (fun m -> m "Disconnected from %s" (Client.server client)); 
+               raise (Write_failed msg))
          end))
 
 let read ~client ~peer ~service ~files =
@@ -137,10 +147,56 @@ let read ~client ~peer ~service ~files =
        let f file = 
          Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
          >|= begin function
-             | Ok cstruct  -> (Printf.sprintf "%s" file),(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
+             | Ok cstruct  -> 
+                 (Printf.sprintf "%s" file),
+                 (cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
              | Error error -> (Printf.sprintf "%s" file),`Null
              end
        in
          ((Lwt_list.map_s f files)
          >|= (fun l -> (`Assoc l)) 
          >>= fun r -> (disconnect c9p cdk >|= fun () -> r)))
+
+let delete ~client ~peer ~service ~files =
+  connect client
+  >>= fun (c9p,cdk) -> 
+    (checkout service cdk
+     >>= (fun branch ->
+       Log.debug (fun m -> m "Checked out branch %s" service);
+       Branch.transaction branch 
+       >|= begin function 
+           | Ok tr -> Log.debug (fun m -> m "Created transaction on branch %s." service); tr
+           | Error (`Msg msg) -> raise (Cannot_create_transaction (service, msg))
+           end 
+       >>= fun tr ->
+         (let delete_file f =
+            Transaction.remove tr (Datakit_path.of_string_exn f)
+            >|= begin function
+                | Ok ()   -> ()
+                | Error (`Msg msg) -> 
+                    if msg = "No such file or directory" (* Should refactor to check exists on RO tree *)
+                    then () else raise (Delete_file_failed msg)
+                end
+          in
+            (try
+               Lwt_list.iter_s delete_file files
+               >>= fun () -> 
+                 Log.debug (fun m -> m "Committing transaction."); 
+                 (Transaction.commit tr ~message:"Delete files from silo")
+             with 
+             | Delete_file_failed msg -> 
+                 Log.info (fun m -> m "Aborting transaction.\n%s" msg); 
+                 Transaction.abort tr >|= fun () -> Error (`Msg msg)))
+     >>= begin function
+         | Ok () -> 
+             (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client)); 
+             disconnect c9p cdk
+             >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))
+         | Error (`Msg msg) -> 
+             (Log.err (fun m -> m "Aborted transaction: %s" msg); 
+              Log.debug (fun m -> m "Disconnecting from %s" (Client.server client)); 
+             disconnect c9p cdk
+             >|= fun () -> 
+               Log.debug (fun m -> m "Disconnected from %s" (Client.server client)); 
+               raise (Delete_failed msg))
+         end))

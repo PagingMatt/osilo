@@ -32,6 +32,7 @@ class server hostname key silo = object(self)
       ("/client/get/local/:service"   , fun () -> new Api.Client.get_local  self);
       ("/client/get/:peer/:service"   , fun () -> new Api.Client.get_remote self);
       ("/client/set/local/:service"   , fun () -> new Api.Client.set_local  self);
+      ("/client/del/local/:service"   , fun () -> new Api.Client.del_local  self);
       ("/client/permit/:peer/:service", fun () -> new Api.Client.permit     self);
       ("/peer/kx/init/"               , fun () -> new Api.Peer.kx_init      self);
       ("/peer/get/:service"           , fun () -> new Api.Peer.get          self);
