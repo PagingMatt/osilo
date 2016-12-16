@@ -233,8 +233,10 @@ module Client = struct
         >|= (fun (c,b) ->
           let _,ciphertext,iv = Coding.decode_peer_message b in
           let plaintext = decrypt_message_from_peer peer' ciphertext iv s in
-          (* Pull out files, append with cached, cache new *)
-          encrypt_message_to_client (Cstruct.to_string plaintext) s)
+          let `Assoc fetched = get_file_content_list plaintext in
+          let results = Core.Std.List.append fetched cached in
+          let results' = (`Assoc results) |> Yojson.Basic.to_string in
+          encrypt_message_to_client results' s)
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
       with
