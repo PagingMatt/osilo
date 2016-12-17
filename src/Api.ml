@@ -511,9 +511,15 @@ module Peer = struct
 
     method process_post rd =
       try
+        match source with 
+        | None -> Wm.continue false rd
+        | Some source' ->
         match service with 
         | None -> Wm.continue false rd
         | Some service' ->
+            s#set_peer_access_log (List.fold files ~init:s#get_peer_access_log
+              ~f:(fun l -> fun f -> 
+                Peer_access_log.log l ~host:s#get_address ~peer:source' ~service:service' ~path:f));
             Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~files:files
             >>= fun j ->
               (match j with 
