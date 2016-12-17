@@ -107,6 +107,15 @@ let read_from_cache peer service files s =
 let write_to_cache peer service file_content s =
   Silo.write ~client:s#get_silo_client ~peer ~service ~contents:(`Assoc file_content)
 
+let get_remote_file_list plaintext =
+  plaintext
+  |> Cstruct.to_string
+  |> Yojson.Basic.from_string
+  |> begin function 
+  | `List rfs -> Core.Std.List.map rfs ~f:Coding.decode_json_requested_file 
+  | _         -> raise Malformed_data
+  end
+
 exception Send_failing_on_retry
 
 let rec send_retry target path body is_retry s =
@@ -247,10 +256,13 @@ module Client = struct
         match plaintext with
         | None            -> Wm.continue false rd
         | Some plaintext' -> 
-        let files = get_file_list plaintext' in
-        read_from_cache peer' service' files s (* Note, if a file is just `Null it is assumed to be not cached *)
-        >>= fun (cached,to_fetch) ->
-          let body = attach_required_capabilities peer' service' to_fetch s in
+        let files = get_remote_file_list plaintext' in
+        let to_check,to_fetch = Core.Std.List.partition_tf files ~f:(fun rf -> rf.check_cache) in
+        read_from_cache peer' service' (Core.Std.List.map to_check ~f:(fun rf -> rf.path)) s (* Note, if a file is just `Null it is assumed to be not cached *)
+        >>= fun (cached,to_fetch') ->
+          let body = 
+            attach_required_capabilities peer' service' 
+              (List.append (Core.Std.List.map to_fetch ~f:(fun rf -> rf.path)) to_fetch') s in
           send_retry peer' (Printf.sprintf "/peer/get/%s" service') body false s
         >>= (fun (c,b) ->
           let _,ciphertext,iv = Coding.decode_peer_message b in
