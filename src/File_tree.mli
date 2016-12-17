@@ -1,5 +1,9 @@
 type 'a t
 
+exception Path_empty
+(** Raised when inserting and hit an empty path, this should never happen as the terminating
+condition is on a singleton list, but if fed an empty path need to catch this. *)
+
 val empty : 'a t 
 
 val insert : 
