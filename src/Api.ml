@@ -104,8 +104,14 @@ let read_from_cache peer service files s =
       end 
   >|= fun (cached,not_cached) -> (cached, (Core.Std.List.map not_cached ~f:(fun (n,j) -> n)))
 
-let write_to_cache peer service file_content s =
-  Silo.write ~client:s#get_silo_client ~peer ~service ~contents:(`Assoc file_content)
+open Coding
+
+let write_to_cache peer service file_content requests s =
+  let write_backs = Core.Std.List.filter requests ~f:(fun rf -> rf.write_back) in
+  let files_to_write_back = 
+    Core.Std.List.filter file_content 
+      ~f:(fun (p,c) -> Core.Std.List.exists write_backs (fun rf -> rf.path = p)) in
+  Silo.write ~client:s#get_silo_client ~peer ~service ~contents:(`Assoc files_to_write_back)
 
 let get_remote_file_list plaintext =
   plaintext
@@ -256,8 +262,8 @@ module Client = struct
         match plaintext with
         | None            -> Wm.continue false rd
         | Some plaintext' -> 
-        let files = get_remote_file_list plaintext' in
-        let to_check,to_fetch = Core.Std.List.partition_tf files ~f:(fun rf -> rf.check_cache) in
+        let requests = get_remote_file_list plaintext' in
+        let to_check,to_fetch = Core.Std.List.partition_tf requests ~f:(fun rf -> rf.check_cache) in
         read_from_cache peer' service' (Core.Std.List.map to_check ~f:(fun rf -> rf.path)) s (* Note, if a file is just `Null it is assumed to be not cached *)
         >>= fun (cached,to_fetch') ->
           let body = 
@@ -270,7 +276,7 @@ module Client = struct
           let `Assoc fetched = get_file_content_list plaintext in
           let results = Core.Std.List.append fetched cached in
           let results' = (`Assoc results) |> Yojson.Basic.to_string in
-          write_to_cache peer' service' fetched s
+          write_to_cache peer' service' fetched requests s 
           >|= fun () -> encrypt_message_to_client results' s)
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
