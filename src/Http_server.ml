@@ -19,7 +19,7 @@ class server hostname key silo = object(self)
   method set_keying_service k = keying_service <- k
   method get_secret_key = KS.secret keying_service
 
-  val mutable capability_service : Auth.CS.t = Auth.CS.create
+  val mutable capability_service : (Auth.Token.t * Auth.M.t) File_tree.t = File_tree.empty
   method get_capability_service = capability_service
   method set_capability_service c = capability_service <- c
 

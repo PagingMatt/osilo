@@ -87,7 +87,7 @@ let encrypt_message_to_peer peer plaintext s =
     Coding.encode_peer_message ~peer:(s#get_address) ~ciphertext ~iv
 
 let attach_required_capabilities target service files s =
-  let requests = Core.Std.List.map files ~f:(fun c -> (Auth.CS.token_of_string "R"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
+  let requests = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string "R"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
   let caps     = Auth.find_permissions s#get_capability_service requests in
   let caps'    = Auth.serialise_request_capabilities caps in 
   `Assoc [
@@ -499,7 +499,7 @@ module Peer = struct
             let files',capabilities = get_file_and_capability_list plaintext in
             let authorised_files = 
               Auth.authorise files' capabilities 
-                (Auth.CS.token_of_string "R")
+                (Auth.Token.token_of_string "R")
                 s#get_secret_key s#get_address service' in
             (service <- Some service'); (files <- authorised_files); Wm.continue false rd)
       with
@@ -593,7 +593,7 @@ module Peer = struct
   class permit s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
-    val mutable capabilities : (Auth.CS.token * Auth.M.t) list = []
+    val mutable capabilities : (Auth.Token.t * Auth.M.t) list = []
 
     method content_types_provided rd = 
       Wm.continue [("text/plain", self#to_text)] rd

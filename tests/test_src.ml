@@ -62,10 +62,10 @@ module Auth_tests = struct
   let symm_token_serialisation () =
     let r = "R" in
     let w = "W" in 
-    let tr = CS.token_of_string r in 
-    let tw = CS.token_of_string w in 
-    let r' = CS.string_of_token tr in
-    let w' = CS.string_of_token tw in 
+    let tr = Token.token_of_string r in 
+    let tw = Token.token_of_string w in 
+    let r' = Token.string_of_token tr in
+    let w' = Token.string_of_token tw in 
     Alcotest.(check string) 
       "No exception should have been thrown and should have equal string read tokens"
       r r';
@@ -75,12 +75,12 @@ module Auth_tests = struct
 
   let invalid_string_throws () =
     let t = "foo" in
-    try (CS.token_of_string t; Alcotest.fail "Tokenised invalid string")
+    try (Token.token_of_string t; Alcotest.fail "Tokenised invalid string")
     with 
-    | CS.Invalid_token s -> 
+    | Token.Invalid_token s -> 
         Alcotest.(check string) "Invalid token throws." s t
 
-  open CS
+  open Token
   let greater_than_token_tests () = 
     let r = R in
     let w = W in
@@ -192,35 +192,6 @@ module Auth_tests = struct
     Alcotest.(check bool) "Path below no members of verified paths is not authorised"
     (request_under_verified_path vpaths rpath) false
 
-  let read_macaroon_inserted_into_service_can_be_retrieved () = 
-    let token = R in 
-    match mint server "test" [((token |> string_of_token),"foo/bar")] with
-    | (perm,mac)::[] -> 
-        (let service = insert (perm |> token_of_string) mac (create) in
-        match shortest_prefix_match token "localhost/test/foo/bar" service with
-        | Some mac' ->
-            Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
-            (M.identifier mac') (M.identifier mac);
-            Alcotest.(check bool) "Checks that the stored macaroon is valid"
-            (verify token key mac') true
-        | None -> Alcotest.fail "Could not get Macaroon back out of capability service")
-    | _ -> Alcotest.fail "Minting failed" (* Caught in more detail in separate test *)
-
-  let short_circuit_on_find () = 
-    let token = R in
-    match mint server "test" [((token |> string_of_token),"foo/bar"); ((token |> string_of_token),"foo/bar/FOO/BAR")] with
-    | (perm1,mac1)::(perm2,mac2)::[] -> 
-        (let service = insert (perm1 |> token_of_string) mac1 (create) in
-        let service' = insert (perm2 |> token_of_string) mac2 service  in
-        match shortest_prefix_match token "localhost/test/foo/bar/FOO/BAR" service' with
-        | Some mac' ->
-            Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
-            (M.identifier mac') (M.identifier mac1);
-            Alcotest.(check bool) "Checks that the stored macaroon is valid"
-            (verify token key mac') true
-        | None -> Alcotest.fail "Could not get short circuiting Macaroon back out of capability service")
-    | _ -> Alcotest.fail "Minting failed"
-
 
   let tests = [
     ("Valid tokens can be symmetrically serialised/deserailised.", `Quick, symm_token_serialisation);
@@ -238,8 +209,6 @@ module Auth_tests = struct
     ("Authorises a path under some member of verified paths", `Quick, request_under_a_verified_path_authorised);
     ("Path above all verified paths not authorised", `Quick, request_above_a_verified_path_not_authorised);
     ("Path below no verified paths not authorised", `Quick, request_not_below_a_verified_path_not_authorised);
-    ("Can add Macaroon to Capabilities Service and get it out again", `Quick, read_macaroon_inserted_into_service_can_be_retrieved);
-    ("Will short circuit on find for Macaroon", `Quick, short_circuit_on_find);   
   ]
 end
 
