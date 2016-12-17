@@ -76,7 +76,7 @@ let find_permissions capability_service requests =
   ~f:(fun (perm,path) -> 
     File_tree.shortest_path_match 
       ~tree:capability_service 
-      ~path:(Core.Std.String.split path ~on:'/') 
+      ~location:(Core.Std.String.split path ~on:'/') 
       ~satisfies:(satisfies perm)
     |> begin function 
        | None       -> None

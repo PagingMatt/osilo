@@ -19,10 +19,10 @@ it then gives back the element which should be at the position. *)
 
 val shortest_path_match :
   tree:       'a t        ->
-  path:       string list ->
+  location:       string list ->
   satisfies: ('a -> bool) -> 'a option
-(** [shortest_path_match ~tree ~path ~satisfies] starts at the root of [tree] and walks down 
-towards [path] until an element along [path] in [tree] satisfies the predicate [satisfies], it then
+(** [shortest_path_match ~tree ~location ~satisfies] starts at the root of [tree] and walks down 
+towards [location] until an element along [location] in [tree] satisfies the predicate [satisfies], it then
 returns this element. If it reaches a leaf before finding a satisfying element [None] is returned. *)
 
 val flatten_under :

@@ -29,16 +29,16 @@ let insert ~element ~tree ~location ~select =
             Node (name, el, (ins ys sub), l, r)
   in ins location' tree
 
-let shortest_path_match ~tree ~path ~satisfies =
-  let rec find tree loc =
-      match loc with 
+let shortest_path_match ~tree ~location ~satisfies =
+  let rec find path tree =
+      match path with 
       | []    -> None
       | x::[] ->
           (match tree with
           | Leaf -> None
           | Node (name, el, sub, l, r) -> 
-              if name > x then find l loc else
-              if name < x then find r loc else
+              if name > x then find path l else
+              if name < x then find path r else
               match el with
               | None          -> None
               | Some el' as e -> if satisfies el' then e else None)
@@ -46,11 +46,11 @@ let shortest_path_match ~tree ~path ~satisfies =
           match tree with 
           | Leaf -> None
           | Node (name,el,sub,l,r) -> 
-              if name > y then find l loc else
-              if name < y then find r loc else
+              if name > y then find path l else
+              if name < y then find path r else
               (match el with
-              | None         -> None
-              | Some el' as e-> if satisfies el' then e else find sub ys)
-  in find tree path
+              | None         -> find ys sub
+              | Some el' as e-> if satisfies el' then e else find ys sub)
+  in find location tree
 
 let flatten_under ~tree ~path = []

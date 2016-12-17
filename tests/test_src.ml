@@ -314,18 +314,22 @@ module File_tree_tests = struct
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
   let server = new Http_server.server "localhost" (Coding.decode_cstruct key) "localhost"
 
-  let location (_,m) = (M.location m |> Core.Std.String.split ~on:'/')
+  let location = fun (_,m) -> (M.location m |> Core.Std.String.split ~on:'/')
 
-  let select (p1,m1) (p2,m2) = if p2 >> p1 then (p2,m2) else (p1,m1)
+  let select = fun (p1,m1) -> (fun (p2,m2) -> (if p2 >> p1 then (p2,m2) else (p1,m1)))
 
-  let satisfies permission (t,m) = t >= permission
+  let satisfies = fun permission -> (fun (t,_) -> (t >= permission))
 
   let read_macaroon_inserted_into_service_can_be_retrieved () = 
     let token = R in 
     match mint server "test" [((token |> string_of_token),"foo/bar")] with
     | (perm,mac)::[] -> 
-        (let service = File_tree.insert ~element:((perm |> token_of_string), mac) ~tree:(File_tree.empty) ~location ~select in
-        match File_tree.shortest_path_match ~tree:service ~path:(Core.Std.String.split "localhost/test/foo/bar" ~on:'/') ~satisfies:(satisfies token) with
+        Alcotest.(check string) "Checks the token is minted correctly"
+        perm "R";
+        Alcotest.(check string) "Checks the minted macaroon has correct location"
+        (M.location mac) "localhost/test/foo/bar";
+        (let service = File_tree.insert ~element:(token,mac) ~tree:(File_tree.empty) ~location ~select in
+        match File_tree.shortest_path_match ~tree:service ~location:(["localhost"; "test"; "foo"; "bar"]) ~satisfies:(satisfies token) with
         | Some (_,mac') ->
             Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
             (M.identifier mac') (M.identifier mac);
@@ -340,7 +344,7 @@ module File_tree_tests = struct
     | (perm1,mac1)::(perm2,mac2)::[] -> 
         (let service = File_tree.insert ~element:((perm1 |> token_of_string), mac1) ~tree:(File_tree.empty) ~location ~select in
         let service' = File_tree.insert ~element:((perm2 |> token_of_string), mac2) ~tree:(service) ~location ~select in
-        match File_tree.shortest_path_match ~tree:service' ~path:(Core.Std.String.split "localhost/test/foo/bar/FOO/BAR" ~on:'/') ~satisfies:(satisfies token) with
+        match File_tree.shortest_path_match ~tree:service' ~location:(Core.Std.String.split "localhost/test/foo/bar/FOO/BAR" ~on:'/') ~satisfies:(satisfies token) with
         | Some (_,mac') ->
             Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
             (M.identifier mac') (M.identifier mac1);
