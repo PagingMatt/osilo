@@ -3,6 +3,12 @@ open Lwt.Infix
 
 exception Decoding_failed of string
 
+type requested_file = {
+  path        : string ;
+  check_cache : bool   ;
+  write_back  : bool   ;
+}
+
 let encode_cstruct m = 
   m
   |> Nocrypto.Base64.encode
