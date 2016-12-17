@@ -307,6 +307,54 @@ module Cryptography_tests = struct
   ]
 end
 
+module File_tree_tests = struct
+  open Auth
+  open Auth.Token
+
+  let key = "fooBARfooBARfooBARfooBARfooBARfo"
+  let server = new Http_server.server "localhost" (Coding.decode_cstruct key) "localhost"
+
+  let location (_,m) = (M.location m |> Core.Std.String.split ~on:'/')
+
+  let select (p1,m1) (p2,m2) = if p2 >> p1 then (p2,m2) else (p1,m1)
+
+  let satisfies permission (t,m) = t >= permission
+
+  let read_macaroon_inserted_into_service_can_be_retrieved () = 
+    let token = R in 
+    match mint server "test" [((token |> string_of_token),"foo/bar")] with
+    | (perm,mac)::[] -> 
+        (let service = File_tree.insert ~element:((perm |> token_of_string), mac) ~tree:(File_tree.empty) ~location ~select in
+        match File_tree.shortest_path_match ~tree:service ~path:(Core.Std.String.split "localhost/test/foo/bar" ~on:'/') ~satisfies:(satisfies token) with
+        | Some (_,mac') ->
+            Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
+            (M.identifier mac') (M.identifier mac);
+            Alcotest.(check bool) "Checks that the stored macaroon is valid"
+            (verify token key mac') true
+        | None -> Alcotest.fail "Could not get Macaroon back out of capability service")
+    | _ -> Alcotest.fail "Minting failed" (* Caught in more detail in separate test *)
+
+  let short_circuit_on_find () = 
+    let token = R in
+    match mint server "test" [((token |> string_of_token),"foo/bar"); ((token |> string_of_token),"foo/bar/FOO/BAR")] with
+    | (perm1,mac1)::(perm2,mac2)::[] -> 
+        (let service = File_tree.insert ~element:((perm1 |> token_of_string), mac1) ~tree:(File_tree.empty) ~location ~select in
+        let service' = File_tree.insert ~element:((perm2 |> token_of_string), mac2) ~tree:(service) ~location ~select in
+        match File_tree.shortest_path_match ~tree:service' ~path:(Core.Std.String.split "localhost/test/foo/bar/FOO/BAR" ~on:'/') ~satisfies:(satisfies token) with
+        | Some (_,mac') ->
+            Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
+            (M.identifier mac') (M.identifier mac1);
+            Alcotest.(check bool) "Checks that the stored macaroon is valid"
+            (verify token key mac') true
+        | None -> Alcotest.fail "Could not get short circuiting Macaroon back out of capability service")
+    | _ -> Alcotest.fail "Minting failed"
+
+  let tests = [
+    ("Can add Macaroon to Capabilities Service and get it out again", `Quick, read_macaroon_inserted_into_service_can_be_retrieved);
+    ("Will short circuit on find for Macaroon", `Quick, short_circuit_on_find);
+  ]
+end
+
 module Peer_tests = struct
   let peer_builds_with_host () =
     Alcotest.(check string)
@@ -326,4 +374,5 @@ let () =
     "Peer module"        , Peer_tests.tests;
     "Coding module"      , Coding_tests.tests;
     "Cryptography module", Cryptography_tests.tests; 
+    "File tree module", File_tree_tests.tests; 
   ]
