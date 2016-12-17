@@ -1,6 +1,7 @@
 open Core.Std
 open Cryptography
 open Silo
+open Lwt
 open Lwt.Infix
 
 exception Malformed_data
@@ -118,6 +119,24 @@ let rec send_retry target path body is_retry s =
       (s#set_keying_service (KS.invalidate s#get_keying_service target);
       send_retry target path body true s)
     else raise Send_failing_on_retry
+
+let invalidate_paths_at_peer peer paths service s =
+  let body = make_file_list paths |> Yojson.Basic.to_string in
+  send_retry peer (Printf.sprintf "/peer/inv/%s/%s" (Peer.host s#get_address) service) body false s
+
+let invalidate_paths_at_peers paths access_log service s =
+  let path_peers = Core.Std.List.map paths ~f:(fun path -> path, 
+    (Peer_access_log.find s#get_peer_access_log 
+      ~host:s#get_address ~service ~path)) in
+  let peers = 
+    path_peers
+    |> Core.Std.List.fold ~init:[] ~f:(fun acc -> fun (_,ps) -> Core.Std.List.append acc ps)
+    |> Core.Std.List.dedup ~compare:Peer.compare in
+  let peer_paths = Core.Std.List.map peers 
+    ~f:(fun peer -> peer,
+      (Core.Std.List.fold path_peers ~init:[] ~f:(fun acc -> fun (path,ps) -> 
+        Core.Std.List.append (if List.exists ps (fun p -> Peer.compare p peer = 0) then [path] else []) acc))) in 
+  Lwt_list.iter_s (fun (peer,paths) -> invalidate_paths_at_peer peer paths service s >|= fun _ -> ()) peer_paths
 
 module Client = struct
   let decrypt_message_from_client ciphertext iv s =
@@ -243,6 +262,55 @@ module Client = struct
           >|= fun () -> encrypt_message_to_client results' s)
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
+      with
+      | _ -> Wm.continue false rd
+
+    method private to_text rd = 
+      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+      >>= fun s -> Wm.continue (`String s) rd
+  end
+
+  class inv s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    val mutable service : string option = None
+
+    val mutable plaintext : Cstruct.t option = None
+
+    method content_types_provided rd = 
+      Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`POST] rd
+
+    method malformed_request rd =
+      try 
+        match Wm.Rd.lookup_path_info "service" rd with
+        | None          -> Wm.continue true rd
+        | Some service' -> 
+        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+        >|= (fun message -> Coding.decode_client_message ~message)
+        >>= (fun (ciphertext,iv) ->
+          let plaintext' = decrypt_message_from_client ciphertext iv s in
+          service <- Some service';
+          plaintext <- Some plaintext';
+          Wm.continue false rd)
+      with
+      | Coding.Decoding_failed e -> Wm.continue true rd 
+      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+
+    method process_post rd =
+      try
+        match service with
+        | None          -> Wm.continue false rd
+        | Some service' -> 
+        match plaintext with
+        | None            -> Wm.continue false rd
+        | Some plaintext' -> 
+        let paths = get_file_list plaintext' in
+        invalidate_paths_at_peers paths s#get_peer_access_log service' s
+        >>= fun () -> Wm.continue true rd
       with
       | _ -> Wm.continue false rd
 
