@@ -1,6 +1,13 @@
 (** Decoding transmission-suitable (often serialised JSON) [string] types into internal types and
  vice versa. *)
 
+type requested_file
+(** Internal type for requested files and caching data about these *)
+
+val encode_json_requested_file : requested_file -> Yojson.Basic.json
+
+val decode_json_requested_file : Yojson.Basic.json -> requested_file
+
 exception Decoding_failed of string
 (** Raised if cannot decode a string. *)
 

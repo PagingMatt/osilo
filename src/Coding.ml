@@ -39,6 +39,25 @@ let int_member s j =
   | `Int i -> i
   | _      -> raise (Decoding_failed s)
 
+let bool_member s j = 
+  match Yojson.Basic.Util.member s j with
+  | `Bool b -> b
+  | _      -> raise (Decoding_failed s)
+
+let encode_json_requested_file rf =
+  `Assoc [
+    ("path"       , `String rf.path);
+    ("check_cache", `Bool   rf.check_cache);
+    ("write_back" , `Bool   rf.write_back);
+  ]
+
+let decode_json_requested_file j =
+  {
+    path        = string_member  "path"        j;
+    check_cache = bool_member    "check_cache" j;
+    write_back  = bool_member    "write_back"  j;
+  }
+
 (* TODO pull these into a module *)
 let tag_ct = "ciphertext"
 let tag_iv = "initial_vector"
