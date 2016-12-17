@@ -22,6 +22,12 @@ class server : string -> Cstruct.t -> string -> object
   (** [set_capability_service cs] is a side effecting function to assign the capability service for 
   this server to [cs]. *)
 
+  method get_peer_access_log : Peer_access_log.t
+  (** [get_peer_access_log] gives the current [Peer_access_log] member of this server. *)
+
+  method set_peer_access_log : Peer_access_log.t -> unit
+  (** [set_peer_access_log log] sets the [Peer_access_log] member of this server to [log]. *)
+
   method get_silo_client : Silo.Client.t
   (** [get_silo_client] returns the [Silo.Client.t] representing the client to this server's 
   Datakit instance. *)

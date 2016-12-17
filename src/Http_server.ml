@@ -23,6 +23,10 @@ class server hostname key silo = object(self)
   method get_capability_service = capability_service
   method set_capability_service c = capability_service <- c
 
+  val mutable peer_access_log : Peer_access_log.t = Peer_access_log.empty
+  method get_peer_access_log = peer_access_log
+  method set_peer_access_log p = peer_access_log <- p
+
   val mutable silo_client : Client.t = Client.create ~server:silo
   method get_silo_client = silo_client
 
