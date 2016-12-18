@@ -62,10 +62,10 @@ module Auth_tests = struct
   let symm_token_serialisation () =
     let r = "R" in
     let w = "W" in 
-    let tr = CS.token_of_string r in 
-    let tw = CS.token_of_string w in 
-    let r' = CS.string_of_token tr in
-    let w' = CS.string_of_token tw in 
+    let tr = Token.token_of_string r in 
+    let tw = Token.token_of_string w in 
+    let r' = Token.string_of_token tr in
+    let w' = Token.string_of_token tw in 
     Alcotest.(check string) 
       "No exception should have been thrown and should have equal string read tokens"
       r r';
@@ -75,12 +75,12 @@ module Auth_tests = struct
 
   let invalid_string_throws () =
     let t = "foo" in
-    try (CS.token_of_string t; Alcotest.fail "Tokenised invalid string")
+    try (Token.token_of_string t; Alcotest.fail "Tokenised invalid string")
     with 
-    | CS.Invalid_token s -> 
+    | Token.Invalid_token s -> 
         Alcotest.(check string) "Invalid token throws." s t
 
-  open CS
+  open Token
   let greater_than_token_tests () = 
     let r = R in
     let w = W in
@@ -192,35 +192,6 @@ module Auth_tests = struct
     Alcotest.(check bool) "Path below no members of verified paths is not authorised"
     (request_under_verified_path vpaths rpath) false
 
-  let read_macaroon_inserted_into_service_can_be_retrieved () = 
-    let token = R in 
-    match mint server "test" [((token |> string_of_token),"foo/bar")] with
-    | (perm,mac)::[] -> 
-        (let service = insert (perm |> token_of_string) mac (create) in
-        match shortest_prefix_match token "localhost/test/foo/bar" service with
-        | Some mac' ->
-            Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
-            (M.identifier mac') (M.identifier mac);
-            Alcotest.(check bool) "Checks that the stored macaroon is valid"
-            (verify token key mac') true
-        | None -> Alcotest.fail "Could not get Macaroon back out of capability service")
-    | _ -> Alcotest.fail "Minting failed" (* Caught in more detail in separate test *)
-
-  let short_circuit_on_find () = 
-    let token = R in
-    match mint server "test" [((token |> string_of_token),"foo/bar"); ((token |> string_of_token),"foo/bar/FOO/BAR")] with
-    | (perm1,mac1)::(perm2,mac2)::[] -> 
-        (let service = insert (perm1 |> token_of_string) mac1 (create) in
-        let service' = insert (perm2 |> token_of_string) mac2 service  in
-        match shortest_prefix_match token "localhost/test/foo/bar/FOO/BAR" service' with
-        | Some mac' ->
-            Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
-            (M.identifier mac') (M.identifier mac1);
-            Alcotest.(check bool) "Checks that the stored macaroon is valid"
-            (verify token key mac') true
-        | None -> Alcotest.fail "Could not get short circuiting Macaroon back out of capability service")
-    | _ -> Alcotest.fail "Minting failed"
-
 
   let tests = [
     ("Valid tokens can be symmetrically serialised/deserailised.", `Quick, symm_token_serialisation);
@@ -238,8 +209,6 @@ module Auth_tests = struct
     ("Authorises a path under some member of verified paths", `Quick, request_under_a_verified_path_authorised);
     ("Path above all verified paths not authorised", `Quick, request_above_a_verified_path_not_authorised);
     ("Path below no verified paths not authorised", `Quick, request_not_below_a_verified_path_not_authorised);
-    ("Can add Macaroon to Capabilities Service and get it out again", `Quick, read_macaroon_inserted_into_service_can_be_retrieved);
-    ("Will short circuit on find for Macaroon", `Quick, short_circuit_on_find);   
   ]
 end
 
@@ -338,6 +307,88 @@ module Cryptography_tests = struct
   ]
 end
 
+module File_tree_tests = struct
+  open Auth
+  open Auth.Token
+
+  let key = "fooBARfooBARfooBARfooBARfooBARfo"
+  let server = new Http_server.server "localhost" (Coding.decode_cstruct key) "localhost"
+
+  let location = fun (_,m) -> (M.location m |> Core.Std.String.split ~on:'/')
+
+  let select = fun (p1,m1) -> (fun (p2,m2) -> (if p2 >> p1 then (p2,m2) else (p1,m1)))
+
+  let satisfies = fun permission -> (fun (t,_) -> (t >= permission))
+
+  let read_macaroon_inserted_into_service_can_be_retrieved () = 
+    let token = R in 
+    match mint server "test" [((token |> string_of_token),"foo/bar")] with
+    | (perm,mac)::[] -> 
+        Alcotest.(check string) "Checks the token is minted correctly"
+        perm "R";
+        Alcotest.(check string) "Checks the minted macaroon has correct location"
+        (M.location mac) "localhost/test/foo/bar";
+        (let service = File_tree.insert ~element:(token,mac) ~tree:(File_tree.empty) ~location ~select in
+        match File_tree.shortest_path_match ~tree:service ~location:(["localhost"; "test"; "foo"; "bar"]) ~satisfies:(satisfies token) with
+        | Some (_,mac') ->
+            Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
+            (M.identifier mac') (M.identifier mac);
+            Alcotest.(check bool) "Checks that the stored macaroon is valid"
+            (verify token key mac') true
+        | None -> Alcotest.fail "Could not get Macaroon back out of capability service")
+    | _ -> Alcotest.fail "Minting failed" (* Caught in more detail in separate test *)
+
+  let short_circuit_on_find () = 
+    let token = R in
+    match mint server "test" [((token |> string_of_token),"foo/bar"); ((token |> string_of_token),"foo/bar/FOO/BAR")] with
+    | (perm1,mac1)::(perm2,mac2)::[] -> 
+        (let service = File_tree.insert ~element:((perm1 |> token_of_string), mac1) ~tree:(File_tree.empty) ~location ~select in
+        let service' = File_tree.insert ~element:((perm2 |> token_of_string), mac2) ~tree:(service) ~location ~select in
+        match File_tree.shortest_path_match ~tree:service' ~location:(Core.Std.String.split "localhost/test/foo/bar/FOO/BAR" ~on:'/') ~satisfies:(satisfies token) with
+        | Some (_,mac') ->
+            Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
+            (M.identifier mac') (M.identifier mac1);
+            Alcotest.(check bool) "Checks that the stored macaroon is valid"
+            (verify token key mac') true
+        | None -> Alcotest.fail "Could not get short circuiting Macaroon back out of capability service")
+    | _ -> Alcotest.fail "Minting failed"
+
+  let tests = [
+    ("Can add Macaroon to Capabilities Service and get it out again", `Quick, read_macaroon_inserted_into_service_can_be_retrieved);
+    ("Will short circuit on find for Macaroon", `Quick, short_circuit_on_find);
+  ]
+end
+
+module Peer_access_log_tests = struct
+  let host = Peer.create "192.168.1.86"
+  let peer = Peer.create "192.168.1.77"
+  let service = "foo"
+  let path = "dir/file"
+
+  let access_inserted_into_log_can_be_retrieved () =
+    let pal  = Peer_access_log.empty in
+    let pal' = Peer_access_log.log pal ~host ~peer ~service ~path in
+    match Peer_access_log.find pal' ~host ~service ~path with
+    | p::[] ->
+        Alcotest.(check string) "Checks the logged peer is the one inserted."
+        (Peer.host peer) (Peer.host p);
+    | _ -> Alcotest.fail "One single peer access should be logged."
+
+  let access_inserted_into_log_can_be_retrieved_from_node_above () =
+    let pal  = Peer_access_log.empty in
+    let pal' = Peer_access_log.log pal ~host ~peer ~service ~path in
+    match Peer_access_log.find pal' ~host ~service ~path:"dir" with
+    | p::[] ->
+        Alcotest.(check string) "Checks the logged peer is the one inserted."
+        (Peer.host peer) (Peer.host p);
+    | _ -> Alcotest.fail "One single peer access should be logged."
+
+  let tests = [
+    ("Can add access to Peer Access Log and get it out again", `Quick, access_inserted_into_log_can_be_retrieved);
+    ("Can add access to Peer Access Log and get it out again from flattening higher node", `Quick, access_inserted_into_log_can_be_retrieved_from_node_above);
+  ]
+end
+
 module Peer_tests = struct
   let peer_builds_with_host () =
     Alcotest.(check string)
@@ -357,4 +408,6 @@ let () =
     "Peer module"        , Peer_tests.tests;
     "Coding module"      , Coding_tests.tests;
     "Cryptography module", Cryptography_tests.tests; 
+    "File tree module", File_tree_tests.tests; 
+    "Peer access log module", Peer_access_log_tests.tests; 
   ]

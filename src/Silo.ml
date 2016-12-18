@@ -80,15 +80,20 @@ let walk_path_exn p tr =
           | Error (`Msg msg) -> raise (Cannot_create_parents (p,msg))
           end
 
+let build_branch ~peer ~service =
+  Printf.sprintf "%s/%s" (Peer.host peer) service
+
 let write ~client ~peer ~service ~contents =
   let content = 
     match contents with
     | `Assoc l -> l
     | _        -> raise (Write_failed "Invalid file content.")
-  in connect client
+  in 
+  if content = [] then Lwt.return () else 
+  connect client
   >>= fun (c9p,cdk) -> 
     Log.debug (fun m -> m "Connected to Datakit server.");
-    (checkout service cdk
+    (checkout (build_branch ~peer ~service) cdk
      >>= (fun branch ->
        Log.debug (fun m -> m "Checked out branch %s" service);
        Branch.transaction branch 
@@ -130,37 +135,38 @@ let write ~client ~peer ~service ~contents =
          end))
 
 let read ~client ~peer ~service ~files =
+  if files = [] then Lwt.return (`Assoc []) else
   connect client
   >>= fun (c9p,cdk) -> 
-    (checkout service cdk
+    (checkout (build_branch ~peer ~service) cdk
      >>= fun branch -> Client.Silo_datakit_client.Branch.head branch
      >|= begin function 
          | Ok ptr      -> ptr
          | Error (`Msg msg) -> raise (Cannot_get_head_commit (service, msg))
          end
-     >|= begin function
-         | Some head -> head
-         | None      -> raise (No_head_commit service)
-         end
-     >|= Client.Silo_datakit_client.Commit.tree
-     >>= fun tree ->
-       let f file = 
-         Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
-         >|= begin function
-             | Ok cstruct  -> 
-                 (Printf.sprintf "%s" file),
-                 (cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
-             | Error error -> (Printf.sprintf "%s" file),`Null
-             end
-       in
-         ((Lwt_list.map_s f files)
-         >|= (fun l -> (`Assoc l)) 
-         >>= fun r -> (disconnect c9p cdk >|= fun () -> r)))
+     >>= begin function
+         | None      -> Lwt.return (`Assoc (Core.Std.List.map files ~f:(fun file -> (file,`Null))))
+         | Some head -> 
+            (let tree = Client.Silo_datakit_client.Commit.tree head in
+              (let f file = 
+                Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
+                >|= begin function
+                    | Ok cstruct  -> 
+                        (Printf.sprintf "%s" file),
+                        (cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
+                    | Error error -> (Printf.sprintf "%s" file),`Null
+                    end
+              in
+                (Lwt_list.map_s f files)
+                >|= (fun l -> (`Assoc l))))
+          end
+      >>= fun r -> (disconnect c9p cdk >|= fun () -> r))
 
 let delete ~client ~peer ~service ~files =
+  if files = [] then Lwt.return () else
   connect client
   >>= fun (c9p,cdk) -> 
-    (checkout service cdk
+    (checkout (build_branch ~peer ~service) cdk
      >>= (fun branch ->
        Log.debug (fun m -> m "Checked out branch %s" service);
        Branch.transaction branch 

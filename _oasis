@@ -13,13 +13,13 @@ Plugins: META (0.4), DevFiles (0.4)
 
 Library osilo
   Path: src
-  Modules:      Api,         Auth,          Coding,       Cryptography, 
-                Http_client, Http_server,   Peer,         Silo,         
-                Wm
-  BuildDepends: core,        cstruct,       cohttp.lwt,   datakit-client,
-                lwt,         nocrypto.unix, lru,          protocol-9p.unix, 
-                sexplib,     uri,           webmachine,   yojson,
-                threads,     logs.fmt,      macaroons
+  Modules:      Api,         Auth,            Coding,       Cryptography,
+                File_tree,   Http_client,     Http_server,    Peer,         
+                Silo,        Peer_access_log, Wm
+  BuildDepends: core,        cstruct,         cohttp.lwt,   datakit-client,
+                lwt,         nocrypto.unix,   lru,          protocol-9p.unix, 
+                sexplib,     uri,             webmachine,   yojson,
+                threads,     logs.fmt,        macaroons
 
 Executable server
   Path: server

@@ -19,9 +19,13 @@ class server hostname key silo = object(self)
   method set_keying_service k = keying_service <- k
   method get_secret_key = KS.secret keying_service
 
-  val mutable capability_service : Auth.CS.t = Auth.CS.create
+  val mutable capability_service : (Auth.Token.t * Auth.M.t) File_tree.t = File_tree.empty
   method get_capability_service = capability_service
   method set_capability_service c = capability_service <- c
+
+  val mutable peer_access_log : Peer_access_log.t = Peer_access_log.empty
+  method get_peer_access_log = peer_access_log
+  method set_peer_access_log p = peer_access_log <- p
 
   val mutable silo_client : Client.t = Client.create ~server:silo
   method get_silo_client = silo_client
@@ -34,8 +38,10 @@ class server hostname key silo = object(self)
       ("/client/set/local/:service"   , fun () -> new Api.Client.set_local  self);
       ("/client/del/local/:service"   , fun () -> new Api.Client.del_local  self);
       ("/client/permit/:peer/:service", fun () -> new Api.Client.permit     self);
+      ("/client/inv/:service"         , fun () -> new Api.Client.inv        self);
       ("/peer/kx/init/"               , fun () -> new Api.Peer.kx_init      self);
       ("/peer/get/:service"           , fun () -> new Api.Peer.get          self);
+      ("/peer/inv/:peer/:service"     , fun () -> new Api.Peer.inv          self);
       ("/peer/permit/:peer/:service"  , fun () -> new Api.Peer.permit       self);
     ] in
     Wm.dispatch' api ~body ~request 
