@@ -359,6 +359,36 @@ module File_tree_tests = struct
   ]
 end
 
+module Peer_access_log_tests = struct
+  let host = Peer.create "192.168.1.86"
+  let peer = Peer.create "192.168.1.77"
+  let service = "foo"
+  let path = "dir/file"
+
+  let access_inserted_into_log_can_be_retrieved () =
+    let pal  = Peer_access_log.empty in
+    let pal' = Peer_access_log.log pal ~host ~peer ~service ~path in
+    match Peer_access_log.find pal' ~host ~service ~path with
+    | p::[] ->
+        Alcotest.(check string) "Checks the logged peer is the one inserted."
+        (Peer.host peer) (Peer.host p);
+    | _ -> Alcotest.fail "One single peer access should be logged."
+
+  let access_inserted_into_log_can_be_retrieved_from_node_above () =
+    let pal  = Peer_access_log.empty in
+    let pal' = Peer_access_log.log pal ~host ~peer ~service ~path in
+    match Peer_access_log.find pal' ~host ~service ~path:"dir" with
+    | p::[] ->
+        Alcotest.(check string) "Checks the logged peer is the one inserted."
+        (Peer.host peer) (Peer.host p);
+    | _ -> Alcotest.fail "One single peer access should be logged."
+
+  let tests = [
+    ("Can add access to Peer Access Log and get it out again", `Quick, access_inserted_into_log_can_be_retrieved);
+    ("Can add access to Peer Access Log and get it out again from flattening higher node", `Quick, access_inserted_into_log_can_be_retrieved_from_node_above);
+  ]
+end
+
 module Peer_tests = struct
   let peer_builds_with_host () =
     Alcotest.(check string)
@@ -379,4 +409,5 @@ let () =
     "Coding module"      , Coding_tests.tests;
     "Cryptography module", Cryptography_tests.tests; 
     "File tree module", File_tree_tests.tests; 
+    "Peer access log module", Peer_access_log_tests.tests; 
   ]
