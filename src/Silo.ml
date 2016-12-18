@@ -141,24 +141,23 @@ let read ~client ~peer ~service ~files =
          | Ok ptr      -> ptr
          | Error (`Msg msg) -> raise (Cannot_get_head_commit (service, msg))
          end
-     >|= begin function
-         | Some head -> head
-         | None      -> raise (No_head_commit service)
-         end
-     >|= Client.Silo_datakit_client.Commit.tree
-     >>= fun tree ->
-       let f file = 
-         Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
-         >|= begin function
-             | Ok cstruct  -> 
-                 (Printf.sprintf "%s" file),
-                 (cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
-             | Error error -> (Printf.sprintf "%s" file),`Null
-             end
-       in
-         ((Lwt_list.map_s f files)
-         >|= (fun l -> (`Assoc l)) 
-         >>= fun r -> (disconnect c9p cdk >|= fun () -> r)))
+     >>= begin function
+         | None      -> Lwt.return (`Assoc (Core.Std.List.map files ~f:(fun file -> (file,`Null))))
+         | Some head -> 
+            (let tree = Client.Silo_datakit_client.Commit.tree head in
+              (let f file = 
+                Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
+                >|= begin function
+                    | Ok cstruct  -> 
+                        (Printf.sprintf "%s" file),
+                        (cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
+                    | Error error -> (Printf.sprintf "%s" file),`Null
+                    end
+              in
+                (Lwt_list.map_s f files)
+                >|= (fun l -> (`Assoc l))))
+          end
+      >>= fun r -> (disconnect c9p cdk >|= fun () -> r))
 
 let delete ~client ~peer ~service ~files =
   connect client
