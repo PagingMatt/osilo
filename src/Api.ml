@@ -266,8 +266,7 @@ module Client = struct
         let to_check,to_fetch = Core.Std.List.partition_tf requests ~f:(fun rf -> rf.check_cache) in
         read_from_cache peer' service' (Core.Std.List.map to_check ~f:(fun rf -> rf.path)) s (* Note, if a file is just `Null it is assumed to be not cached *)
         >>= fun (cached,to_fetch') ->
-          (Log.info (fun m -> m "%d file(s) cached, %d file(s) not." (List.length cached) (List.length to_fetch'));
-          let to_fetch'' = List.append (Core.Std.List.map to_fetch ~f:(fun rf -> rf.path)) to_fetch' in
+          (let to_fetch'' = List.append (Core.Std.List.map to_fetch ~f:(fun rf -> rf.path)) to_fetch' in
           if not(to_fetch'' = [])
           then 
             (let body = attach_required_capabilities peer' service' to_fetch'' s in
