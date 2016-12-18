@@ -5,6 +5,20 @@ open Logs
 exception Get_failed
 exception Kx_failed
 
+let inv server service path key =
+  let key  = 
+    match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
+    | Some c -> c
+    | None   -> raise Get_failed
+  in
+  let server' = Peer.create server in
+  let plaintext = (`List [`String path]) |> Yojson.Basic.to_string |> Cstruct.of_string in
+  let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
+  let body = Coding.encode_client_message ~ciphertext:c ~iv:i in
+  let path = Printf.sprintf "/client/inv/%s" service in
+  Http_client.post ~peer:server' ~path ~body
+  >|= (fun (c,_) -> Printf.printf "%d" c) 
+
 let give server peer service file key token =
   let key  = 
     match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
@@ -180,10 +194,22 @@ module Terminal = struct
       )
       (fun h p () -> Lwt_main.run (ping h p))
 
+  let inv = 
+    Command.basic
+      ~summary:"Invalidate remotely cached data."
+      Command.Spec.(
+        empty
+        +> flag "-h" (required string) ~doc:" Host to target request at."
+        +> flag "-s" (required string) ~doc:" Service to inavlidate path on."
+        +> flag "-p" (required string) ~doc:" Path to invalidate at and below."
+        +> flag "-k" (required string) ~doc:" Key for server."
+      )
+      (fun h s p k () -> Lwt_main.run (inv h s p k))
+
   let commands = 
     Command.group 
       ~summary:"Terminal entry point for osilo terminal client."
-      [("del-my",del_my);("get-my",get_my);("get-their",get_their);("set-my",set_my);("kx",kx_test);("ping", ping);("give",give)]
+      [("inv",inv);("del-my",del_my);("get-my",get_my);("get-their",get_their);("set-my",set_my);("kx",kx_test);("ping", ping);("give",give)]
 end
 
 let () = 
