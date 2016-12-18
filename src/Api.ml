@@ -266,18 +266,23 @@ module Client = struct
         let to_check,to_fetch = Core.Std.List.partition_tf requests ~f:(fun rf -> rf.check_cache) in
         read_from_cache peer' service' (Core.Std.List.map to_check ~f:(fun rf -> rf.path)) s (* Note, if a file is just `Null it is assumed to be not cached *)
         >>= fun (cached,to_fetch') ->
-          let body = 
-            attach_required_capabilities peer' service' 
-              (List.append (Core.Std.List.map to_fetch ~f:(fun rf -> rf.path)) to_fetch') s in
-          send_retry peer' (Printf.sprintf "/peer/get/%s" service') body false s
-        >>= (fun (c,b) ->
-          let _,ciphertext,iv = Coding.decode_peer_message b in
-          let plaintext = decrypt_message_from_peer peer' ciphertext iv s in
-          let `Assoc fetched = get_file_content_list plaintext in
-          let results = Core.Std.List.append fetched cached in
-          let results' = (`Assoc results) |> Yojson.Basic.to_string in
-          write_to_cache peer' service' fetched requests s 
-          >|= fun () -> encrypt_message_to_client results' s)
+          (Log.info (fun m -> m "%d file(s) cached, %d file(s) not." (List.length cached) (List.length to_fetch'));
+          let to_fetch'' = List.append (Core.Std.List.map to_fetch ~f:(fun rf -> rf.path)) to_fetch' in
+          if not(to_fetch'' = [])
+          then 
+            (let body = attach_required_capabilities peer' service' to_fetch'' s in
+            send_retry peer' (Printf.sprintf "/peer/get/%s" service') body false s
+            >>= (fun (c,b) ->
+              let _,ciphertext,iv = Coding.decode_peer_message b in
+              let plaintext = decrypt_message_from_peer peer' ciphertext iv s in
+              let `Assoc fetched = get_file_content_list plaintext in
+              let results = Core.Std.List.append fetched cached in
+              let results' = (`Assoc results) |> Yojson.Basic.to_string in
+              write_to_cache peer' service' fetched requests s 
+              >|= fun () -> encrypt_message_to_client results' s))
+          else
+            (let results = (`Assoc cached) |> Yojson.Basic.to_string in
+            Lwt.return (encrypt_message_to_client results s)))
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
       with
