@@ -74,7 +74,7 @@ let flatten_under ~tree ~location =
               | None -> flatten sub
               | Some x -> x :: (flatten sub)))
       | y::ys ->
-          match tree with 
+          match tree' with 
           | Leaf -> []
           | Node (name,el,sub,l,r) -> 
               if name > y then find path l else
