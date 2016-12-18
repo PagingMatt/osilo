@@ -53,4 +53,31 @@ let shortest_path_match ~tree ~location ~satisfies =
               | Some el' as e-> if satisfies el' then e else find ys sub)
   in find location tree
 
-let flatten_under ~tree ~path = []
+let flatten_under ~tree ~location =
+  let rec flatten tree' =
+    match tree' with
+    | Leaf -> []
+    | Node (name, el, sub, l, r) -> 
+      (match el with 
+      | None   -> (flatten sub) @ (flatten l) @ (flatten r)
+      | Some x -> x :: ((flatten sub) @ (flatten l) @ (flatten r)))
+  in let rec find path tree' = 
+    match path with 
+      | []    -> []
+      | x::[] ->
+          (match tree' with
+          | Leaf -> []
+          | Node (name, el, sub, l, r) -> 
+              if name > x then find path l else
+              if name < x then find path r else
+              (match el with
+              | None -> flatten sub
+              | Some x -> x :: (flatten sub)))
+      | y::ys ->
+          match tree with 
+          | Leaf -> []
+          | Node (name,el,sub,l,r) -> 
+              if name > y then find path l else
+              if name < y then find path r else
+              find ys sub
+  in find location tree
