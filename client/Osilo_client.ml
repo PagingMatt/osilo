@@ -72,7 +72,7 @@ let get_their host peer service file key =
   in
   let server = Peer.create host in
   let peer' = Peer.create peer in
-  let plaintext = (`List [`String file]) |> Yojson.Basic.to_string |> Cstruct.of_string in
+  let plaintext = (`List [(`Assoc [("path",`String "bar");("check_cache", `Bool false); ("write_back", `Bool false)])]) |> Yojson.Basic.to_string |> Cstruct.of_string in
   let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
   let body = Coding.encode_client_message ~ciphertext:c ~iv:i in
   let path = Printf.sprintf "/client/get/%s/%s" (Peer.host peer') service in
