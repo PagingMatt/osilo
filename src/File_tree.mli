@@ -27,6 +27,6 @@ returns this element. If it reaches a leaf before finding a satisfying element [
 
 val flatten_under :
   tree: 'a t        ->
-  path: string list -> 'a list
-(** [flatten_under ~tree ~path] walks down [tree] until it hits [path] and then returns an in order
-list of all of the elements at and below [path] in the [tree]. *)
+  location: string list -> 'a list
+(** [flatten_under ~tree ~location] walks down [tree] until it hits [location] and then returns an in order
+list of all of the elements at and below [location] in the [tree]. *)

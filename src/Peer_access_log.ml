@@ -15,5 +15,5 @@ let log l ~host ~peer ~service ~path =
   File_tree.insert ~element:[peer] ~tree:l ~location:(build_loc host service path) ~select:build_el
 
 let find l ~host ~service ~path = 
-  File_tree.flatten_under ~tree:l ~path:(String.split (Printf.sprintf "%s/%s/%s" (Peer.host host) service path) ~on:'/')
+  File_tree.flatten_under ~tree:l ~location:(String.split (Printf.sprintf "%s/%s/%s" (Peer.host host) service path) ~on:'/')
   |> List.fold ~init:[] ~f:List.append 
