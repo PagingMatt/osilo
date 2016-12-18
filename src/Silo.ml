@@ -88,7 +88,9 @@ let write ~client ~peer ~service ~contents =
     match contents with
     | `Assoc l -> l
     | _        -> raise (Write_failed "Invalid file content.")
-  in connect client
+  in 
+  if content = [] then Lwt.return () else 
+  connect client
   >>= fun (c9p,cdk) -> 
     Log.debug (fun m -> m "Connected to Datakit server.");
     (checkout (build_branch ~peer ~service) cdk
@@ -133,6 +135,7 @@ let write ~client ~peer ~service ~contents =
          end))
 
 let read ~client ~peer ~service ~files =
+  if files = [] then Lwt.return (`Assoc []) else
   connect client
   >>= fun (c9p,cdk) -> 
     (checkout (build_branch ~peer ~service) cdk
@@ -160,6 +163,7 @@ let read ~client ~peer ~service ~files =
       >>= fun r -> (disconnect c9p cdk >|= fun () -> r))
 
 let delete ~client ~peer ~service ~files =
+  if files = [] then Lwt.return () else
   connect client
   >>= fun (c9p,cdk) -> 
     (checkout (build_branch ~peer ~service) cdk
