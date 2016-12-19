@@ -69,20 +69,6 @@ end
 
 open Token
 
-(* TODO dedup this *)
-let find_permissions capability_service requests =
-  let satisfies permission (t,m) = t >= permission
-  in Core.Std.List.map requests 
-  ~f:(fun (perm,path) -> 
-    File_tree.shortest_path_match 
-      ~tree:capability_service 
-      ~location:(Core.Std.String.split path ~on:'/') 
-      ~satisfies:(satisfies perm)
-    |> begin function 
-       | None       -> None
-       | Some (p,m) -> Some m
-       end)
-
 let record_permissions capability_service permissions = 
   let location (_,m) = (M.location m |> Core.Std.String.split ~on:'/') in 
   let select (p1,m1) (p2,m2) = if p2 >> p1 then (p2,m2) else (p1,m1)
@@ -124,6 +110,26 @@ let vpath_subsumes_request vpath rpath =
       | y::ys -> x=y && (walker xs ys)
   in walker vpath' rpath'
 
+let covered caps (perm,path) =
+  Core.Std.List.fold caps 
+    ~init:false ~f:(fun acc -> fun (p,m) -> 
+      (acc || (vpath_subsumes_request (M.location m) path) && (p >= perm)))
+
+let find_permissions capability_service requests =
+  let satisfies permission (t,m) = t >= permission
+  in Core.Std.List.fold requests ~init:[]
+  ~f:(fun acc -> fun (perm,path) -> 
+    if covered acc (perm,path) then acc else
+      File_tree.shortest_path_match 
+      ~tree:capability_service 
+      ~location:(Core.Std.String.split path ~on:'/') 
+      ~satisfies:(satisfies perm)
+    |> begin function 
+       | None       -> acc
+       | Some (p,m) -> (p,m)::acc
+       end)    
+  |> Core.Std.List.map ~f:(fun (p,m) -> m)
+
 let request_under_verified_path vpaths rpath =
   Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
 
@@ -142,14 +148,8 @@ let serialise_presented_capabilities capabilities =
   |> Yojson.Basic.to_string
 
 let serialise_request_capabilities capabilities = 
-  let serialised = (Core.Std.List.map capabilities 
-    ~f:(
-    begin function 
-    | Some c -> M.serialize c
-    | None -> ""
-    end))
-  in let serialised' = Core.Std.List.filter serialised ~f:(fun s -> not(s=""))
-  in `List (Core.Std.List.map serialised' ~f:(fun s -> `String s))
+  let serialised = Core.Std.List.map capabilities ~f:M.serialize in
+  `List (Core.Std.List.map serialised ~f:(fun s -> `String s))
 
 exception Malformed_data 
  
