@@ -389,7 +389,7 @@ module Client = struct
         match service with
         | None -> Wm.continue false rd
         | Some service' ->
-        let capabilities = Auth.mint s service' permission_list in 
+        let capabilities = Auth.mint s#get_address s#get_secret_key service' permission_list in 
         let p_body       = Auth.serialise_presented_capabilities capabilities in
         let path         = 
           (Printf.sprintf "/peer/permit/%s/%s" 
