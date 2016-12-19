@@ -130,6 +130,21 @@ module Auth_tests = struct
     | [] -> Alcotest.fail "Minted no macaroons"
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
+  let minimal_covering_set_of_capabilities () = 
+    let token = R in
+    let caps0 = mint server#get_address server#get_secret_key "test" 
+      [((token |> string_of_token),"foo/bar"); 
+       ((token |> string_of_token),"foo/bar/FOO/BAR")] in
+    let paths = [(R,"localhost/test/foo/bar");(R,"localhost/test/foo/bar/FOO/BAR")] in
+    let caps1 = Core.Std.List.map caps0 ~f:(fun (p,m) -> ((token_of_string p),m)) in
+    let service0 = File_tree.empty in
+    let service1 = Auth.record_permissions service0 caps1 in
+    let caps2 = Auth.find_permissions service1 paths in
+    Alcotest.(check int) "Two Macaroons should be minted"
+    2 (Core.Std.List.length caps0);
+    Alcotest.(check int) "One Macaroon should be found"
+    1 (Core.Std.List.length caps2)
+
   let tests = [
     ("Valid tokens can be symmetrically serialised/deserailised.", `Quick, symm_token_serialisation);
     ("Invalid tokens throw on deserialisation.", `Quick, invalid_string_throws);
@@ -138,6 +153,7 @@ module Auth_tests = struct
     ("Checks location and caveat in minted read macaroon", `Quick, can_mint_read_macaroons_for_test);
     ("Checks location and caveat in minted write macaroon", `Quick, can_mint_write_macaroons_for_test);
     ("Write macaroon can be used for read request", `Quick, write_macaroons_verifies_read_request);
+    ("Check is greedy about finding minimal covering set", `Quick, minimal_covering_set_of_capabilities);
   ]
 end
 
