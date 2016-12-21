@@ -298,9 +298,32 @@ module File_tree_tests = struct
         | None -> Alcotest.fail "Could not get short circuiting Macaroon back out of capability service")
     | _ -> Alcotest.fail "Minting failed"
 
+  let can_trim_logged_access_from_tree () =
+    let pal = Peer_access_log.empty in
+    let host = Peer.create "localhost" in let service = "foo" in 
+    let paths = ["bar2";"bar1";"bar3"] in
+    let peer = Peer.create "p1" in
+    let pal' = 
+      Core.Std.List.fold paths ~init:pal 
+        ~f:(fun p -> fun path -> Peer_access_log.log p ~host ~service ~peer ~path) in
+    Alcotest.(check int) "Checks can get peer back out for path we delete"
+    (Core.Std.List.length (Peer_access_log.find pal' ~host ~service ~path:"bar2")) 1;
+    Alcotest.(check int) "Checks can get peer back out for left path"
+    (Core.Std.List.length (Peer_access_log.find pal' ~host ~service ~path:"bar1")) 1;
+    Alcotest.(check int) "Checks can get peer back out for right path"
+    (Core.Std.List.length (Peer_access_log.find pal' ~host ~service ~path:"bar3")) 1;
+    let pal'' = Peer_access_log.unlog pal' ~host ~service ~path:"bar2" in
+    Alcotest.(check int) "Checks cannot get peer back out for path we deleted"
+    (Core.Std.List.length (Peer_access_log.find pal'' ~host ~service ~path:"bar2")) 0;
+    Alcotest.(check int) "Checks can get peer back out for what is still left path"
+    (Core.Std.List.length (Peer_access_log.find pal'' ~host ~service ~path:"bar1")) 1;
+    Alcotest.(check int) "Checks can get peer back out for what is now root"
+    (Core.Std.List.length (Peer_access_log.find pal'' ~host ~service ~path:"bar3")) 1
+
   let tests = [
     ("Can add Macaroon to Capabilities Service and get it out again", `Quick, read_macaroon_inserted_into_service_can_be_retrieved);
     ("Will short circuit on find for Macaroon", `Quick, short_circuit_on_find);
+    ("Checks trimming tree works as expected", `Quick, can_trim_logged_access_from_tree)
   ]
 end
 
