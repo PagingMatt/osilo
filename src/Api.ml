@@ -364,7 +364,7 @@ module Client = struct
       try
         match Wm.Rd.lookup_path_info "peer" rd with
         | None       -> Wm.continue true rd
-        | Some peer' -> let peer = Peer.create peer' in
+        | Some peer' -> 
         match Wm.Rd.lookup_path_info "service" rd with
         | None          -> Wm.continue true rd
         | Some service' -> 
