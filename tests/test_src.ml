@@ -75,7 +75,7 @@ module Auth_tests = struct
 
   let invalid_string_throws () =
     let t = "foo" in
-    try (Token.token_of_string t; Alcotest.fail "Tokenised invalid string")
+    try (let _ = Token.token_of_string t in Alcotest.fail "Tokenised invalid string")
     with 
     | Token.Invalid_token s -> 
         Alcotest.(check string) "Invalid token throws." s t
