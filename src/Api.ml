@@ -3,6 +3,7 @@ open Cryptography
 open Silo
 open Lwt
 open Lwt.Infix
+open Wm.Rd
 
 exception Malformed_data
 exception Fetch_failed of Peer.t
