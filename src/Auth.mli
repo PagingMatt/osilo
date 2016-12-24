@@ -28,6 +28,22 @@ end
 (** Permissions tokens. These are used to express the difference between being able to read and 
 write on remote peers, although currently only remote reading is implemented. *)
 
+module CS : sig 
+  type t 
+
+  val empty : t
+
+  val record_if_most_general : 
+    service:t          ->
+    permission:Token.t -> 
+    macaroon:M.t       -> t
+
+  val find_most_general_capability :
+    service:t          ->
+    path:string        ->
+    permission:Token.t -> (Token.t * M.t) option
+end
+
 val authorise : (string list) -> (M.t list) -> Token.t -> Cstruct.t -> Peer.t -> string -> (string list)
 (** [authorise paths capabilities token key target service] returns the subset of [paths] which is
 covered by [capabilities] for a request of level [token]. [key] is the key used to mint each 
@@ -44,12 +60,12 @@ string tokens and Macaroons tuples. Each Macaroon hold a first party caveat of t
 the tuple with and had a location of [source]/[service]/[path] where [path] is from an element of
 [permissions]. Each Macaroon is signed with [key], this servers secret key. *)
 
-val find_permissions : (Token.t * M.t) File_tree.t -> (Token.t * string) list -> M.t list
+val find_permissions : CS.t -> (Token.t * string) list -> M.t list
 (** [find_permissions capabilities_service targets] builds up a list of Macaroons which cover the 
 path of each element of [targets] which are at least as powerful as the [Token.t] paired with the 
 target path. This uses a greedy approach to build a minimal covering set. *)
 
-val record_permissions : (Token.t * M.t) File_tree.t -> (Token.t * M.t) list -> (Token.t * M.t) File_tree.t
+val record_permissions : CS.t -> (Token.t * M.t) list -> CS.t
 (** [record_permissions capabilities_service targets] takes each element in [targets] and inserts
 it and the paired [Token.t] into [capabilities_service] if [capabilities_service] does not already
 contain a more general element which is at least as powerful as this element. *)
