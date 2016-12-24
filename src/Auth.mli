@@ -29,20 +29,28 @@ end
 write on remote peers, although currently only remote reading is implemented. *)
 
 module CS : sig 
-  type t 
+  type t
+  (** [File_tree.t] used to store permissions and Macaroons for nodes in a file tree. *)
 
   val empty : t
+  (** Gives an empty capability service. *)
 
   val record_if_most_general : 
     service:t          ->
     permission:Token.t -> 
     macaroon:M.t       -> t
+  (** [record_if_most_general ~service ~permission ~macaroon] walks down [service] and if 
+  [macaroon] is more general and powerful than any other Macaroon along the path it gives the 
+  capability service with [macaroon] inserted, otherwise it just gives [service]. *)
 
   val find_most_general_capability :
     service:t          ->
     path:string        ->
     permission:Token.t -> (Token.t * M.t) option
+  (** [find_most_general_capability ~service ~path ~permission] finds the option of the most 
+  general capability along [path] in [service] which satisfies [permission], otherwise, None. *)
 end
+(** CS is the capability service, used to store capabilities given to this peer from other peers. *)
 
 val authorise : (string list) -> (M.t list) -> Token.t -> Cstruct.t -> Peer.t -> string -> (string list)
 (** [authorise paths capabilities token key target service] returns the subset of [paths] which is
