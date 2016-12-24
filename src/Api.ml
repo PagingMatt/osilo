@@ -152,6 +152,9 @@ let invalidate_paths_at_peers paths access_log service s =
       (Core.Std.List.fold path_peers ~init:[] ~f:(fun acc -> fun (path,ps) -> 
         Core.Std.List.append (if List.exists ps (fun p -> Peer.compare p peer = 0) then [path] else []) acc))) in 
   Lwt_list.iter_s (fun (peer,paths) -> invalidate_paths_at_peer peer paths service s >|= fun _ -> ()) peer_paths
+  >|= fun () -> s#set_peer_access_log 
+    (Core.Std.List.fold paths ~init:s#get_peer_access_log 
+      ~f:(fun pal -> fun path -> Peer_access_log.unlog pal ~host:s#get_address ~service ~path))
 
 module Client = struct
   let decrypt_message_from_client ciphertext iv s =

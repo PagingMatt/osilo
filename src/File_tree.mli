@@ -30,3 +30,12 @@ val flatten_under :
   location: string list -> 'a list
 (** [flatten_under ~tree ~location] walks down [tree] until it hits [location] and then returns an in order
 list of all of the elements at and below [location] in the [tree]. *)
+
+exception Trim_failed
+(** Raised if [get_min] behaves unexpectadly during deletion. *)
+
+val trim :
+  tree: 'a t            ->
+  location: string list -> 'a t
+(** Walks down to the node at [location] in [tree] and returns the new tree with this node and it's 
+sub tree removed, but any left and right nodes still remaining. *)

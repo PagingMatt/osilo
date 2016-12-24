@@ -81,3 +81,36 @@ let flatten_under ~tree ~location =
               if name < y then find path r else
               find ys sub
   in find location tree
+
+let rec get_min tree = 
+  match tree with
+  | Leaf -> Leaf
+  | Node (_, _, _, Leaf, _) as n -> n
+  | Node (_, _, _, l   , _)      -> get_min l
+
+exception Trim_failed
+
+let trim ~tree ~location =
+  let rec delete path tree' =
+    match path with 
+    | []    -> tree'
+    | x::[] ->
+        (match tree' with
+        | Leaf -> Leaf
+        | Node (name, el, sub, l, r) as target -> 
+            if name > x then Node (name, el, sub, delete path l, r) else
+            if name < x then Node (name, el, sub, l, delete path r) else
+            if l = Leaf then r else
+            if r = Leaf then l else
+            let m = get_min r in
+            (match m with
+            | Node (n', e', s', Leaf, _) -> Node (n', e', s', l, delete [n'] r)
+            | _ -> raise Trim_failed))
+    | y::ys -> 
+      match tree' with 
+      | Leaf -> Leaf
+      | Node (name,el,sub,l,r) -> 
+          if name > y then Node (name, el, sub, delete path l, r) else
+          if name < y then Node (name, el, sub, l, delete path r) else
+          Node (name, el, delete ys sub, l, r)
+  in delete location tree
