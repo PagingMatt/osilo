@@ -67,15 +67,50 @@ end = struct
     | R -> (t2 = R)
 end
 
+module CS : sig 
+  type t 
+
+  val empty : t
+
+  val record_if_most_general : 
+    service:t          ->
+    permission:Token.t -> 
+    macaroon:M.t       -> t
+
+  val find_most_general_capability :
+    service:t               ->
+    path:string             ->
+    permission:Token.t      -> (Token.t * M.t) option
+end = struct 
+  type t = (Token.t * M.t) File_tree.t
+
+  open Token
+
+  let empty = File_tree.empty
+
+  let location (_,m) = (M.location m |> Core.Std.String.split ~on:'/')
+
+  let select (p1,m1) (p2,m2) = if p2 >> p1 then (p2,m2) else (p1,m1)
+
+  let satisfies permission (t,m) = t >= permission
+
+  let record_if_most_general ~service ~permission ~macaroon =
+    File_tree.insert ~element:(permission,macaroon) ~tree:service ~location ~select
+
+  let find_most_general_capability ~service ~path ~permission =
+    File_tree.shortest_path_match
+      ~tree:service
+      ~location:(Core.Std.String.split path ~on:'/') 
+      ~satisfies:(satisfies permission)
+end
+
 open Token
 
 let record_permissions capability_service permissions = 
-  let location (_,m) = (M.location m |> Core.Std.String.split ~on:'/') in 
-  let select (p1,m1) (p2,m2) = if p2 >> p1 then (p2,m2) else (p1,m1)
-  in Core.Std.List.fold 
+  Core.Std.List.fold 
     permissions 
     ~init:capability_service 
-    ~f:(fun tree -> fun (p,m) -> File_tree.insert ~element:(p,m) ~tree ~location ~select)
+    ~f:(fun service -> fun (p,m) -> CS.record_if_most_general ~permission:p ~macaroon:m ~service)
 
 let create_service_capability host key service (perm,path) =
   let location = Printf.sprintf "%s/%s/%s" (host |> Peer.host) service path in
@@ -116,14 +151,11 @@ let covered caps (perm,path) =
       (acc || (vpath_subsumes_request (M.location m) path) && (p >= perm)))
 
 let find_permissions capability_service requests =
-  let satisfies permission (t,m) = t >= permission
-  in Core.Std.List.fold requests ~init:[]
-  ~f:(fun acc -> fun (perm,path) -> 
-    if covered acc (perm,path) then acc else
-      File_tree.shortest_path_match 
-      ~tree:capability_service 
-      ~location:(Core.Std.String.split path ~on:'/') 
-      ~satisfies:(satisfies perm)
+  Core.Std.List.fold requests ~init:[]
+  ~f:(fun acc -> fun (permission,path) -> 
+    if covered acc (permission,path) then acc else
+      CS.find_most_general_capability 
+      ~service:capability_service ~path ~permission
     |> begin function 
        | None       -> acc
        | Some (p,m) -> (p,m)::acc

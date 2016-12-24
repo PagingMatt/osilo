@@ -137,7 +137,7 @@ module Auth_tests = struct
        ((token |> string_of_token),"foo/bar/FOO/BAR")] in
     let paths = [(R,"localhost/test/foo/bar");(R,"localhost/test/foo/bar/FOO/BAR")] in
     let caps1 = Core.Std.List.map caps0 ~f:(fun (p,m) -> ((token_of_string p),m)) in
-    let service0 = File_tree.empty in
+    let service0 = Auth.CS.empty in
     let service1 = Auth.record_permissions service0 caps1 in
     let caps2 = Auth.find_permissions service1 paths in
     Alcotest.(check int) "Two Macaroons should be minted"
