@@ -97,7 +97,7 @@ let trim ~tree ~location =
     | x::[] ->
         (match tree' with
         | Leaf -> Leaf
-        | Node (name, el, sub, l, r) as target -> 
+        | Node (name, el, sub, l, r) -> 
             if name > x then Node (name, el, sub, delete path l, r) else
             if name < x then Node (name, el, sub, l, delete path r) else
             if l = Leaf then r else
