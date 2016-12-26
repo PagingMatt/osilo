@@ -94,8 +94,13 @@ end = struct
 
   let satisfies permission (t,m) = t >= permission
 
+  let terminate elopt (el,_) = 
+    match elopt with 
+    | None     -> false
+    | Some (el',_) -> el' >= el
+
   let record_if_most_general ~service ~permission ~macaroon =
-    File_tree.insert ~element:(permission,macaroon) ~tree:service ~location ~select
+    File_tree.insert ~element:(permission,macaroon) ~tree:service ~location ~select ~terminate
 
   let find_most_general_capability ~service ~path ~permission =
     File_tree.shortest_path_match
