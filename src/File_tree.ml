@@ -6,7 +6,7 @@ exception Path_empty
 
 let empty = Leaf
 
-let insert ~element ~tree ~location ~select =
+let insert ~element ~tree ~location ~select ~terminate =
   let location' = location element in
   let rec ins path tree' =
     match path with
@@ -23,9 +23,10 @@ let insert ~element ~tree ~location ~select =
     | y::ys -> 
         match tree' with
         | Leaf -> Node (y, None, (ins ys Leaf), Leaf, Leaf)
-        | Node (name,el,sub,l,r) -> 
+        | Node (name,el,sub,l,r) as node -> 
             if name > y then Node (name, el, sub, (ins path l), r) else
             if name < y then Node (name, el, sub, l, (ins path r)) else
+            if terminate el element then node else
             Node (name, el, (ins ys sub), l, r)
   in ins location' tree
 
