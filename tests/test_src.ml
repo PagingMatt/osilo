@@ -265,6 +265,11 @@ module File_tree_tests = struct
 
   let satisfies = fun permission -> (fun (t,_) -> (t >= permission))
 
+  let terminate elopt (el,_) = 
+    match elopt with 
+    | None     -> false
+    | Some (el',_) -> el' >= el
+
   let read_macaroon_inserted_into_service_can_be_retrieved () = 
     let token = R in 
     match mint server#get_address server#get_secret_key "test" [((token |> string_of_token),"foo/bar")] with
@@ -273,7 +278,7 @@ module File_tree_tests = struct
         perm "R";
         Alcotest.(check string) "Checks the minted macaroon has correct location"
         (M.location mac) "localhost/test/foo/bar";
-        (let service = File_tree.insert ~element:(token,mac) ~tree:(File_tree.empty) ~location ~select in
+        (let service = File_tree.insert ~element:(token,mac) ~tree:(File_tree.empty) ~location ~select ~terminate in
         match File_tree.shortest_path_match ~tree:service ~location:(["localhost"; "test"; "foo"; "bar"]) ~satisfies:(satisfies token) with
         | Some (_,mac') ->
             Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
@@ -287,8 +292,8 @@ module File_tree_tests = struct
     let token = R in
     match mint server#get_address server#get_secret_key "test" [((token |> string_of_token),"foo/bar"); ((token |> string_of_token),"foo/bar/FOO/BAR")] with
     | (perm1,mac1)::(perm2,mac2)::[] -> 
-        (let service = File_tree.insert ~element:((perm1 |> token_of_string), mac1) ~tree:(File_tree.empty) ~location ~select in
-        let service' = File_tree.insert ~element:((perm2 |> token_of_string), mac2) ~tree:(service) ~location ~select in
+        (let service = File_tree.insert ~element:((perm1 |> token_of_string), mac1) ~tree:(File_tree.empty) ~location ~select ~terminate in
+        let service' = File_tree.insert ~element:((perm2 |> token_of_string), mac2) ~tree:(service) ~location ~select ~terminate in
         match File_tree.shortest_path_match ~tree:service' ~location:(Core.Std.String.split "localhost/test/foo/bar/FOO/BAR" ~on:'/') ~satisfies:(satisfies token) with
         | Some (_,mac') ->
             Alcotest.(check string) "Checks the stored macaroon is same as the one minted"

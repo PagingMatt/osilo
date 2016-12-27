@@ -7,12 +7,14 @@ condition is on a singleton list, but if fed an empty path need to catch this. *
 val empty : 'a t 
 
 val insert : 
-  element:   'a                 -> 
-  tree:      'a t               -> 
-  location: ('a -> string list) -> 
-  select:   ('a -> 'a -> 'a)    -> 'a t
-(** [insert ~element ~tree ~location ~select] give the tree with [element] inserted into [tree], 
-the place in the file tree that [element] is inserted into is determined by [location] which maps
+  element:   'a                       -> 
+  tree:      'a t                     -> 
+  location: ('a -> string list)       -> 
+  select:   ('a -> 'a -> 'a)          -> 
+  terminate:('a option -> 'a -> bool) -> 'a t
+(** [insert ~element ~tree ~location ~select ~terminate] give the tree with [element] inserted into [tree],
+provided for each step down the path, [terminate elopt el] returns false.
+The place in the file tree that [element] is inserted into is determined by [location] which maps
 the element to a list of directories which nest down to the target location. When at the target 
 location, if this already exists, [select] compares [element] and the element currently held there
 it then gives back the element which should be at the position. *)

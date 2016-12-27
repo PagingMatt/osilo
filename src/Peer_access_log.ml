@@ -13,6 +13,7 @@ let build_el =
 
 let log l ~host ~peer ~service ~path =
   File_tree.insert ~element:[peer] ~tree:l ~location:(build_loc host service path) ~select:build_el
+    ~terminate:(fun _ -> fun _ -> false)
 
 let unlog l ~host ~service ~path =
   File_tree.trim ~tree:l ~location:(build_loc host service path ())
