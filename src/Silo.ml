@@ -134,12 +134,16 @@ let write ~client ~peer ~service ~contents =
                raise (Write_failed msg))
          end))
 
-let read_path tree acc file = 
-  Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
+let rec read_path tree acc path =
+  Client.Silo_datakit_client.Tree.read tree (Datakit_path.of_string_exn path)
   >|= begin function
-      | Ok cstruct  ->
-          ((Printf.sprintf "%s" file),(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string))::acc
-      | Error error -> ((Printf.sprintf "%s" file),`Null)::acc
+      | Ok t  ->
+          (match t with
+          | `File cstruct ->
+              (path,(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string))::acc
+          | _ -> 
+              (path,`Null)::acc)
+      | Error error -> (path,`Null)::acc
       end
 
 let read ~client ~peer ~service ~files =
