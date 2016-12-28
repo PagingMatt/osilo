@@ -185,7 +185,7 @@ let delete ~client ~peer ~service ~files =
             >|= begin function
                 | Ok ()   -> ()
                 | Error (`Msg msg) -> 
-                    if msg = "No such file or directory" (* Should refactor to check exists on RO tree *)
+                    if msg = "No such file or directory"
                     then () else raise (Delete_file_failed msg)
                 end
           in
