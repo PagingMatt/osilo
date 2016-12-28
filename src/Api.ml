@@ -98,7 +98,7 @@ let attach_required_capabilities target service files s =
   ] |> Yojson.Basic.to_string
 
 let read_from_cache peer service files s =
-  Silo.read ~client:s#get_silo_client ~peer ~service ~files
+  Silo.read ~client:s#get_silo_client ~peer ~service ~paths:files
   >|= begin function 
       | `Assoc l -> Core.Std.List.partition_tf l ~f:(fun (n,j) -> not(j = `Null))
       | _        -> raise Malformed_data
@@ -202,7 +202,7 @@ module Client = struct
         match service with
         | None          -> Wm.continue false rd
         | Some service' -> 
-        Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~files
+        Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~paths:files
         >|= begin function
             | `Assoc _ as j -> 
                 let message = Yojson.Basic.to_string j 
@@ -611,13 +611,14 @@ module Peer = struct
         match service with 
         | None -> Wm.continue false rd
         | Some service' ->
-            s#set_peer_access_log (List.fold files ~init:s#get_peer_access_log
-              ~f:(fun l -> fun f -> 
-                Peer_access_log.log l ~host:s#get_address ~peer:source' ~service:service' ~path:f));
-            Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~files:files
+            Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~paths:files
             >>= fun j ->
               (match j with 
-              | `Assoc _  ->
+              | `Assoc l  ->
+                  s#set_peer_access_log 
+                    (List.fold l ~init:s#get_peer_access_log
+                    ~f:(fun log -> fun (f,_) -> 
+                    Peer_access_log.log log ~host:s#get_address ~peer:source' ~service:service' ~path:f));
                   let message = Yojson.Basic.to_string j |> Cstruct.of_string 
                   in (match source with
                   | Some source_peer -> encrypt_message_to_peer source_peer message s

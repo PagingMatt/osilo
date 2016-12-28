@@ -134,8 +134,23 @@ let write ~client ~peer ~service ~contents =
                raise (Write_failed msg))
          end))
 
-let read ~client ~peer ~service ~files =
-  if files = [] then Lwt.return (`Assoc []) else
+let rec read_path tree acc path =
+  Client.Silo_datakit_client.Tree.read tree (Datakit_path.of_string_exn path)
+  >>= begin function
+      | Ok t  ->
+          (match t with
+          | `File cstruct ->
+              Lwt.return ((path,(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string))::acc)
+          | `Dir paths -> 
+              (Lwt_list.fold_left_s (read_path tree) acc 
+                (Core.Std.List.map ~f:(fun p -> (Printf.sprintf "%s/%s" path p)) paths))
+          | _ -> (* Symlinks are not handled as violate the recursive permission model *)
+              Lwt.return acc)
+      | Error error -> Lwt.return ((path,`Null)::acc)
+      end
+
+let read ~client ~peer ~service ~paths =
+  if paths = [] then Lwt.return (`Assoc []) else
   connect client
   >>= fun (c9p,cdk) -> 
     (checkout (build_branch ~peer ~service) cdk
@@ -145,20 +160,11 @@ let read ~client ~peer ~service ~files =
          | Error (`Msg msg) -> raise (Cannot_get_head_commit (service, msg))
          end
      >>= begin function
-         | None      -> Lwt.return (`Assoc (Core.Std.List.map files ~f:(fun file -> (file,`Null))))
+         | None      -> Lwt.return (`Assoc (Core.Std.List.map paths ~f:(fun file -> (file,`Null))))
          | Some head -> 
             (let tree = Client.Silo_datakit_client.Commit.tree head in
-              (let f file = 
-                Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
-                >|= begin function
-                    | Ok cstruct  -> 
-                        (Printf.sprintf "%s" file),
-                        (cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
-                    | Error error -> (Printf.sprintf "%s" file),`Null
-                    end
-              in
-                (Lwt_list.map_s f files)
-                >|= (fun l -> (`Assoc l))))
+              (Lwt_list.fold_left_s (read_path tree) [] paths)
+              >|= (fun l -> (`Assoc l)))
           end
       >>= fun r -> (disconnect c9p cdk >|= fun () -> r))
 
@@ -180,7 +186,7 @@ let delete ~client ~peer ~service ~files =
             >|= begin function
                 | Ok ()   -> ()
                 | Error (`Msg msg) -> 
-                    if msg = "No such file or directory" (* Should refactor to check exists on RO tree *)
+                    if msg = "No such file or directory"
                     then () else raise (Delete_file_failed msg)
                 end
           in
