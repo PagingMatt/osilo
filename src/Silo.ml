@@ -134,6 +134,15 @@ let write ~client ~peer ~service ~contents =
                raise (Write_failed msg))
          end))
 
+let read_path tree file = 
+  Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
+  >|= begin function
+      | Ok cstruct  -> 
+          (Printf.sprintf "%s" file),
+          (cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
+      | Error error -> (Printf.sprintf "%s" file),`Null
+      end
+
 let read ~client ~peer ~service ~files =
   if files = [] then Lwt.return (`Assoc []) else
   connect client
@@ -148,17 +157,8 @@ let read ~client ~peer ~service ~files =
          | None      -> Lwt.return (`Assoc (Core.Std.List.map files ~f:(fun file -> (file,`Null))))
          | Some head -> 
             (let tree = Client.Silo_datakit_client.Commit.tree head in
-              (let f file = 
-                Client.Silo_datakit_client.Tree.read_file tree (Datakit_path.of_string_exn file)
-                >|= begin function
-                    | Ok cstruct  -> 
-                        (Printf.sprintf "%s" file),
-                        (cstruct |> Cstruct.to_string |> Yojson.Basic.from_string)
-                    | Error error -> (Printf.sprintf "%s" file),`Null
-                    end
-              in
-                (Lwt_list.map_s f files)
-                >|= (fun l -> (`Assoc l))))
+              (Lwt_list.map_s (read_path tree) files)
+              >|= (fun l -> (`Assoc l)))
           end
       >>= fun r -> (disconnect c9p cdk >|= fun () -> r))
 
