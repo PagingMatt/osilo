@@ -136,14 +136,16 @@ let write ~client ~peer ~service ~contents =
 
 let rec read_path tree acc path =
   Client.Silo_datakit_client.Tree.read tree (Datakit_path.of_string_exn path)
-  >|= begin function
+  >>= begin function
       | Ok t  ->
           (match t with
           | `File cstruct ->
-              (path,(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string))::acc
+              Lwt.return ((path,(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string))::acc)
+          | `Dir paths -> 
+              (Lwt_list.fold_left_s (read_path tree) [] paths) >|= fun a -> Core.Std.List.append a acc
           | _ -> 
-              (path,`Null)::acc)
-      | Error error -> (path,`Null)::acc
+              Lwt.return ((path,`Null)::acc))
+      | Error error -> Lwt.return ((path,`Null)::acc)
       end
 
 let read ~client ~peer ~service ~files =
