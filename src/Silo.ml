@@ -144,7 +144,7 @@ let rec read_path tree acc path =
           | `Dir paths -> 
               (Lwt_list.fold_left_s (read_path tree) acc paths)
           | _ -> 
-              Lwt.return ((path,`Null)::acc))
+              Lwt.return acc)
       | Error error -> Lwt.return ((path,`Null)::acc)
       end
 
