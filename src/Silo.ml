@@ -148,8 +148,8 @@ let rec read_path tree acc path =
       | Error error -> Lwt.return ((path,`Null)::acc)
       end
 
-let read ~client ~peer ~service ~files =
-  if files = [] then Lwt.return (`Assoc []) else
+let read ~client ~peer ~service ~paths =
+  if paths = [] then Lwt.return (`Assoc []) else
   connect client
   >>= fun (c9p,cdk) -> 
     (checkout (build_branch ~peer ~service) cdk
@@ -159,10 +159,10 @@ let read ~client ~peer ~service ~files =
          | Error (`Msg msg) -> raise (Cannot_get_head_commit (service, msg))
          end
      >>= begin function
-         | None      -> Lwt.return (`Assoc (Core.Std.List.map files ~f:(fun file -> (file,`Null))))
+         | None      -> Lwt.return (`Assoc (Core.Std.List.map paths ~f:(fun file -> (file,`Null))))
          | Some head -> 
             (let tree = Client.Silo_datakit_client.Commit.tree head in
-              (Lwt_list.fold_left_s (read_path tree) [] files)
+              (Lwt_list.fold_left_s (read_path tree) [] paths)
               >|= (fun l -> (`Assoc l)))
           end
       >>= fun r -> (disconnect c9p cdk >|= fun () -> r))

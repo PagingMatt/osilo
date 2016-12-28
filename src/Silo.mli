@@ -50,9 +50,9 @@ val read :
   client:Client.t   ->
   peer:Peer.t       ->
   service:string    ->
-  files:string list -> 
+  paths:string list -> 
   (Yojson.Basic.json) Lwt.t
-(** [read ~client ~peer ~service ~files] will read each file from the list of [files] from the 
+(** [read ~client ~peer ~service ~paths] will read each file below or at the list of [paths] recursively from the 
 [service] on the Datakit server pointed to by [client], for [peer]. [peer] is the [Peer.t] for this
 server. *)
 
