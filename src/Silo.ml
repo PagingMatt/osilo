@@ -142,7 +142,8 @@ let rec read_path tree acc path =
           | `File cstruct ->
               Lwt.return ((path,(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string))::acc)
           | `Dir paths -> 
-              (Lwt_list.fold_left_s (read_path tree) acc paths)
+              (Lwt_list.fold_left_s (read_path tree) acc 
+                (Core.Std.List.map ~f:(fun p -> (Printf.sprintf "%s/%s" path p)) paths))
           | _ -> (* Symlinks are not handled as violate the recursive permission model *)
               Lwt.return acc)
       | Error error -> Lwt.return ((path,`Null)::acc)
