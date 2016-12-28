@@ -142,7 +142,7 @@ let rec read_path tree acc path =
           | `File cstruct ->
               Lwt.return ((path,(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string))::acc)
           | `Dir paths -> 
-              (Lwt_list.fold_left_s (read_path tree) [] paths) >|= fun a -> Core.Std.List.append a acc
+              (Lwt_list.fold_left_s (read_path tree) acc paths)
           | _ -> 
               Lwt.return ((path,`Null)::acc))
       | Error error -> Lwt.return ((path,`Null)::acc)
