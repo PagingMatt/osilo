@@ -611,13 +611,14 @@ module Peer = struct
         match service with 
         | None -> Wm.continue false rd
         | Some service' ->
-            s#set_peer_access_log (List.fold files ~init:s#get_peer_access_log
-              ~f:(fun l -> fun f -> 
-                Peer_access_log.log l ~host:s#get_address ~peer:source' ~service:service' ~path:f));
             Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~files:files
             >>= fun j ->
               (match j with 
-              | `Assoc _  ->
+              | `Assoc l  ->
+                  s#set_peer_access_log 
+                    (List.fold l ~init:s#get_peer_access_log
+                    ~f:(fun log -> fun (f,_) -> 
+                    Peer_access_log.log log ~host:s#get_address ~peer:source' ~service:service' ~path:f));
                   let message = Yojson.Basic.to_string j |> Cstruct.of_string 
                   in (match source with
                   | Some source_peer -> encrypt_message_to_peer source_peer message s
