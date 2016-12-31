@@ -88,8 +88,8 @@ let encrypt_message_to_peer peer plaintext s =
     s#set_keying_service ks; 
     Coding.encode_peer_message ~peer:(s#get_address) ~ciphertext ~iv
 
-let attach_required_capabilities target service files s =
-  let requests = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string "R"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
+let attach_required_capabilities tok target service files s =
+  let requests = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
   let caps     = Auth.find_permissions s#get_capability_service requests in
   let caps'    = Auth.serialise_request_capabilities caps in 
   `Assoc [
@@ -273,7 +273,7 @@ module Client = struct
           (let to_fetch'' = List.append (Core.Std.List.map to_fetch ~f:(fun rf -> rf.path)) to_fetch' in
           if not(to_fetch'' = [])
           then 
-            (let body = attach_required_capabilities peer' service' to_fetch'' s in
+            (let body = attach_required_capabilities "R" peer' service' to_fetch'' s in
             send_retry peer' (Printf.sprintf "/peer/get/%s" service') body false s
             >>= (fun (c,b) ->
               let _,ciphertext,iv = Coding.decode_peer_message b in
@@ -288,6 +288,69 @@ module Client = struct
             Lwt.return (encrypt_message_to_client results s)))
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
+      with
+      | _ -> Wm.continue false rd
+
+    method private to_text rd = 
+      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+      >>= fun s -> Wm.continue (`String s) rd
+  end
+
+  class del_remote s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    val mutable target : Peer.t option = None
+
+    val mutable service : string option = None
+
+    val mutable plaintext : Cstruct.t option = None
+
+    method content_types_provided rd = 
+      Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`POST] rd
+
+    method malformed_request rd =
+      try 
+        match Wm.Rd.lookup_path_info "peer" rd with
+        | None       -> Wm.continue true rd
+        | Some peer' -> let peer = Peer.create peer' in
+        match Wm.Rd.lookup_path_info "service" rd with
+        | None          -> Wm.continue true rd
+        | Some service' -> 
+        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+        >|= (fun message -> Coding.decode_client_message ~message)
+        >>= (fun (ciphertext,iv) ->
+          let plaintext' = decrypt_message_from_client ciphertext iv s in
+          target <- Some peer;
+          service <- Some service';
+          plaintext <- Some plaintext';
+          Wm.continue false rd)
+      with
+      | Coding.Decoding_failed e -> Wm.continue true rd 
+      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+
+    method process_post rd =
+      try
+        match target with
+        | None       -> Wm.continue false rd
+        | Some peer' -> 
+        match service with
+        | None          -> Wm.continue false rd
+        | Some service' -> 
+        match plaintext with
+        | None            -> Wm.continue false rd
+        | Some plaintext' -> 
+        let requests = get_file_list plaintext' in
+        if not(requests = [])
+          then 
+            (let body = attach_required_capabilities "D" peer' service' requests s in
+            send_retry peer' (Printf.sprintf "/peer/del/%s" service') body false s
+            >>= fun (c,_) -> Wm.continue (c = 204) rd)
+          else
+            Wm.continue false rd
       with
       | _ -> Wm.continue false rd
 
