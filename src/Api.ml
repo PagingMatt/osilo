@@ -697,6 +697,64 @@ module Peer = struct
       >>= fun st -> Wm.continue (`String st) rd
   end
 
+  class del s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    val mutable service : string option = None
+
+    val mutable files : string list = []
+
+    val mutable source : Peer.t option = None
+
+    method content_types_provided rd = 
+      Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`POST] rd 
+
+    method malformed_request rd = 
+      try match Wm.Rd.lookup_path_info "service" rd with
+      | None          -> Wm.continue true rd
+      | Some service' -> 
+          (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
+          >|= (fun message -> 
+            Coding.decode_peer_message ~message)
+          >|= (fun (source_peer,ciphertext,iv) ->
+              source <- Some source_peer;
+              decrypt_message_from_peer source_peer ciphertext iv s)           
+          >>= (fun plaintext ->
+            let files',capabilities = get_file_and_capability_list plaintext in
+            let authorised_files = 
+              Auth.authorise files' capabilities 
+                (Auth.Token.token_of_string "D")
+                s#get_secret_key s#get_address service' in
+            (service <- Some service'); (files <- authorised_files); Wm.continue false rd)
+      with
+      | Coding.Decoding_failed s -> 
+          (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
+          Wm.continue true rd)
+      | Cryptography.CS.Decryption_failed -> 
+          Wm.continue true rd
+
+    method process_post rd =
+      try
+        match source with 
+        | None -> Wm.continue false rd
+        | Some source' ->
+        match service with 
+        | None -> Wm.continue false rd
+        | Some service' ->
+            Silo.delete ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~files
+            >>= fun () -> Wm.continue true rd
+      with
+      | Malformed_data  -> Wm.continue false rd
+
+    method private to_text rd = 
+      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+      >>= fun st -> Wm.continue (`String st) rd
+  end
+
   class inv s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
