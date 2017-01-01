@@ -32,7 +32,7 @@ class server hostname key silo = object(self)
 
   method private callback _ request body =
     let api = [
-      ("/ping/"                       , fun () -> new Api.ping              self);
+      ("/ping/"                       , fun () -> new Api.ping                  );
       ("/client/get/local/:service"   , fun () -> new Api.Client.get_local  self);
       ("/client/get/:peer/:service"   , fun () -> new Api.Client.get_remote self);
       ("/client/set/local/:service"   , fun () -> new Api.Client.set_local  self);
