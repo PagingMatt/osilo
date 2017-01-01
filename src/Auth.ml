@@ -34,14 +34,14 @@ end
 module M = Macaroons.Make(Crypto)
 
 module Token : sig
-  type t = R | W 
+  type t = R | W | D
   exception Invalid_token of string
   val token_of_string : string -> t
   val string_of_token : t -> string
   val (>>) : t -> t -> bool
   val (>=) : t -> t -> bool
 end = struct
-  type t = R | W 
+  type t = R | W | D
 
   exception Invalid_token of string
 
@@ -49,21 +49,25 @@ end = struct
     match t with
     | "R" -> R 
     | "W" -> W 
+    | "D" -> D
     | _   -> raise (Invalid_token t)
 
   let string_of_token t =
     match t with
     | R -> "R"
     | W -> "W"
+    | D -> "D"
 
   let (>>) t1 t2 =
     match t1 with
     | R  -> false
     | W  -> (t2 = R)
+    | D  -> (t2 = W) || (t2 = R)
 
   let (>=) t1 t2 =
     match t1 with
-    | W -> true
+    | D -> true
+    | W -> (t2 = W) || (t2 = R)
     | R -> (t2 = R)
 end
 

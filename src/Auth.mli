@@ -4,26 +4,24 @@ end
 (** Instantiates Macaroons functor with CRYPTO over Nocrypto. *)
 
 module Token : sig
-  type t = R | W 
-  (** Tokens are either read [R] or write [W]. Unlike UNIX write implies read. *)
+  type t = R | W | D
+  (** Tokens are either read [R], write [W] or delete [D]. Unlike UNIX write implies read etc. *)
 
   exception Invalid_token of string
   (** Raised when [token_of_string] is called on an invalid input. *)
 
   val token_of_string : string -> t
-  (** Used to deserialise a string representing a token. "R" -> [R] and "W" -> [W]. Anything else
+  (** Used to deserialise a string representing a token. "R" -> [R], "W" -> [W] and "D" -> [D]. Anything else
   raises a [Invalid_token]. *)
 
   val string_of_token : t -> string
-  (** Serialises [Token.t] to [string] [R] -> "R" and [W] -> "W". *)
+  (** Serialises [Token.t] to [string] [R] -> "R", [W] -> "W" and [D] -> "D". *)
 
   val (>>) : t -> t -> bool
-  (** Expresses strictly greater than relation over two inputs, for [t1 >> t2], true if [t1] is 
-  strictly more powerful then [t2]. This can only return true if called with [W >> R]. *)
+  (** Expresses strictly greater than relation over two inputs, for [t1 >> t2]. *)
 
   val (>=) : t -> t -> bool
-  (** Expresses greater than or equal to relation over two inputs, for [t1 >= t2], true for 
-  [R >= R], [W >= R] and [W >= W].*)
+  (** Expresses greater than or equal to relation over two inputs.*)
 end
 (** Permissions tokens. These are used to express the difference between being able to read and 
 write on remote peers, although currently only remote reading is implemented. *)
