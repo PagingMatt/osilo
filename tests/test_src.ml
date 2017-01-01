@@ -5,13 +5,29 @@ let port = 6630
 let peer = Peer.create host
 
 module Api_tests = struct
+  open Api
+
+  let pull_out_strings l = 
+    match l with
+    | `List j -> 
+        Core.Std.List.map j 
+        ~f:(begin function
+            | `String s -> s
+            | _         -> raise Malformed_data 
+            end)
+    | _ -> raise Malformed_data
+
+  let get_file_list plaintext =
+    Cstruct.to_string plaintext
+    |> Yojson.Basic.from_string 
+    |> pull_out_strings
 
   let can_get_valid_file_list () =
     let file_list = 
       `List [(`String "file_0"); (`String "file_1")] 
       |> Yojson.Basic.to_string
       |> Cstruct.of_string in
-    let fl = Api.get_file_list file_list in 
+    let fl = get_file_list file_list in 
     Alcotest.(check int) 
       "Checks lists are the same length"
       2 (Core.Std.List.length fl);
@@ -31,7 +47,7 @@ module Api_tests = struct
       |> Yojson.Basic.to_string
       |> Cstruct.of_string in
     try
-      let _ = Api.get_file_list file_list in 
+      let _ = get_file_list file_list in 
       Alcotest.fail "Did not throw."
     with 
     | Api.Malformed_data -> 
@@ -43,7 +59,7 @@ module Api_tests = struct
       |> Yojson.Basic.to_string
       |> Cstruct.of_string in
     try
-      let _ = Api.get_file_list file_list in 
+      let _ = get_file_list file_list in 
       Alcotest.fail "Did not throw."
     with 
     | Api.Malformed_data -> 
