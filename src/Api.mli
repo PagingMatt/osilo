@@ -1,8 +1,8 @@
 exception Malformed_data
-
-exception Fetch_failed of Peer.t
+(** Raised when data passed through a POST is not as expected. *)
 
 exception Path_info_exn of string
+(** Raised when expected wildcard doesn't exist in path. *)
 
 type provider_body = Cohttp_lwt_body.t Wm.provider
 type acceptor_body = Cohttp_lwt_body.t Wm.acceptor

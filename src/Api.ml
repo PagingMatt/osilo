@@ -6,7 +6,6 @@ open Lwt.Infix
 open Wm.Rd
 
 exception Malformed_data
-exception Fetch_failed of Peer.t
 exception Path_info_exn of string
 
 type provider_body = Cohttp_lwt_body.t Wm.provider
