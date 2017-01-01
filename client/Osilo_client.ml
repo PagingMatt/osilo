@@ -78,6 +78,20 @@ let get_my host port service file key =
   >|= Cstruct.to_string
   >|= (fun m -> Printf.printf "%s\n\n" m) 
 
+let del_their host peer service file key =
+  let key  = 
+    match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
+    | Some c -> c
+    | None   -> raise Get_failed
+  in
+  let host' = Peer.create host in
+  let plaintext = (`List [`String file]) |> Yojson.Basic.to_string |> Cstruct.of_string in
+  let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
+  let body = Coding.encode_client_message ~ciphertext:c ~iv:i in
+  let path = Printf.sprintf "/client/get/%s/%s" peer service in
+  Printf.printf "%s" body; Http_client.post ~peer:host' ~path ~body
+  >|= fun _ -> ()
+
 let get_their host peer service file key =
   let key  = 
     match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
@@ -170,6 +184,19 @@ module Terminal = struct
       )
       (fun h p s f k () -> Lwt_main.run (get_their h p s f k))
 
+  let del_their = 
+    Command.basic
+      ~summary:"Delete a piece of their data"
+      Command.Spec.(
+        empty
+        +> flag "-h" (required string) ~doc:" Server to target request at."
+        +> flag "-p" (required string) ~doc:" Peer to talk to."
+        +> flag "-s" (required string) ~doc:" Service data is from."
+        +> flag "-f" (required string) ~doc:" Logical file name."
+        +> flag "-k" (required string) ~doc:" Base64 string private key."
+      )
+      (fun h p s f k () -> Lwt_main.run (del_their h p s f k))
+
   let give =
     Command.basic
       ~summary:"Give a host capabilities to a file on a service in my databox"
@@ -209,7 +236,7 @@ module Terminal = struct
   let commands = 
     Command.group 
       ~summary:"Terminal entry point for osilo terminal client."
-      [("inv",inv);("del-my",del_my);("get-my",get_my);("get-their",get_their);("set-my",set_my);("kx",kx_test);("ping", ping);("give",give)]
+      [("inv",inv);("del-my",del_my);("del-their",del_their);("get-my",get_my);("get-their",get_their);("set-my",set_my);("kx",kx_test);("ping", ping);("give",give)]
 end
 
 let () = 
