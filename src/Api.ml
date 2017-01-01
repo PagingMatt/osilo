@@ -78,6 +78,18 @@ let get_file_and_capability_list plaintext =
   let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_request_capabilities in
   files,capabilities
 
+let pull_out_file_content c =
+  match c with
+  | `Assoc j -> j
+  | _        -> raise Malformed_data
+
+let get_file_content_and_capability_list plaintext =
+  let plaintext' = Cstruct.to_string plaintext in
+  let json = Yojson.Basic.from_string plaintext' in 
+  let content = Yojson.Basic.Util.member "contents" json |> pull_out_file_content in
+  let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_request_capabilities in
+  content,capabilities
+
 let decrypt_message_from_peer peer ciphertext iv s =
   let ks,message = CS.decrypt ~ks:(s#get_keying_service) ~peer ~ciphertext ~iv
   in s#set_keying_service ks; message 
@@ -88,13 +100,22 @@ let encrypt_message_to_peer peer plaintext s =
     s#set_keying_service ks; 
     Coding.encode_peer_message ~peer:(s#get_address) ~ciphertext ~iv
 
-let attach_required_capabilities target service files s =
-  let requests = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string "R"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
-  let caps     = Auth.find_permissions s#get_capability_service requests in
-  let caps'    = Auth.serialise_request_capabilities caps in 
+let attach_required_capabilities tok target service files s =
+  let requests          = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
+  let caps, not_covered = Auth.find_permissions s#get_capability_service requests in
+  let caps'             = Auth.serialise_request_capabilities caps in 
   `Assoc [
     ("files"       , (make_file_list files));
     ("capabilities", caps');
+  ] |> Yojson.Basic.to_string
+
+let attach_required_capabilities_and_content target service paths contents s =
+  let requests          = Core.Std.List.map paths ~f:(fun c -> Log.info (fun m -> m "Attaching W to %s" c); (Auth.Token.token_of_string "W"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
+  let caps, not_covered = Auth.find_permissions s#get_capability_service requests in
+  let caps'             = Auth.serialise_request_capabilities caps in 
+  `Assoc [
+    ("contents"    , contents);
+    ("capabilities", caps'   );
   ] |> Yojson.Basic.to_string
 
 let read_from_cache peer service files s =
@@ -273,7 +294,7 @@ module Client = struct
           (let to_fetch'' = List.append (Core.Std.List.map to_fetch ~f:(fun rf -> rf.path)) to_fetch' in
           if not(to_fetch'' = [])
           then 
-            (let body = attach_required_capabilities peer' service' to_fetch'' s in
+            (let body = attach_required_capabilities "R" peer' service' to_fetch'' s in
             send_retry peer' (Printf.sprintf "/peer/get/%s" service') body false s
             >>= (fun (c,b) ->
               let _,ciphertext,iv = Coding.decode_peer_message b in
@@ -288,6 +309,69 @@ module Client = struct
             Lwt.return (encrypt_message_to_client results s)))
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
+      with
+      | _ -> Wm.continue false rd
+
+    method private to_text rd = 
+      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+      >>= fun s -> Wm.continue (`String s) rd
+  end
+
+  class del_remote s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    val mutable target : Peer.t option = None
+
+    val mutable service : string option = None
+
+    val mutable plaintext : Cstruct.t option = None
+
+    method content_types_provided rd = 
+      Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`POST] rd
+
+    method malformed_request rd =
+      try 
+        match Wm.Rd.lookup_path_info "peer" rd with
+        | None       -> Wm.continue true rd
+        | Some peer' -> let peer = Peer.create peer' in
+        match Wm.Rd.lookup_path_info "service" rd with
+        | None          -> Wm.continue true rd
+        | Some service' -> 
+        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+        >|= (fun message -> Coding.decode_client_message ~message)
+        >>= (fun (ciphertext,iv) ->
+          let plaintext' = decrypt_message_from_client ciphertext iv s in
+          target <- Some peer;
+          service <- Some service';
+          plaintext <- Some plaintext';
+          Wm.continue false rd)
+      with
+      | Coding.Decoding_failed e -> Wm.continue true rd 
+      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+
+    method process_post rd =
+      try
+        match target with
+        | None       -> Wm.continue false rd
+        | Some peer' -> 
+        match service with
+        | None          -> Wm.continue false rd
+        | Some service' -> 
+        match plaintext with
+        | None            -> Wm.continue false rd
+        | Some plaintext' -> 
+        let requests = get_file_list plaintext' in
+        if not(requests = [])
+          then 
+            (let body = attach_required_capabilities "D" peer' service' requests s in
+            send_retry peer' (Printf.sprintf "/peer/del/%s" service') body false s
+            >>= fun (c,_) -> Wm.continue (c = 204) rd)
+          else
+            Wm.continue false rd
       with
       | _ -> Wm.continue false rd
 
@@ -462,6 +546,73 @@ module Client = struct
       >>= fun s -> Wm.continue (`String s) rd
   end
 
+  class set_remote s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    val mutable file_content_to_set : Yojson.Basic.json = `Null
+
+    val mutable service : string option = None
+
+    val mutable peer : Peer.t option = None
+
+    method content_types_provided rd =
+      Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`POST] rd
+
+    method malformed_request rd =
+      try
+        match Wm.Rd.lookup_path_info "peer" rd with
+        | None       -> Wm.continue true rd
+        | Some peer' -> 
+        match Wm.Rd.lookup_path_info "service" rd with
+        | None       -> Wm.continue true rd
+        | Some service' -> 
+        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+        >|= (fun message -> Coding.decode_client_message ~message)
+        >>= (fun (ciphertext,iv) -> 
+          let plaintext = decrypt_message_from_client ciphertext iv s in
+            service <- Some service';
+            peer <- Some (Peer.create peer');
+            file_content_to_set <- get_file_content_list plaintext;
+            Wm.continue false rd)
+      with
+      | Coding.Decoding_failed e -> 
+          Wm.continue true rd
+      | Cryptography.CS.Decryption_failed ->
+          Wm.continue true rd
+      | Malformed_data ->
+          Wm.continue true rd
+
+    method process_post rd =
+      try
+        match peer with
+        | None -> raise Malformed_data
+        | Some peer' ->
+        match service with
+        | None -> raise Malformed_data
+        | Some service' ->
+        match file_content_to_set with
+        | `Assoc j as targets ->
+            let paths,contents = Core.Std.List.unzip j in
+            if not(paths = [])
+              then 
+                (let body = attach_required_capabilities_and_content peer' service' paths targets s in
+                send_retry peer' (Printf.sprintf "/peer/set/%s" service') body false s
+                >>= fun (c,_) -> Wm.continue (c = 204) rd)
+              else
+                Wm.continue false rd
+        | _ -> raise Malformed_data
+      with
+      | Malformed_data -> Wm.continue false rd
+
+    method private to_text rd = 
+      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+      >>= fun s -> Wm.continue (`String s) rd
+  end
+
   class del_local s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -626,6 +777,121 @@ module Peer = struct
               | _ -> raise Malformed_data)
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
+      with
+      | Malformed_data  -> Wm.continue false rd
+
+    method private to_text rd = 
+      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+      >>= fun st -> Wm.continue (`String st) rd
+  end
+
+  class set s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    val mutable service : string option = None
+
+    val mutable file_content : Yojson.Basic.json = `Null
+
+    method content_types_provided rd = 
+      Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`POST] rd 
+
+    method malformed_request rd = 
+      try match Wm.Rd.lookup_path_info "service" rd with
+      | None          -> Wm.continue true rd
+      | Some service' -> 
+          (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
+          >|= (fun message -> 
+            Coding.decode_peer_message ~message)
+          >|= (fun (source_peer,ciphertext,iv) ->
+              decrypt_message_from_peer source_peer ciphertext iv s)           
+          >>= (fun plaintext ->
+            let file_contents,capabilities = get_file_content_and_capability_list plaintext in
+            let paths,contents = Core.Std.List.unzip file_contents in
+            let authorised_files = 
+              Auth.authorise paths capabilities 
+                (Auth.Token.token_of_string "D")
+                s#get_secret_key s#get_address service' in
+            let authorised_file_content = 
+              Core.Std.List.filter file_contents 
+                ~f:(fun (p,c) -> Core.Std.List.fold ~init:false 
+                  ~f:(fun acc -> fun auth -> acc || auth=p) authorised_files) in
+            (service <- Some service'); (file_content <- `Assoc authorised_file_content); Wm.continue false rd)
+      with
+      | Coding.Decoding_failed s -> 
+          (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
+          Wm.continue true rd)
+      | Cryptography.CS.Decryption_failed ->  
+          Wm.continue true rd
+
+    method process_post rd =
+      try
+        match service with 
+        | None -> Wm.continue false rd
+        | Some service' ->
+            Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~contents:file_content
+            >>= fun () -> Wm.continue true rd
+      with
+      | Malformed_data  -> Wm.continue false rd
+
+    method private to_text rd = 
+      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+      >>= fun st -> Wm.continue (`String st) rd
+  end
+
+  class del s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    val mutable service : string option = None
+
+    val mutable files : string list = []
+
+    val mutable source : Peer.t option = None
+
+    method content_types_provided rd = 
+      Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`POST] rd 
+
+    method malformed_request rd = 
+      try match Wm.Rd.lookup_path_info "service" rd with
+      | None          -> Wm.continue true rd
+      | Some service' -> 
+          (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
+          >|= (fun message -> 
+            Coding.decode_peer_message ~message)
+          >|= (fun (source_peer,ciphertext,iv) ->
+              source <- Some source_peer;
+              decrypt_message_from_peer source_peer ciphertext iv s)           
+          >>= (fun plaintext ->
+            let files',capabilities = get_file_and_capability_list plaintext in
+            let authorised_files = 
+              Auth.authorise files' capabilities 
+                (Auth.Token.token_of_string "D")
+                s#get_secret_key s#get_address service' in
+            (service <- Some service'); (files <- authorised_files); Wm.continue false rd)
+      with
+      | Coding.Decoding_failed s -> 
+          (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
+          Wm.continue true rd)
+      | Cryptography.CS.Decryption_failed -> 
+          Wm.continue true rd
+
+    method process_post rd =
+      try
+        match source with 
+        | None -> Wm.continue false rd
+        | Some source' ->
+        match service with 
+        | None -> Wm.continue false rd
+        | Some service' ->
+            Silo.delete ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~files
+            >>= fun () -> Wm.continue true rd
       with
       | Malformed_data  -> Wm.continue false rd
 
