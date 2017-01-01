@@ -114,7 +114,7 @@ module Auth_tests = struct
     Alcotest.(check bool) "R is greater than or equal to R."     (r >= r) true
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
-  let server = new Http_server.server "localhost" (Coding.decode_cstruct key) "localhost" 
+  let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" 
 
   let can_mint_read_macaroons_for_test () =
     let ps = Auth.mint server#get_address server#get_secret_key "test" [("R","test_file.json")] in 
@@ -273,7 +273,7 @@ module File_tree_tests = struct
   open Auth.Token
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
-  let server = new Http_server.server "localhost" (Coding.decode_cstruct key) "localhost"
+  let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost"
 
   let location = fun (_,m) -> (M.location m |> Core.Std.String.split ~on:'/')
 

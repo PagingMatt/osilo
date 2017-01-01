@@ -9,8 +9,30 @@ open Silo
 
 let src = Logs.Src.create ~doc:"logger for osilo REST server" "osilo.http_server"
 module Log = (val Logs.src_log src : Logs.LOG)
+
+class type server = object
+  method get_address : Peer.t
+
+  method get_keying_service : Cryptography.KS.t
+
+  method set_keying_service : Cryptography.KS.t -> unit
+
+  method get_secret_key : Cstruct.t
+
+  method get_capability_service : Auth.CS.t
+
+  method set_capability_service : Auth.CS.t -> unit
+
+  method get_peer_access_log : Peer_access_log.t
+
+  method set_peer_access_log : Peer_access_log.t -> unit
+
+  method get_silo_client : Silo.Client.t
+
+  method start : unit Lwt.t
+end
   
-class server hostname key silo = object(self)
+class server' hostname key silo = object(self)
   val address : Peer.t = Peer.create hostname
   method get_address = address 
 

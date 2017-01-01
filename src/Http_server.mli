@@ -1,6 +1,6 @@
 (** REST server for osilo *)
 
-class server : string -> Cstruct.t -> string -> object
+class type server = object
   method get_address : Peer.t
   (** [get_addess] returns the [Peer.t] that represents this server. *)
 
@@ -35,4 +35,6 @@ class server : string -> Cstruct.t -> string -> object
   method start : unit Lwt.t
   (** [start] is the non-terminating operation to start this REST server. *)
 end
+
+class server' : string -> Cstruct.t -> string -> server
 (** Server class encapsulates a [Webmachine] server. *)
