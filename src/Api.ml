@@ -97,6 +97,15 @@ let attach_required_capabilities tok target service files s =
     ("capabilities", caps');
   ] |> Yojson.Basic.to_string
 
+let attach_required_capabilities_and_content target service paths contents s =
+  let requests = Core.Std.List.map paths ~f:(fun c -> (Auth.Token.token_of_string "W"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
+  let caps     = Auth.find_permissions s#get_capability_service requests in
+  let caps'    = Auth.serialise_request_capabilities caps in 
+  `Assoc [
+    ("contents"    , contents);
+    ("capabilities", caps'   );
+  ] |> Yojson.Basic.to_string
+
 let read_from_cache peer service files s =
   Silo.read ~client:s#get_silo_client ~peer ~service ~paths:files
   >|= begin function 
@@ -516,6 +525,73 @@ module Client = struct
         | `Assoc j as contents ->
             (Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~contents
             >>= fun () -> Wm.continue true {rd with resp_body = (Cohttp_lwt_body.of_string "Successfully written.");})
+        | _ -> raise Malformed_data
+      with
+      | Malformed_data -> Wm.continue false rd
+
+    method private to_text rd = 
+      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+      >>= fun s -> Wm.continue (`String s) rd
+  end
+
+  class set_remote s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    val mutable file_content_to_set : Yojson.Basic.json = `Null
+
+    val mutable service : string option = None
+
+    val mutable peer : Peer.t option = None
+
+    method content_types_provided rd =
+      Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`POST] rd
+
+    method malformed_request rd =
+      try
+        match Wm.Rd.lookup_path_info "peer" rd with
+        | None       -> Wm.continue true rd
+        | Some peer' -> 
+        match Wm.Rd.lookup_path_info "service" rd with
+        | None       -> Wm.continue true rd
+        | Some service' -> 
+        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+        >|= (fun message -> Coding.decode_client_message ~message)
+        >>= (fun (ciphertext,iv) -> 
+          let plaintext = decrypt_message_from_client ciphertext iv s in
+            service <- Some service';
+            peer <- Some (Peer.create peer');
+            file_content_to_set <- get_file_content_list plaintext;
+            Wm.continue false rd)
+      with
+      | Coding.Decoding_failed e -> 
+          Wm.continue true rd
+      | Cryptography.CS.Decryption_failed ->
+          Wm.continue true rd
+      | Malformed_data ->
+          Wm.continue true rd
+
+    method process_post rd =
+      try
+        match peer with
+        | None -> raise Malformed_data
+        | Some peer' ->
+        match service with
+        | None -> raise Malformed_data
+        | Some service' ->
+        match file_content_to_set with
+        | `Assoc j as targets ->
+            let paths,contents = Core.Std.List.unzip j in
+            if not(paths = [])
+              then 
+                (let body = attach_required_capabilities_and_content peer' service' paths targets s in
+                send_retry peer' (Printf.sprintf "/peer/set/%s" service') body false s
+                >>= fun (c,_) -> Wm.continue (c = 204) rd)
+              else
+                Wm.continue false rd
         | _ -> raise Malformed_data
       with
       | Malformed_data -> Wm.continue false rd
