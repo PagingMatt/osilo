@@ -100,18 +100,30 @@ module Auth_tests = struct
   let greater_than_token_tests () = 
     let r = R in
     let w = W in
+    let d = D in
+    Alcotest.(check bool) "D is greater than R."     (d >> r) true ;
     Alcotest.(check bool) "W is greater than R."     (w >> r) true ;
-    Alcotest.(check bool) "R is not greater than W." (r >> w) false;
+    Alcotest.(check bool) "R is not greater than R." (r >> r) false;
+    Alcotest.(check bool) "D is greater than W."     (d >> w) true ;
     Alcotest.(check bool) "W is not greater than W." (w >> w) false;
-    Alcotest.(check bool) "R is not greater than R." (r >> r) false
+    Alcotest.(check bool) "R is not greater than W." (r >> w) false;
+    Alcotest.(check bool) "D is not greater than D." (d >> d) false;
+    Alcotest.(check bool) "W is not greater than D." (w >> d) false;
+    Alcotest.(check bool) "R is not greater than D." (r >> d) false
 
   let greater_than_equal_token_tests () = 
     let r = R in
     let w = W in
+    let d = D in
+    Alcotest.(check bool) "D is greater or equal to than R."     (d >= r) true ;
     Alcotest.(check bool) "W is greater or equal to than R."     (w >= r) true ;
-    Alcotest.(check bool) "R is not greater than or equal to W." (r >= w) false;
+    Alcotest.(check bool) "R is greater than or equal to R."     (r >= r) true ;
+    Alcotest.(check bool) "D is greater or equal to than W."     (d >= w) true ;
     Alcotest.(check bool) "W is greater than or equal to W."     (w >= w) true ;
-    Alcotest.(check bool) "R is greater than or equal to R."     (r >= r) true
+    Alcotest.(check bool) "R is not greater than or equal to W." (r >= w) false;
+    Alcotest.(check bool) "D is greater or equal to than D."     (d >= d) true ;
+    Alcotest.(check bool) "W is not greater than or equal to D." (w >= d) false;
+    Alcotest.(check bool) "R is not greater than or equal to D." (r >= d) false
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
   let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" 
