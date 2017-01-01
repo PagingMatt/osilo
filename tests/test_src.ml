@@ -139,7 +139,7 @@ module Auth_tests = struct
     let caps1 = Core.Std.List.map caps0 ~f:(fun (p,m) -> ((token_of_string p),m)) in
     let service0 = Auth.CS.empty in
     let service1 = Auth.record_permissions service0 caps1 in
-    let caps2 = Auth.find_permissions service1 paths in
+    let caps2,_ = Auth.find_permissions service1 paths in
     Alcotest.(check int) "Two Macaroons should be minted"
     2 (Core.Std.List.length caps0);
     Alcotest.(check int) "One Macaroon should be found"

@@ -101,18 +101,18 @@ let encrypt_message_to_peer peer plaintext s =
     Coding.encode_peer_message ~peer:(s#get_address) ~ciphertext ~iv
 
 let attach_required_capabilities tok target service files s =
-  let requests = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
-  let caps     = Auth.find_permissions s#get_capability_service requests in
-  let caps'    = Auth.serialise_request_capabilities caps in 
+  let requests          = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
+  let caps, not_covered = Auth.find_permissions s#get_capability_service requests in
+  let caps'             = Auth.serialise_request_capabilities caps in 
   `Assoc [
     ("files"       , (make_file_list files));
     ("capabilities", caps');
   ] |> Yojson.Basic.to_string
 
 let attach_required_capabilities_and_content target service paths contents s =
-  let requests = Core.Std.List.map paths ~f:(fun c -> (Auth.Token.token_of_string "W"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
-  let caps     = Auth.find_permissions s#get_capability_service requests in
-  let caps'    = Auth.serialise_request_capabilities caps in 
+  let requests          = Core.Std.List.map paths ~f:(fun c -> Log.info (fun m -> m "Attaching W to %s" c); (Auth.Token.token_of_string "W"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
+  let caps, not_covered = Auth.find_permissions s#get_capability_service requests in
+  let caps'             = Auth.serialise_request_capabilities caps in 
   `Assoc [
     ("contents"    , contents);
     ("capabilities", caps'   );
