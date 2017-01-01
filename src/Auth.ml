@@ -160,16 +160,16 @@ let covered caps (perm,path) =
       (acc || (vpath_subsumes_request (M.location m) path) && (p >= perm)))
 
 let find_permissions capability_service requests =
-  Core.Std.List.fold requests ~init:[]
-  ~f:(fun acc -> fun (permission,path) -> 
-    if covered acc (permission,path) then acc else
+  Core.Std.List.fold requests ~init:([],[])
+  ~f:(fun (c,n) -> fun (permission,path) -> 
+    if covered c (permission,path) then (c,n) else
       CS.find_most_general_capability 
       ~service:capability_service ~path ~permission
     |> begin function 
-       | None       -> acc
-       | Some (p,m) -> (p,m)::acc
+       | None       -> c,((permission,path)::n)
+       | Some (p,m) -> ((p,m)::c),n
        end)    
-  |> Core.Std.List.map ~f:(fun (p,m) -> m)
+  |> fun (covered,not_covered) -> (Core.Std.List.map ~f:(fun (p,m) -> m) covered), not_covered
 
 let request_under_verified_path vpaths rpath =
   Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
