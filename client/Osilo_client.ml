@@ -47,6 +47,20 @@ let set_my () =
   Http_client.post ~peer ~path ~body
   >|= fun _ -> ()
 
+let set_their () = 
+  let key  = 
+    match "testtesttesttesttesttesttesttest" |> Cstruct.of_string |> Nocrypto.Base64.decode with
+    | Some c -> c
+    | None   -> raise Get_failed
+  in
+  let peer = Peer.create "192.168.1.86" in
+  let plaintext = (`Assoc [("new-dir/test-file",`String "test value in file")]) |> Yojson.Basic.to_string |> Cstruct.of_string in
+  let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
+  let body = Coding.encode_client_message ~ciphertext:c ~iv:i in
+  let path = "/client/set/192.168.1.77/foo" in
+  Http_client.post ~peer ~path ~body
+  >|= fun (c,_) -> Printf.printf "%d\n" c
+
 let del_my () = 
   let key  = 
     match "testtesttesttesttesttesttesttest" |> Cstruct.of_string |> Nocrypto.Base64.decode with
@@ -88,9 +102,9 @@ let del_their host peer service file key =
   let plaintext = (`List [`String file]) |> Yojson.Basic.to_string |> Cstruct.of_string in
   let c,i = Cryptography.CS.encrypt' ~key ~plaintext in
   let body = Coding.encode_client_message ~ciphertext:c ~iv:i in
-  let path = Printf.sprintf "/client/get/%s/%s" peer service in
+  let path = Printf.sprintf "/client/del/%s/%s" peer service in
   Printf.printf "%s" body; Http_client.post ~peer:host' ~path ~body
-  >|= fun _ -> ()
+  >|= fun (c,b) -> Printf.printf "%d" c
 
 let get_their host peer service file key =
   let key  = 
@@ -149,6 +163,14 @@ module Terminal = struct
         empty
       )
       (fun () -> Lwt_main.run (set_my ()))
+
+  let set_their = 
+    Command.basic
+      ~summary:"Set a piece of their data"
+      Command.Spec.(
+        empty
+      )
+      (fun () -> Lwt_main.run (set_their ()))
 
   let get_my = 
     Command.basic
@@ -236,7 +258,7 @@ module Terminal = struct
   let commands = 
     Command.group 
       ~summary:"Terminal entry point for osilo terminal client."
-      [("inv",inv);("del-my",del_my);("del-their",del_their);("get-my",get_my);("get-their",get_their);("set-my",set_my);("kx",kx_test);("ping", ping);("give",give)]
+      [("inv",inv);("del-my",del_my);("del-their",del_their);("get-my",get_my);("get-their",get_their);("set-my",set_my);("set-their",set_their);("kx",kx_test);("ping", ping);("give",give)]
 end
 
 let () = 
