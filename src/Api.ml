@@ -78,6 +78,18 @@ let get_file_and_capability_list plaintext =
   let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_request_capabilities in
   files,capabilities
 
+let pull_out_file_content c =
+  match c with
+  | `Assoc j -> j
+  | _        -> raise Malformed_data
+
+let get_file_content_and_capability_list plaintext =
+  let plaintext' = Cstruct.to_string plaintext in
+  let json = Yojson.Basic.from_string plaintext' in 
+  let content = Yojson.Basic.Util.member "contents" json |> pull_out_file_content in
+  let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_request_capabilities in
+  content,capabilities
+
 let decrypt_message_from_peer peer ciphertext iv s =
   let ks,message = CS.decrypt ~ks:(s#get_keying_service) ~peer ~ciphertext ~iv
   in s#set_keying_service ks; message 
@@ -765,6 +777,63 @@ module Peer = struct
               | _ -> raise Malformed_data)
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
+      with
+      | Malformed_data  -> Wm.continue false rd
+
+    method private to_text rd = 
+      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+      >>= fun st -> Wm.continue (`String st) rd
+  end
+
+  class set s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    val mutable service : string option = None
+
+    val mutable file_content : Yojson.Basic.json = `Null
+
+    method content_types_provided rd = 
+      Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`POST] rd 
+
+    method malformed_request rd = 
+      try match Wm.Rd.lookup_path_info "service" rd with
+      | None          -> Wm.continue true rd
+      | Some service' -> 
+          (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
+          >|= (fun message -> 
+            Coding.decode_peer_message ~message)
+          >|= (fun (source_peer,ciphertext,iv) ->
+              decrypt_message_from_peer source_peer ciphertext iv s)           
+          >>= (fun plaintext ->
+            let file_contents,capabilities = get_file_content_and_capability_list plaintext in
+            let paths,contents = Core.Std.List.unzip file_contents in
+            let authorised_files = 
+              Auth.authorise paths capabilities 
+                (Auth.Token.token_of_string "D")
+                s#get_secret_key s#get_address service' in
+            let authorised_file_content = 
+              Core.Std.List.filter file_contents 
+                ~f:(fun (p,c) -> Core.Std.List.fold ~init:false 
+                  ~f:(fun acc -> fun auth -> acc || auth=p) authorised_files) in
+            (service <- Some service'); (file_content <- `Assoc authorised_file_content); Wm.continue false rd)
+      with
+      | Coding.Decoding_failed s -> 
+          (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
+          Wm.continue true rd)
+      | Cryptography.CS.Decryption_failed ->  
+          Wm.continue true rd
+
+    method process_post rd =
+      try
+        match service with 
+        | None -> Wm.continue false rd
+        | Some service' ->
+            Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~contents:file_content
+            >>= fun () -> Wm.continue true rd
       with
       | Malformed_data  -> Wm.continue false rd
 
