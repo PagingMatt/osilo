@@ -15,9 +15,7 @@ let log l ~host ~peer ~service ~path =
   File_tree.insert ~element:[peer] ~tree:l ~location:(build_loc host service path) ~select:build_el
     ~terminate:(fun _ -> fun _ -> false)
 
-let unlog l ~host ~service ~path =
-  File_tree.trim ~tree:l ~location:(build_loc host service path ())
-
-let find l ~host ~service ~path = 
-  File_tree.flatten_under ~tree:l ~location:(String.split (Printf.sprintf "%s/%s/%s" (Peer.host host) service path) ~on:'/')
-  |> List.fold ~init:[] ~f:List.append 
+let delog (l:t) ~host ~service ~path =
+  let peerses,pal = File_tree.trim ~tree:l ~location:(build_loc host service path ()) in
+  (Core.Std.List.fold ~init:[] ~f:(fun acc -> fun peers -> Core.Std.List.unordered_append peers acc) peerses
+  |> Core.Std.List.dedup ~compare:Peer.compare),pal
