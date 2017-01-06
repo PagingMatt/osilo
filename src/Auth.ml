@@ -179,12 +179,14 @@ let authorise requests capabilities tok key target service =
   let verified_capabilities = Core.Std.List.filter capabilities ~f:(verify tok key') in
   let authorised_locations  = Core.Std.List.map verified_capabilities ~f:(M.location) in 
   let path_tree = Core.Std.List.fold ~init:File_tree.empty 
-        ~f:(fun tree -> fun element -> File_tree.insert ~element ~tree 
-          ~location:(fun path -> Core.Std.String.split path ~on:'/')
+        ~f:(fun tree -> fun element -> 
+          File_tree.insert ~element ~tree 
+          ~location:(fun path -> Core.Std.String.split 
+            (Printf.sprintf "%s/%s/%s" (Peer.host target) service path) ~on:'/')
           ~select:(fun p -> fun _ -> p)
           ~terminate:(fun o -> fun _ -> match o with | Some e -> true | None -> false)) requests in
   let (authorised_paths,_) = 
-    Core.Std.List.fold ~init:([],path_tree) ~f:(fun (paths,tree) -> fun loc -> 
+    Core.Std.List.fold ~init:([],path_tree) ~f:(fun (paths,tree) -> fun loc ->
       let content,tree' = File_tree.trim ~tree ~location:(Core.Std.String.split loc ~on:'/')
       in (Core.Std.List.unordered_append content paths),tree') authorised_locations in
   authorised_paths
