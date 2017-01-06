@@ -24,7 +24,6 @@ end = struct
 
   let create ~server =
     let address = Printf.sprintf "%s:5640" server in
-    Log.info (fun m -> m "Creating silo client for Datakit server at %s" address);
     { server = address }
 
   let server c = c.server

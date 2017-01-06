@@ -34,15 +34,6 @@ let shortest_path_match ~tree ~location ~satisfies =
   let rec find path tree =
       match path with 
       | []    -> None
-      | x::[] ->
-          (match tree with
-          | Leaf -> None
-          | Node (name, el, sub, l, r) -> 
-              if name > x then find path l else
-              if name < x then find path r else
-              match el with
-              | None          -> None
-              | Some el' as e -> if satisfies el' then e else None)
       | y::ys ->
           match tree with 
           | Leaf -> None

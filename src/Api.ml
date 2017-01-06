@@ -6,13 +6,16 @@ open Lwt.Infix
 open Wm.Rd
 
 exception Malformed_data
-exception Fetch_failed of Peer.t
 exception Path_info_exn of string
+
+type provider_body = Cohttp_lwt_body.t Wm.provider
+type acceptor_body = Cohttp_lwt_body.t Wm.acceptor
+type 'a content_types = ((string * 'a) list, Cohttp_lwt_body.t) Wm.op
 
 let src = Logs.Src.create ~doc:"logger for osilo API" "osilo.api"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-class ping s = object(self)
+class ping = object(self)
   inherit [Cohttp_lwt_body.t] Wm.resource
 
   method content_types_provided rd = 

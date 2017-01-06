@@ -5,13 +5,29 @@ let port = 6630
 let peer = Peer.create host
 
 module Api_tests = struct
+  open Api
+
+  let pull_out_strings l = 
+    match l with
+    | `List j -> 
+        Core.Std.List.map j 
+        ~f:(begin function
+            | `String s -> s
+            | _         -> raise Malformed_data 
+            end)
+    | _ -> raise Malformed_data
+
+  let get_file_list plaintext =
+    Cstruct.to_string plaintext
+    |> Yojson.Basic.from_string 
+    |> pull_out_strings
 
   let can_get_valid_file_list () =
     let file_list = 
       `List [(`String "file_0"); (`String "file_1")] 
       |> Yojson.Basic.to_string
       |> Cstruct.of_string in
-    let fl = Api.get_file_list file_list in 
+    let fl = get_file_list file_list in 
     Alcotest.(check int) 
       "Checks lists are the same length"
       2 (Core.Std.List.length fl);
@@ -31,7 +47,7 @@ module Api_tests = struct
       |> Yojson.Basic.to_string
       |> Cstruct.of_string in
     try
-      let _ = Api.get_file_list file_list in 
+      let _ = get_file_list file_list in 
       Alcotest.fail "Did not throw."
     with 
     | Api.Malformed_data -> 
@@ -43,7 +59,7 @@ module Api_tests = struct
       |> Yojson.Basic.to_string
       |> Cstruct.of_string in
     try
-      let _ = Api.get_file_list file_list in 
+      let _ = get_file_list file_list in 
       Alcotest.fail "Did not throw."
     with 
     | Api.Malformed_data -> 
@@ -84,21 +100,33 @@ module Auth_tests = struct
   let greater_than_token_tests () = 
     let r = R in
     let w = W in
+    let d = D in
+    Alcotest.(check bool) "D is greater than R."     (d >> r) true ;
     Alcotest.(check bool) "W is greater than R."     (w >> r) true ;
-    Alcotest.(check bool) "R is not greater than W." (r >> w) false;
+    Alcotest.(check bool) "R is not greater than R." (r >> r) false;
+    Alcotest.(check bool) "D is greater than W."     (d >> w) true ;
     Alcotest.(check bool) "W is not greater than W." (w >> w) false;
-    Alcotest.(check bool) "R is not greater than R." (r >> r) false
+    Alcotest.(check bool) "R is not greater than W." (r >> w) false;
+    Alcotest.(check bool) "D is not greater than D." (d >> d) false;
+    Alcotest.(check bool) "W is not greater than D." (w >> d) false;
+    Alcotest.(check bool) "R is not greater than D." (r >> d) false
 
   let greater_than_equal_token_tests () = 
     let r = R in
     let w = W in
+    let d = D in
+    Alcotest.(check bool) "D is greater or equal to than R."     (d >= r) true ;
     Alcotest.(check bool) "W is greater or equal to than R."     (w >= r) true ;
-    Alcotest.(check bool) "R is not greater than or equal to W." (r >= w) false;
+    Alcotest.(check bool) "R is greater than or equal to R."     (r >= r) true ;
+    Alcotest.(check bool) "D is greater or equal to than W."     (d >= w) true ;
     Alcotest.(check bool) "W is greater than or equal to W."     (w >= w) true ;
-    Alcotest.(check bool) "R is greater than or equal to R."     (r >= r) true
+    Alcotest.(check bool) "R is not greater than or equal to W." (r >= w) false;
+    Alcotest.(check bool) "D is greater or equal to than D."     (d >= d) true ;
+    Alcotest.(check bool) "W is not greater than or equal to D." (w >= d) false;
+    Alcotest.(check bool) "R is not greater than or equal to D." (r >= d) false
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
-  let server = new Http_server.server "localhost" (Coding.decode_cstruct key) "localhost" 
+  let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" 
 
   let can_mint_read_macaroons_for_test () =
     let ps = Auth.mint server#get_address server#get_secret_key "test" [("R","test_file.json")] in 
@@ -257,7 +285,7 @@ module File_tree_tests = struct
   open Auth.Token
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
-  let server = new Http_server.server "localhost" (Coding.decode_cstruct key) "localhost"
+  let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost"
 
   let location = fun (_,m) -> (M.location m |> Core.Std.String.split ~on:'/')
 
