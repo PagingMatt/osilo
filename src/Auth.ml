@@ -186,7 +186,7 @@ let authorise requests capabilities tok key target service =
   let (authorised_paths,_) = 
     Core.Std.List.fold ~init:([],path_tree) ~f:(fun (paths,tree) -> fun loc -> 
       let content,tree' = File_tree.trim ~tree ~location:(Core.Std.String.split loc ~on:'/')
-      in (List.unordered_append content paths),tree') authorised_locations in
+      in (Core.Std.List.unordered_append content paths),tree') authorised_locations in
   authorised_paths
 
 let serialise_presented_capabilities capabilities =
