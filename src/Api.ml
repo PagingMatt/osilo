@@ -131,11 +131,23 @@ let read_from_cache peer service files s =
 
 open Coding
 
+let path_subsumed vpath rpath =
+  let vpath' = Core.Std.String.split vpath ~on:'/' in
+  let rpath' = Core.Std.String.split rpath ~on:'/' in
+  let rec walker v r =
+    match v with 
+    | []    -> true
+    | x::xs -> 
+      match r with
+      | []    -> false
+      | y::ys -> x=y && (walker xs ys)
+  in walker vpath' rpath'
+
 let write_to_cache peer service file_content requests s =
   let write_backs = Core.Std.List.filter requests ~f:(fun rf -> rf.write_back) in
   let files_to_write_back = 
     Core.Std.List.filter file_content 
-      ~f:(fun (p,c) -> Core.Std.List.exists write_backs (fun rf -> rf.path = p)) in
+      ~f:(fun (p,c) -> Core.Std.List.exists write_backs (fun rf -> path_subsumed rf.path p)) in
   Silo.write ~client:s#get_silo_client ~peer ~service ~contents:(`Assoc files_to_write_back)
 
 let get_remote_file_list plaintext =
