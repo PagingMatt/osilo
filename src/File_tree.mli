@@ -20,24 +20,19 @@ location, if this already exists, [select] compares [element] and the element cu
 it then gives back the element which should be at the position. *)
 
 val shortest_path_match :
-  tree:       'a t        ->
+  tree:       'a t            ->
   location:       string list ->
-  satisfies: ('a -> bool) -> 'a option
+  satisfies: ('a -> bool)     -> 'a option
 (** [shortest_path_match ~tree ~location ~satisfies] starts at the root of [tree] and walks down 
 towards [location] until an element along [location] in [tree] satisfies the predicate [satisfies], it then
 returns this element. If it reaches a leaf before finding a satisfying element [None] is returned. *)
-
-val flatten_under :
-  tree: 'a t        ->
-  location: string list -> 'a list
-(** [flatten_under ~tree ~location] walks down [tree] until it hits [location] and then returns an in order
-list of all of the elements at and below [location] in the [tree]. *)
 
 exception Trim_failed
 (** Raised if [get_min] behaves unexpectadly during deletion. *)
 
 val trim :
-  tree: 'a t            ->
-  location: string list -> 'a t
+  tree:    'a t         ->
+  location: string list -> 'a list * 'a t
 (** Walks down to the node at [location] in [tree] and returns the new tree with this node and it's 
-sub tree removed, but any left and right nodes still remaining. *)
+sub tree removed, but any left and right nodes still remaining. The contents of the subtree is flattened
+and passed back in a pair. *)

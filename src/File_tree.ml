@@ -45,35 +45,6 @@ let shortest_path_match ~tree ~location ~satisfies =
               | Some el' as e-> if satisfies el' then e else find ys sub)
   in find location tree
 
-let flatten_under ~tree ~location =
-  let rec flatten tree' =
-    match tree' with
-    | Leaf -> []
-    | Node (name, el, sub, l, r) -> 
-      (match el with 
-      | None   -> (flatten sub) @ (flatten l) @ (flatten r)
-      | Some x -> x :: ((flatten sub) @ (flatten l) @ (flatten r)))
-  in let rec find path tree' = 
-    match path with 
-      | []    -> []
-      | x::[] ->
-          (match tree' with
-          | Leaf -> []
-          | Node (name, el, sub, l, r) -> 
-              if name > x then find path l else
-              if name < x then find path r else
-              (match el with
-              | None -> flatten sub
-              | Some x -> x :: (flatten sub)))
-      | y::ys ->
-          match tree' with 
-          | Leaf -> []
-          | Node (name,el,sub,l,r) -> 
-              if name > y then find path l else
-              if name < y then find path r else
-              find ys sub
-  in find location tree
-
 let rec get_min tree = 
   match tree with
   | Leaf -> Leaf
@@ -83,26 +54,50 @@ let rec get_min tree =
 exception Trim_failed
 
 let trim ~tree ~location =
+  let rec flatten tree' =
+    match tree' with
+    | Leaf -> []
+    | Node (name, el, sub, l, r) -> 
+      (match el with 
+      | None   -> (flatten sub) @ (flatten l) @ (flatten r)
+      | Some x -> x :: ((flatten sub) @ (flatten l) @ (flatten r))) in
+  let flat el tree =
+    match el with
+      | None   ->       flatten tree
+      | Some x -> x :: (flatten tree) in
+  let rec delete_no_flatten path tree =
+    match tree with
+    | Leaf -> Leaf
+    | Node (name, el, sub, l, r) -> 
+        if name > path then delete_no_flatten path l else
+        if name < path then delete_no_flatten path r else
+        if l = Leaf then r else
+        if r = Leaf then l else
+        let m = get_min r in
+        (match m with
+         | Node (n', e', s', Leaf, _) -> Node (n', e', s', l, delete_no_flatten n' r)
+         | _ -> raise Trim_failed) in
   let rec delete path tree' =
     match path with 
-    | []    -> tree'
+    | []    -> [],tree'
     | x::[] ->
         (match tree' with
-        | Leaf -> Leaf
+        | Leaf -> [],Leaf
         | Node (name, el, sub, l, r) -> 
-            if name > x then Node (name, el, sub, delete path l, r) else
-            if name < x then Node (name, el, sub, l, delete path r) else
-            if l = Leaf then r else
-            if r = Leaf then l else
+            if name > x then let f,l' = delete path l in f,Node (name, el, sub, l', r) else
+            if name < x then let f,r' = delete path r in f,Node (name, el, sub, l, r') else
+            if l = Leaf then flat el sub,r else
+            if r = Leaf then flat el sub,l else
             let m = get_min r in
             (match m with
-            | Node (n', e', s', Leaf, _) -> Node (n', e', s', l, delete [n'] r)
+            | Node (n', e', s', Leaf, _) -> flat el sub,Node (n', e', s', l, delete_no_flatten n' r)
             | _ -> raise Trim_failed))
     | y::ys -> 
       match tree' with 
-      | Leaf -> Leaf
+      | Leaf -> [],Leaf
       | Node (name,el,sub,l,r) -> 
-          if name > y then Node (name, el, sub, delete path l, r) else
-          if name < y then Node (name, el, sub, l, delete path r) else
-          Node (name, el, delete ys sub, l, r)
+          if name > y then let f,l' = delete path l in f,Node (name, el, sub, l', r) else
+          if name < y then let f,r' = delete path r in f,Node (name, el, sub, l, r') else
+          let f,sub' = delete ys sub in
+          f,Node (name, el, sub', l, r)
   in delete location tree
