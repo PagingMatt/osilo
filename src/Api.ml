@@ -165,9 +165,11 @@ let invalidate_paths_at_peer peer paths service s =
   send_retry peer (Printf.sprintf "/peer/inv/%s/%s" (Peer.host s#get_address) service) body false s
 
 let invalidate_paths_at_peers paths access_log service s =
-  let path_peers = Core.Std.List.map paths ~f:(fun path -> path, 
-    (Peer_access_log.find s#get_peer_access_log 
-      ~host:s#get_address ~service ~path)) in
+  let path_peers,pal = Core.Std.List.fold ~init:([],s#get_peer_access_log) paths 
+    ~f:(fun (pp,pal) -> fun path -> 
+      let peers,pal' = (Peer_access_log.delog pal ~host:s#get_address ~service ~path)
+      in (path,peers)::pp,pal') in
+  s#set_peer_access_log pal;
   let peers = 
     path_peers
     |> Core.Std.List.fold ~init:[] ~f:(fun acc -> fun (_,ps) -> Core.Std.List.append acc ps)
@@ -177,9 +179,6 @@ let invalidate_paths_at_peers paths access_log service s =
       (Core.Std.List.fold path_peers ~init:[] ~f:(fun acc -> fun (path,ps) -> 
         Core.Std.List.append (if List.exists ps (fun p -> Peer.compare p peer = 0) then [path] else []) acc))) in 
   Lwt_list.iter_s (fun (peer,paths) -> invalidate_paths_at_peer peer paths service s >|= fun _ -> ()) peer_paths
-  >|= fun () -> s#set_peer_access_log 
-    (Core.Std.List.fold paths ~init:s#get_peer_access_log 
-      ~f:(fun pal -> fun path -> Peer_access_log.unlog pal ~host:s#get_address ~service ~path))
 
 module Client = struct
   let decrypt_message_from_client ciphertext iv s =
