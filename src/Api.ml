@@ -166,9 +166,9 @@ let invalidate_paths_at_peer peer paths service s =
 
 let invalidate_paths_at_peers paths access_log service s =
   let path_peers,pal = Core.Std.List.fold ~init:([],s#get_peer_access_log) paths 
-    ~f:(fun (pp,pal) -> fun path -> 
-      let peers,pal' = (Peer_access_log.delog pal ~host:s#get_address ~service ~path)
-      in (path,peers)::pp,pal') in
+    ~f:(fun (pp,pal') -> fun path -> 
+      let peers,pal'' = (Peer_access_log.delog pal' ~host:s#get_address ~service ~path)
+      in (path,peers)::pp,pal'') in
   s#set_peer_access_log pal;
   let peers = 
     path_peers
