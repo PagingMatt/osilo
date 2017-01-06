@@ -174,15 +174,22 @@ let find_permissions capability_service requests =
 let request_under_verified_path vpaths rpath =
   Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
 
-(* Because of the API definition a collection of requests is always all reads or all writes *)
 let authorise requests capabilities tok key target service =
   let key' = Coding.encode_cstruct key in
   let verified_capabilities = Core.Std.List.filter capabilities ~f:(verify tok key') in
-  let locations = Core.Std.List.map verified_capabilities ~f:(M.location) in 
-  let verified_paths = (* The paths below which it is verified the requester has access of at least [tok] *)
-    (Core.Std.List.map locations ~f:(verify_location target service))
-    |> Core.Std.List.filter ~f:(fun s -> not(s="")) in 
-  Core.Std.List.filter requests ~f:(request_under_verified_path verified_paths)
+  let authorised_locations  = Core.Std.List.map verified_capabilities ~f:(M.location) in 
+  let path_tree = Core.Std.List.fold ~init:File_tree.empty 
+        ~f:(fun tree -> fun element -> 
+          File_tree.insert ~element ~tree 
+          ~location:(fun path -> Core.Std.String.split 
+            (Printf.sprintf "%s/%s/%s" (Peer.host target) service path) ~on:'/')
+          ~select:(fun p -> fun _ -> p)
+          ~terminate:(fun o -> fun _ -> match o with | Some e -> true | None -> false)) requests in
+  let (authorised_paths,_) = 
+    Core.Std.List.fold ~init:([],path_tree) ~f:(fun (paths,tree) -> fun loc ->
+      let content,tree' = File_tree.trim ~tree ~location:(Core.Std.String.split loc ~on:'/')
+      in (Core.Std.List.unordered_append content paths),tree') authorised_locations in
+  authorised_paths
 
 let serialise_presented_capabilities capabilities =
   `Assoc (Core.Std.List.map capabilities ~f:(fun (p,c) -> (p, `String (M.serialize c))))

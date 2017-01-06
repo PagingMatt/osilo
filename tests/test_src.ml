@@ -340,18 +340,18 @@ module File_tree_tests = struct
       Core.Std.List.fold paths ~init:pal 
         ~f:(fun p -> fun path -> Peer_access_log.log p ~host ~service ~peer ~path) in
     Alcotest.(check int) "Checks can get peer back out for path we delete"
-    (Core.Std.List.length (Peer_access_log.find pal' ~host ~service ~path:"bar2")) 1;
+    (Core.Std.List.length (Peer_access_log.delog pal' ~host ~service ~path:"bar2" |> fun (ps,log') -> ps)) 1;
     Alcotest.(check int) "Checks can get peer back out for left path"
-    (Core.Std.List.length (Peer_access_log.find pal' ~host ~service ~path:"bar1")) 1;
+    (Core.Std.List.length (Peer_access_log.delog pal' ~host ~service ~path:"bar1" |> fun (ps,log') -> ps)) 1;
     Alcotest.(check int) "Checks can get peer back out for right path"
-    (Core.Std.List.length (Peer_access_log.find pal' ~host ~service ~path:"bar3")) 1;
-    let pal'' = Peer_access_log.unlog pal' ~host ~service ~path:"bar2" in
+    (Core.Std.List.length (Peer_access_log.delog pal' ~host ~service ~path:"bar3" |> fun (ps,log') -> ps)) 1;
+    let _,pal'' = Peer_access_log.delog pal' ~host ~service ~path:"bar2" in
     Alcotest.(check int) "Checks cannot get peer back out for path we deleted"
-    (Core.Std.List.length (Peer_access_log.find pal'' ~host ~service ~path:"bar2")) 0;
+    (Core.Std.List.length (Peer_access_log.delog pal'' ~host ~service ~path:"bar2" |> fun (ps,log') -> ps)) 0;
     Alcotest.(check int) "Checks can get peer back out for what is still left path"
-    (Core.Std.List.length (Peer_access_log.find pal'' ~host ~service ~path:"bar1")) 1;
+    (Core.Std.List.length (Peer_access_log.delog pal'' ~host ~service ~path:"bar1" |> fun (ps,log') -> ps)) 1;
     Alcotest.(check int) "Checks can get peer back out for what is now root"
-    (Core.Std.List.length (Peer_access_log.find pal'' ~host ~service ~path:"bar3")) 1
+    (Core.Std.List.length (Peer_access_log.delog pal'' ~host ~service ~path:"bar3" |> fun (ps,log') -> ps)) 1
 
   let tests = [
     ("Can add Macaroon to Capabilities Service and get it out again", `Quick, read_macaroon_inserted_into_service_can_be_retrieved);
@@ -369,8 +369,8 @@ module Peer_access_log_tests = struct
   let access_inserted_into_log_can_be_retrieved () =
     let pal  = Peer_access_log.empty in
     let pal' = Peer_access_log.log pal ~host ~peer ~service ~path in
-    match Peer_access_log.find pal' ~host ~service ~path with
-    | p::[] ->
+    match Peer_access_log.delog pal' ~host ~service ~path with
+    | p::[],_ ->
         Alcotest.(check string) "Checks the logged peer is the one inserted."
         (Peer.host peer) (Peer.host p);
     | _ -> Alcotest.fail "One single peer access should be logged."
@@ -378,8 +378,8 @@ module Peer_access_log_tests = struct
   let access_inserted_into_log_can_be_retrieved_from_node_above () =
     let pal  = Peer_access_log.empty in
     let pal' = Peer_access_log.log pal ~host ~peer ~service ~path in
-    match Peer_access_log.find pal' ~host ~service ~path:"dir" with
-    | p::[] ->
+    match Peer_access_log.delog pal' ~host ~service ~path:"dir" with
+    | p::[],_ ->
         Alcotest.(check string) "Checks the logged peer is the one inserted."
         (Peer.host peer) (Peer.host p);
     | _ -> Alcotest.fail "One single peer access should be logged."

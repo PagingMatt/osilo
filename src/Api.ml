@@ -131,11 +131,23 @@ let read_from_cache peer service files s =
 
 open Coding
 
+let path_subsumed vpath rpath =
+  let vpath' = Core.Std.String.split vpath ~on:'/' in
+  let rpath' = Core.Std.String.split rpath ~on:'/' in
+  let rec walker v r =
+    match v with 
+    | []    -> true
+    | x::xs -> 
+      match r with
+      | []    -> false
+      | y::ys -> x=y && (walker xs ys)
+  in walker vpath' rpath'
+
 let write_to_cache peer service file_content requests s =
   let write_backs = Core.Std.List.filter requests ~f:(fun rf -> rf.write_back) in
   let files_to_write_back = 
     Core.Std.List.filter file_content 
-      ~f:(fun (p,c) -> Core.Std.List.exists write_backs (fun rf -> rf.path = p)) in
+      ~f:(fun (p,c) -> Core.Std.List.exists write_backs (fun rf -> path_subsumed rf.path p)) in
   Silo.write ~client:s#get_silo_client ~peer ~service ~contents:(`Assoc files_to_write_back)
 
 let get_remote_file_list plaintext =
@@ -165,9 +177,11 @@ let invalidate_paths_at_peer peer paths service s =
   send_retry peer (Printf.sprintf "/peer/inv/%s/%s" (Peer.host s#get_address) service) body false s
 
 let invalidate_paths_at_peers paths access_log service s =
-  let path_peers = Core.Std.List.map paths ~f:(fun path -> path, 
-    (Peer_access_log.find s#get_peer_access_log 
-      ~host:s#get_address ~service ~path)) in
+  let path_peers,pal = Core.Std.List.fold ~init:([],s#get_peer_access_log) paths 
+    ~f:(fun (pp,pal') -> fun path -> 
+      let peers,pal'' = (Peer_access_log.delog pal' ~host:s#get_address ~service ~path)
+      in (path,peers)::pp,pal'') in
+  s#set_peer_access_log pal;
   let peers = 
     path_peers
     |> Core.Std.List.fold ~init:[] ~f:(fun acc -> fun (_,ps) -> Core.Std.List.append acc ps)
@@ -177,9 +191,6 @@ let invalidate_paths_at_peers paths access_log service s =
       (Core.Std.List.fold path_peers ~init:[] ~f:(fun acc -> fun (path,ps) -> 
         Core.Std.List.append (if List.exists ps (fun p -> Peer.compare p peer = 0) then [path] else []) acc))) in 
   Lwt_list.iter_s (fun (peer,paths) -> invalidate_paths_at_peer peer paths service s >|= fun _ -> ()) peer_paths
-  >|= fun () -> s#set_peer_access_log 
-    (Core.Std.List.fold paths ~init:s#get_peer_access_log 
-      ~f:(fun pal -> fun path -> Peer_access_log.unlog pal ~host:s#get_address ~service ~path))
 
 module Client = struct
   let decrypt_message_from_client ciphertext iv s =
