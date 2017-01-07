@@ -19,6 +19,7 @@ depends: [
   "alcotest"
   "cohttp"
   "core"
+  "core_bench"
   "cstruct"
   "datakit-client"
   "lru"
