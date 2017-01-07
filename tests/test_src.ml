@@ -4,6 +4,12 @@ let host = "127.0.0.1"
 let port = 6630
 let peer = Peer.create host
 
+let host1 = "127.0.0.1"
+let peer1 = Peer.create host1
+
+let host2 = "localhost"
+let peer2 = Peer.create host2
+
 module Api_tests = struct
   open Api
 
@@ -397,8 +403,16 @@ module Peer_tests = struct
       host
       (Peer.host peer)
 
+  let peer_comparison_tests () = 
+    if (Peer.compare peer1 peer2)=0 
+    then Alcotest.fail "Checks different hosts don't give 0 on comparison"
+    else Alcotest.(check int)
+      "Checks same hosts give 0 on comparison"
+      (Peer.compare peer peer1) 0
+
   let tests = [
     ("Correctly builds with host", `Quick, peer_builds_with_host);
+    ("Checks comparison", `Quick, peer_comparison_tests);
   ]
 end
 
