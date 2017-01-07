@@ -7,7 +7,8 @@ let service = "foo"
 
 open Auth.Token
 
-let paths = ["erwfg";"werg";"wrt";"yjtr";"asd";"irut";"oiyt";"f3"]
+let number_wc_paths = 20
+let paths = List.init number_wc_paths ~f:(fun _ -> Nocrypto.Rng.generate 32 |> Coding.encode_cstruct)
 let s = "R"
 let t =  R
 
@@ -29,24 +30,24 @@ let tree =
 let () = Command.run (Bench.make_command [
   Bench.Test.create_indexed
     ~name:"Building CS tree"
-    ~args:[1;2;3;4;5;6;7;8]
+    ~args:(List.range ~start:`inclusive ~stop:`inclusive 1 number_wc_paths)
     (fun num -> Staged.stage 
       (fun () -> ignore (List.fold ~init:Auth.CS.empty (List.take capabilities num)
         ~f:(fun s' -> fun (t',c') -> Auth.CS.record_if_most_general s' (t' |> token_of_string) c'))));
   Bench.Test.create_indexed
     ~name:"Verifying capabilities"
-    ~args:[1;2;3;4;5;6;7;8]
+    ~args:(List.range ~start:`inclusive ~stop:`inclusive 1 number_wc_paths)
     (fun num -> Staged.stage 
       (fun () -> 
         ignore (List.map (List.take capabilities' num) ~f:(Auth.verify R (key |> Coding.encode_cstruct)))));
   Bench.Test.create_indexed
     ~name:"Worst case capability selection"
-    ~args:[1;2;3;4;5;6;7;8]
+    ~args:(List.range ~start:`inclusive ~stop:`inclusive 1 number_wc_paths)
     (fun num -> Staged.stage 
       (fun () -> ignore (Auth.find_permissions tree (List.take worst_case_args num))));
   Bench.Test.create_indexed
     ~name:"Worst case capability verification"
-    ~args:[1;2;3;4;5;6;7;8]
+    ~args:(List.range ~start:`inclusive ~stop:`inclusive 1 number_wc_paths)
     (fun num -> Staged.stage 
       (fun () -> ignore (Auth.authorise (List.take paths num) (List.take capabilities' num) R key peer service)))
 ])
