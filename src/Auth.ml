@@ -154,10 +154,12 @@ let vpath_subsumes_request vpath rpath =
       | y::ys -> x=y && (walker xs ys)
   in walker vpath' rpath'
 
-let covered caps (perm,path) =
-  Core.Std.List.fold caps 
-    ~init:false ~f:(fun acc -> fun (p,m) -> 
-      (acc || (vpath_subsumes_request (M.location m) path) && (p >= perm)))
+let rec covered caps (perm,path) =
+  match caps with
+  | []        -> false
+  | (p,m)::cs -> 
+      ((p >= perm) && (vpath_subsumes_request (M.location m) path))
+      || covered cs (perm,path)
 
 let find_permissions capability_service requests =
   Core.Std.List.fold requests ~init:([],[])

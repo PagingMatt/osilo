@@ -60,6 +60,8 @@ val verify : Token.t -> string -> M.t -> bool
 (** [verify token key capability] verifies that [capability] was minted with [key] and that it 
 holds a permission token of at least [token] as a first party caveat. *)
 
+val covered : (Token.t * M.t) list -> Token.t * string -> bool
+
 val mint : Peer.t -> Cstruct.t -> string -> (string * string) list -> (string * M.t) list
 (** [mint source key service permissions] takes each element of [permissions] and builds a list of
 string tokens and Macaroons tuples. Each Macaroon hold a first party caveat of the token it is in 
