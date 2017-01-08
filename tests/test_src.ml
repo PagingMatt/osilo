@@ -179,6 +179,34 @@ module Auth_tests = struct
     Alcotest.(check int) "One Macaroon should be found"
     1 (Core.Std.List.length caps2)
 
+  let number_paths = 200
+  let paths = 
+    Nocrypto_entropy_unix.initialize (); 
+    Core.Std.List.init number_paths 
+      ~f:(fun _ -> 
+        Printf.sprintf "127.0.0.1/foo/a/%s" (Nocrypto.Rng.generate 32 
+        |> Coding.encode_cstruct |> Core.Std.String.filter ~f:(fun c -> not(c='/'))) 
+      )
+  let s = "R"
+  let t =  R
+  let selection_args = 
+    Core.Std.List.map paths ~f:(fun p -> (t,p))
+
+  let bc_capability = Auth.mint peer (key |> Coding.decode_cstruct) "foo" [("R","a")]
+  let _,bc_capability' = Core.Std.List.unzip bc_capability
+  let cap = 
+    match bc_capability' with 
+    | c::_ -> c
+
+  let tree' = Auth.CS.record_if_most_general (Auth.CS.empty) R cap
+
+  let find_is_deduped () =
+    let caps,notf = Auth.find_permissions tree' selection_args in
+      Alcotest.(check int) "Checks that miminal set is selected"
+      (Core.Std.List.length caps) 1;
+      Alcotest.(check int) "Checks that not found set is empty"
+      (Core.Std.List.length notf) 0
+
   let tests = [
     ("Valid tokens can be symmetrically serialised/deserailised.", `Quick, symm_token_serialisation);
     ("Invalid tokens throw on deserialisation.", `Quick, invalid_string_throws);
@@ -188,6 +216,7 @@ module Auth_tests = struct
     ("Checks location and caveat in minted write macaroon", `Quick, can_mint_write_macaroons_for_test);
     ("Write macaroon can be used for read request", `Quick, write_macaroons_verifies_read_request);
     ("Check is greedy about finding minimal covering set", `Quick, minimal_covering_set_of_capabilities);
+    ("Check find is deduplicated", `Quick, find_is_deduped);
   ]
 end
 
