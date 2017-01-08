@@ -12,8 +12,8 @@ let paths =
   Nocrypto_entropy_unix.initialize (); 
   List.init number_paths 
     ~f:(fun _ -> 
-        Printf.sprintf "localhost/foo/a/%s" (Nocrypto.Rng.generate 32 
-        |> Coding.encode_cstruct |> Core.Std.String.filter ~f:(fun c -> not(c='/'))) 
+        Printf.sprintf "a/%s" (Nocrypto.Rng.generate 32 
+        |> Coding.encode_cstruct |> String.filter ~f:(fun c -> not(c='/'))) 
     )
 let s = "R"
 let t =  R
@@ -28,7 +28,7 @@ let tokpaths =
   List.map paths ~f:(fun p -> (s,p))
 
 let selection_args = 
-  List.map paths ~f:(fun p -> (t,p))
+  List.map paths ~f:(fun p -> (t,Printf.sprintf "%s/%s/%s" (Peer.host peer) service p))
 
 let capabilities =
   Auth.mint peer key service tokpaths
@@ -43,18 +43,6 @@ let tree' = Auth.CS.record_if_most_general (Auth.CS.empty) R cap
 
 let () = Command.run (Bench.make_command [
   Bench.Test.create_indexed
-    ~name:"Building CS tree"
-    ~args:(List.range ~stride:250 ~start:`inclusive ~stop:`inclusive 1 number_paths)
-    (fun num -> Staged.stage 
-      (fun () -> ignore (List.fold ~init:Auth.CS.empty (List.take capabilities num)
-        ~f:(fun s' -> fun (t',c') -> Auth.CS.record_if_most_general s' (t' |> token_of_string) c'))));
-  Bench.Test.create_indexed
-    ~name:"Verifying capabilities"
-    ~args:(List.range ~stride:250 ~start:`inclusive ~stop:`inclusive 1 number_paths)
-    (fun num -> Staged.stage 
-      (fun () -> 
-        ignore (List.map (List.take capabilities' num) ~f:(Auth.verify R (key |> Coding.encode_cstruct)))));
-  Bench.Test.create_indexed
     ~name:"Best case capability selection"
     ~args:(List.range ~stride:250 ~start:`inclusive ~stop:`inclusive 1 number_paths)
     (fun num -> Staged.stage 
@@ -64,6 +52,12 @@ let () = Command.run (Bench.make_command [
     ~args:(List.range ~stride:250 ~start:`inclusive ~stop:`inclusive 1 number_paths)
     (fun num -> Staged.stage 
       (fun () -> ignore (Auth.find_permissions tree (List.take selection_args num))));
+  Bench.Test.create_indexed
+    ~name:"Verifying capabilities"
+    ~args:(List.range ~stride:250 ~start:`inclusive ~stop:`inclusive 1 number_paths)
+    (fun num -> Staged.stage 
+      (fun () -> 
+        ignore (List.map (List.take capabilities' num) ~f:(Auth.verify R (key |> Coding.encode_cstruct)))));
   Bench.Test.create_indexed
     ~name:"Best case capability verification"
     ~args:(List.range ~stride:250 ~start:`inclusive ~stop:`inclusive 1 number_paths)
