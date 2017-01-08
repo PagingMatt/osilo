@@ -184,13 +184,13 @@ module Auth_tests = struct
     Nocrypto_entropy_unix.initialize (); 
     Core.Std.List.init number_paths 
       ~f:(fun _ -> 
-        Printf.sprintf "127.0.0.1/foo/a/%s" (Nocrypto.Rng.generate 32 
+        Printf.sprintf "a/%s" (Nocrypto.Rng.generate 32 
         |> Coding.encode_cstruct |> Core.Std.String.filter ~f:(fun c -> not(c='/'))) 
       )
   let s = "R"
   let t =  R
   let selection_args = 
-    Core.Std.List.map paths ~f:(fun p -> (t,p))
+    Core.Std.List.map paths ~f:(fun p -> (t,Printf.sprintf "127.0.0.1/foo/%s" p))
 
   let bc_capability = Auth.mint peer (key |> Coding.decode_cstruct) "foo" [("R","a")]
   let _,bc_capability' = Core.Std.List.unzip bc_capability
@@ -198,14 +198,46 @@ module Auth_tests = struct
     match bc_capability' with 
     | c::_ -> c
 
-  let tree' = Auth.CS.record_if_most_general (Auth.CS.empty) R cap
+  let tree' = Auth.CS.record_if_most_general (Auth.CS.empty) t cap
+
+  let tokpaths =
+    Core.Std.List.map paths ~f:(fun p -> (s,p))
+
+  let capabilities =
+    Auth.mint peer (key |> Coding.decode_cstruct) "foo" tokpaths
+
+  let _,capabilities' = Core.Std.List.unzip capabilities
+
+  let tree = 
+    Core.Std.List.fold ~init:Auth.CS.empty capabilities
+      ~f:(fun s' -> fun (_,c') -> Auth.CS.record_if_most_general s' t c')
 
   let find_is_deduped () =
     let caps,notf = Auth.find_permissions tree' selection_args in
-      Alcotest.(check int) "Checks that miminal set is selected"
+      Alcotest.(check int) "Checks that best case miminal set is selected"
       (Core.Std.List.length caps) 1;
-      Alcotest.(check int) "Checks that not found set is empty"
-      (Core.Std.List.length notf) 0
+      Alcotest.(check int) "Checks that best case not found set is empty"
+      (Core.Std.List.length notf) 0;
+    let caps',notf' = Auth.find_permissions tree selection_args in
+      Alcotest.(check int) "Checks that worst case miminal set is selected"
+      (Core.Std.List.length caps') number_paths;
+      Alcotest.(check int) "Checks that worst case not found set is empty"
+      (Core.Std.List.length notf') 0
+
+
+  let covered_tests () =
+    let caps1,_ = Auth.find_permissions tree' selection_args in
+    let caps1'  = Core.Std.List.map caps1 ~f:(fun c -> (t,c)) in
+    Alcotest.(check bool) "Checks all best case covered"
+      (Core.Std.List.fold ~init:true selection_args 
+        ~f:(fun b -> fun a -> b && Auth.covered caps1' a))
+      true;
+    let caps2,_ = Auth.find_permissions tree selection_args in
+    let caps2'  = Core.Std.List.map caps2 ~f:(fun c -> (t,c)) in
+    Alcotest.(check bool) "Checks all worst case covered"
+      (Core.Std.List.fold ~init:true selection_args 
+        ~f:(fun b -> fun a -> b && Auth.covered caps2' a))
+      true
 
   let tests = [
     ("Valid tokens can be symmetrically serialised/deserailised.", `Quick, symm_token_serialisation);
@@ -217,6 +249,7 @@ module Auth_tests = struct
     ("Write macaroon can be used for read request", `Quick, write_macaroons_verifies_read_request);
     ("Check is greedy about finding minimal covering set", `Quick, minimal_covering_set_of_capabilities);
     ("Check find is deduplicated", `Quick, find_is_deduped);
+    ("Check capabilities cover", `Quick, covered_tests);
   ]
 end
 
