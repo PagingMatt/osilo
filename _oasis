@@ -56,7 +56,7 @@ Executable performance_tests
 
 Test performance_tests
   Run$: flag(tests)
-  Command: $performance_tests -quota 2
+  Command: $performance_tests -quota 1
   WorkingDirectory: tests
 
 AlphaFeatures: ocamlbuild_more_args 
