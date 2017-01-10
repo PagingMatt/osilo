@@ -9,5 +9,6 @@ env:
    - PACKAGE="osilo"
    - INSTALL=false
    - TESTS=true
+   - PINS="macaroons:https\://github.com/m-harrison/ocaml-macaroons"
  matrix:
    - DISTRO=debian-stable OCAML_VERSION=4.03.0
