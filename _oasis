@@ -54,11 +54,6 @@ Executable performance_tests
   Install: false
   BuildDepends: core_bench,osilo
 
-Test performance_tests
-  Run$: flag(tests)
-  Command: $performance_tests -quota 1
-  WorkingDirectory: tests
-
 AlphaFeatures: ocamlbuild_more_args 
 Document "Osilo_Library" 
   Type: ocamlbuild (0.4) 
