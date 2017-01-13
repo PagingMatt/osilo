@@ -22,13 +22,15 @@ module Crypto : Macaroons.CRYPTO = struct
         ~plaintext:(Cstruct.of_string message)
     in Coding.encode_client_message ~ciphertext ~iv
 
-    let decrypt ~key message =
-      let ciphertext,iv = Coding.decode_client_message ~message in
-        Cryptography.CS.decrypt' 
-          ~key:(Cstruct.of_string key) 
-          ~ciphertext 
-          ~iv
-      |> Coding.encode_cstruct
+  let decrypt ~key message =
+    let ciphertext,iv = Coding.decode_client_message ~message in
+      Cryptography.CS.decrypt' 
+        ~key:(Cstruct.of_string key) 
+        ~ciphertext 
+        ~iv
+    |> Coding.encode_cstruct
+
+  let () = Nocrypto_entropy_unix.initialize ()
 end
 
 module M = Macaroons.Make(Crypto)
