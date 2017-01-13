@@ -171,8 +171,7 @@ let find_permissions capability_service requests =
     |> begin function 
        | None       -> c,((permission,path)::n)
        | Some m -> (m::c),n
-       end)    
-  |> fun (covered,not_covered) -> covered, not_covered
+       end)
 
 let request_under_verified_path vpaths rpath =
   Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
