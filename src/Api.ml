@@ -165,7 +165,7 @@ let rec send_retry target path body is_retry s =
   encrypt_message_to_peer target (Cstruct.of_string body) s
   >>= fun body' -> Http_client.post ~peer:target ~path ~body:body'
   >>= fun (c,b) -> 
-    if (c >= 200 && c < 300) 
+    if not(c=400)
     then Lwt.return (c,b) 
     else if not(is_retry) then
       (s#set_keying_service (KS.invalidate s#get_keying_service target);
