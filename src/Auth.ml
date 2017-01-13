@@ -135,7 +135,7 @@ let mint host key service permissions =
 
 let verify tok key mac = (* Verify that I minted this macaroon and it is sufficient for the required operation *)
   M.verify mac ~key ~check:(fun _ -> true) [] (* not forged *)
-  && (token_of_string M.identifier) >= tok (* powerful enough *)
+  && (token_of_string (M.identifier mac)) >= tok (* powerful enough *)
 
 let verify_location target service l = 
   match Core.Std.String.split l ~on:'/' with
