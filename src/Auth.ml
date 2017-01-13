@@ -124,18 +124,18 @@ let record_permissions capability_service permissions =
 let create_service_capability host key service (perm,path) =
   let location = Printf.sprintf "%s/%s/%s" (host |> Peer.host) service path in
   let m = 
-    Nocrypto_entropy_unix.initialize (); 
-    M.create 
+    M.create
       ~location
       ~key:(key |> Coding.encode_cstruct)
-      ~id:(Rng.generate 32 |> Coding.encode_cstruct)
-  in perm,M.add_first_party_caveat m perm
+      ~id:perm
+  in perm,m
 
 let mint host key service permissions =
   Core.Std.List.map permissions ~f:(create_service_capability host key service)
 
 let verify tok key mac = (* Verify that I minted this macaroon and it is sufficient for the required operation *)
-  M.verify mac ~key ~check:(fun s -> (token_of_string s) >= tok) [] (* Presented a capability at least powerful enough *)
+  M.verify mac ~key ~check:(fun _ -> true) [] (* not forged *)
+  && (token_of_string M.identifier) >= tok (* powerful enough *)
 
 let verify_location target service l = 
   match Core.Std.String.split l ~on:'/' with
