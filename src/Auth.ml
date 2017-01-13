@@ -78,7 +78,6 @@ module CS : sig
 
   val record_if_most_general : 
     service:t          ->
-    permission:Token.t -> 
     macaroon:M.t       -> t
 
   val find_most_general_capability :
@@ -103,8 +102,8 @@ end = struct
     | None     -> false
     | Some (el',_) -> el' >= el
 
-  let record_if_most_general ~service ~permission ~macaroon =
-    File_tree.insert ~element:(permission,macaroon) ~tree:service ~location ~select ~terminate
+  let record_if_most_general ~service ~macaroon =
+    File_tree.insert ~element:(M.identifier macaroon |> Token.token_of_string,macaroon) ~tree:service ~location ~select ~terminate
 
   let find_most_general_capability ~service ~path ~permission =
     File_tree.shortest_path_match
@@ -119,16 +118,14 @@ let record_permissions capability_service permissions =
   Core.Std.List.fold 
     permissions 
     ~init:capability_service 
-    ~f:(fun service -> fun (p,m) -> CS.record_if_most_general ~permission:p ~macaroon:m ~service)
+    ~f:(fun service -> fun m -> CS.record_if_most_general ~macaroon:m ~service)
 
 let create_service_capability host key service (perm,path) =
   let location = Printf.sprintf "%s/%s/%s" (host |> Peer.host) service path in
-  let m = 
-    M.create
-      ~location
-      ~key:(key |> Coding.encode_cstruct)
-      ~id:perm
-  in perm,m
+  M.create
+    ~location
+    ~key:(key |> Coding.encode_cstruct)
+    ~id:perm
 
 let mint host key service permissions =
   Core.Std.List.map permissions ~f:(create_service_capability host key service)
@@ -193,34 +190,13 @@ let authorise requests capabilities tok key target service =
       in (Core.Std.List.unordered_append content paths),tree') authorised_locations in
   authorised_paths
 
-let serialise_presented_capabilities capabilities =
-  `Assoc (Core.Std.List.map capabilities ~f:(fun (p,c) -> (p, `String (M.serialize c))))
-  |> Yojson.Basic.to_string
-
-let serialise_request_capabilities capabilities = 
+let serialise_capabilities capabilities = 
   let serialised = Core.Std.List.map capabilities ~f:M.serialize in
   `List (Core.Std.List.map serialised ~f:(fun s -> `String s))
 
-exception Malformed_data 
- 
-let deserialise_presented_capabilities capabilities = 
-  Yojson.Basic.from_string capabilities 
-  |> begin function 
-     | `Assoc j ->  
-         Core.Std.List.map j 
-         ~f:(begin function 
-         | p, `String s -> 
-             (M.deserialize s |> 
-               begin function  
-               | `Ok c    -> (token_of_string p),c  
-               | `Error _ -> raise Malformed_data 
-               end) 
-         | _ -> raise Malformed_data  
-         end) 
-     | _ -> raise Malformed_data 
-     end 
+exception Malformed_data
 
-let deserialise_request_capabilities capabilities = 
+let deserialise_capabilities capabilities = 
   match capabilities with
   | `List j ->  
       Core.Std.List.map j 
