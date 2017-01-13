@@ -83,27 +83,31 @@ module CS : sig
   val find_most_general_capability :
     service:t               ->
     path:string             ->
-    permission:Token.t      -> (Token.t * M.t) option
+    permission:Token.t      -> M.t option
 end = struct 
-  type t = (Token.t * M.t) File_tree.t
+  type t = M.t File_tree.t
 
   open Token
 
   let empty = File_tree.empty
 
-  let location (_,m) = (M.location m |> Core.Std.String.split ~on:'/')
+  let location m = (M.location m |> Core.Std.String.split ~on:'/')
 
-  let select (p1,m1) (p2,m2) = if p2 >> p1 then (p2,m2) else (p1,m1)
+  let select m1 m2 = 
+    if (M.identifier m2 |> Token.token_of_string) >> (M.identifier m1 |> Token.token_of_string) 
+    then m2 else m1
 
-  let satisfies permission (t,m) = t >= permission
+  let satisfies permission m = (M.identifier m |> Token.token_of_string) >= permission
 
-  let terminate elopt (el,_) = 
+  let terminate elopt el = 
     match elopt with 
     | None     -> false
-    | Some (el',_) -> el' >= el
+    | Some el' -> 
+        (M.identifier el' |> Token.token_of_string) 
+        >= (M.identifier el |> Token.token_of_string)
 
   let record_if_most_general ~service ~macaroon =
-    File_tree.insert ~element:(M.identifier macaroon |> Token.token_of_string,macaroon) ~tree:service ~location ~select ~terminate
+    File_tree.insert ~element:macaroon ~tree:service ~location ~select ~terminate
 
   let find_most_general_capability ~service ~path ~permission =
     File_tree.shortest_path_match
@@ -154,8 +158,8 @@ let vpath_subsumes_request vpath rpath =
 let rec covered caps (perm,path) =
   match caps with
   | []        -> false
-  | (p,m)::cs -> 
-      ((p >= perm) && (vpath_subsumes_request (M.location m) path))
+  | m::cs -> 
+      (((M.identifier m |> Token.token_of_string) >= perm) && (vpath_subsumes_request (M.location m) path))
       || covered cs (perm,path)
 
 let find_permissions capability_service requests =
@@ -166,9 +170,9 @@ let find_permissions capability_service requests =
       ~service:capability_service ~path ~permission
     |> begin function 
        | None       -> c,((permission,path)::n)
-       | Some (p,m) -> ((p,m)::c),n
+       | Some m -> (m::c),n
        end)    
-  |> fun (covered,not_covered) -> (Core.Std.List.map ~f:(fun (p,m) -> m) covered), not_covered
+  |> fun (covered,not_covered) -> covered, not_covered
 
 let request_under_verified_path vpaths rpath =
   Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))

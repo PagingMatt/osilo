@@ -43,7 +43,7 @@ module CS : sig
   val find_most_general_capability :
     service:t          ->
     path:string        ->
-    permission:Token.t -> (Token.t * M.t) option
+    permission:Token.t -> M.t option
   (** [find_most_general_capability ~service ~path ~permission] finds the option of the most 
   general capability along [path] in [service] which satisfies [permission], otherwise, None. *)
 end
@@ -59,7 +59,7 @@ val verify : Token.t -> string -> M.t -> bool
 (** [verify token key capability] verifies that [capability] was minted with [key] and that it 
 holds a permission token of at least [token] as a first party caveat. *)
 
-val covered : (Token.t * M.t) list -> Token.t * string -> bool
+val covered : M.t list -> Token.t * string -> bool
 
 val mint : Peer.t -> Cstruct.t -> string -> (string * string) list -> M.t list
 (** [mint source key service permissions] takes each element of [permissions] and builds a list of

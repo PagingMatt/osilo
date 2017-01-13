@@ -223,16 +223,14 @@ module Auth_tests = struct
 
   let covered_tests () =
     let caps1,_ = Auth.find_permissions tree' selection_args in
-    let caps1'  = Core.Std.List.map caps1 ~f:(fun c -> (t,c)) in
     Alcotest.(check bool) "Checks all best case covered"
       (Core.Std.List.fold ~init:true selection_args 
-        ~f:(fun b -> fun a -> b && Auth.covered caps1' a))
+        ~f:(fun b -> fun a -> b && Auth.covered caps1 a))
       true;
     let caps2,_ = Auth.find_permissions tree selection_args in
-    let caps2'  = Core.Std.List.map caps2 ~f:(fun c -> (t,c)) in
     Alcotest.(check bool) "Checks all worst case covered"
       (Core.Std.List.fold ~init:true selection_args 
-        ~f:(fun b -> fun a -> b && Auth.covered caps2' a))
+        ~f:(fun b -> fun a -> b && Auth.covered caps2 a))
       true
 
   let tests = [
