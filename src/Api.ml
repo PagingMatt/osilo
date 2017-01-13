@@ -505,7 +505,7 @@ module Client = struct
         send_retry target' path p_body false s
         >>= fun (c,b) -> 
           (Log.debug (fun m -> m "Server responded to presented capabilities with %d" c); 
-          Wm.continue true rd)
+          Wm.continue (c=204) rd)
       with
       | Send_failing_on_retry -> Wm.continue false rd
 
