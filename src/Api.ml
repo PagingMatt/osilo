@@ -78,7 +78,7 @@ let get_file_and_capability_list plaintext =
   let plaintext' = Cstruct.to_string plaintext in
   let json = Yojson.Basic.from_string plaintext' in 
   let files = Yojson.Basic.Util.member "files" json |> pull_out_strings in
-  let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_request_capabilities in
+  let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_capabilities in
   files,capabilities
 
 let pull_out_file_content c =
@@ -90,7 +90,7 @@ let get_file_content_and_capability_list plaintext =
   let plaintext' = Cstruct.to_string plaintext in
   let json = Yojson.Basic.from_string plaintext' in 
   let content = Yojson.Basic.Util.member "contents" json |> pull_out_file_content in
-  let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_request_capabilities in
+  let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_capabilities in
   content,capabilities
 
 let decrypt_message_from_peer peer ciphertext iv s =
@@ -106,7 +106,7 @@ let encrypt_message_to_peer peer plaintext s =
 let attach_required_capabilities tok target service files s =
   let requests          = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
   let caps, not_covered = Auth.find_permissions s#get_capability_service requests in
-  let caps'             = Auth.serialise_request_capabilities caps in 
+  let caps'             = Auth.serialise_capabilities caps in 
   `Assoc [
     ("files"       , (make_file_list files));
     ("capabilities", caps');
@@ -115,7 +115,7 @@ let attach_required_capabilities tok target service files s =
 let attach_required_capabilities_and_content target service paths contents s =
   let requests          = Core.Std.List.map paths ~f:(fun c -> Log.info (fun m -> m "Attaching W to %s" c); (Auth.Token.token_of_string "W"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
   let caps, not_covered = Auth.find_permissions s#get_capability_service requests in
-  let caps'             = Auth.serialise_request_capabilities caps in 
+  let caps'             = Auth.serialise_capabilities caps in 
   `Assoc [
     ("contents"    , contents);
     ("capabilities", caps'   );
@@ -492,7 +492,7 @@ module Client = struct
         | None -> Wm.continue false rd
         | Some service' ->
         let capabilities = Auth.mint s#get_address s#get_secret_key service' permission_list in 
-        let p_body       = Auth.serialise_presented_capabilities capabilities in
+        let p_body       = Auth.serialise_capabilities capabilities |> Yojson.Basic.to_string in
         let path         = 
           (Printf.sprintf "/peer/permit/%s/%s" 
           (s#get_address |> Peer.host) service') in
@@ -827,7 +827,7 @@ module Peer = struct
             let paths,contents = Core.Std.List.unzip file_contents in
             let authorised_files = 
               Auth.authorise paths capabilities 
-                (Auth.Token.token_of_string "D")
+                (Auth.Token.token_of_string "W")
                 s#get_secret_key s#get_address service' in
             let authorised_file_content = 
               Core.Std.List.filter file_contents 
@@ -974,7 +974,7 @@ module Peer = struct
   class permit s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
-    val mutable capabilities : (Auth.Token.t * Auth.M.t) list = []
+    val mutable capabilities : Auth.M.t list = []
 
     method content_types_provided rd = 
       Wm.continue [("text/plain", self#to_text)] rd
@@ -999,8 +999,8 @@ module Peer = struct
             let plaintext = 
               decrypt_message_from_peer peer'' ciphertext iv s in
             let capabilities' = 
-              Auth.deserialise_presented_capabilities 
-              (plaintext |> Cstruct.to_string) in
+              Auth.deserialise_capabilities 
+              (plaintext |> Cstruct.to_string |> Yojson.Basic.from_string) in
             (capabilities <- capabilities'; Wm.continue false rd))
       with
       | Coding.Decoding_failed e -> 

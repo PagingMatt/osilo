@@ -22,13 +22,15 @@ module Crypto : Macaroons.CRYPTO = struct
         ~plaintext:(Cstruct.of_string message)
     in Coding.encode_client_message ~ciphertext ~iv
 
-    let decrypt ~key message =
-      let ciphertext,iv = Coding.decode_client_message ~message in
-        Cryptography.CS.decrypt' 
-          ~key:(Cstruct.of_string key) 
-          ~ciphertext 
-          ~iv
-      |> Coding.encode_cstruct
+  let decrypt ~key message =
+    let ciphertext,iv = Coding.decode_client_message ~message in
+      Cryptography.CS.decrypt' 
+        ~key:(Cstruct.of_string key) 
+        ~ciphertext 
+        ~iv
+    |> Coding.encode_cstruct
+
+  let () = Nocrypto_entropy_unix.initialize ()
 end
 
 module M = Macaroons.Make(Crypto)
@@ -78,33 +80,36 @@ module CS : sig
 
   val record_if_most_general : 
     service:t          ->
-    permission:Token.t -> 
     macaroon:M.t       -> t
 
   val find_most_general_capability :
     service:t               ->
     path:string             ->
-    permission:Token.t      -> (Token.t * M.t) option
+    permission:Token.t      -> M.t option
 end = struct 
-  type t = (Token.t * M.t) File_tree.t
+  type t = M.t File_tree.t
 
   open Token
 
   let empty = File_tree.empty
 
-  let location (_,m) = (M.location m |> Core.Std.String.split ~on:'/')
+  let location m = (M.location m |> Core.Std.String.split ~on:'/')
 
-  let select (p1,m1) (p2,m2) = if p2 >> p1 then (p2,m2) else (p1,m1)
+  let select m1 m2 = 
+    if (M.identifier m2 |> Token.token_of_string) >> (M.identifier m1 |> Token.token_of_string) 
+    then m2 else m1
 
-  let satisfies permission (t,m) = t >= permission
+  let satisfies permission m = (M.identifier m |> Token.token_of_string) >= permission
 
-  let terminate elopt (el,_) = 
+  let terminate elopt el = 
     match elopt with 
     | None     -> false
-    | Some (el',_) -> el' >= el
+    | Some el' -> 
+        (M.identifier el' |> Token.token_of_string) 
+        >= (M.identifier el |> Token.token_of_string)
 
-  let record_if_most_general ~service ~permission ~macaroon =
-    File_tree.insert ~element:(permission,macaroon) ~tree:service ~location ~select ~terminate
+  let record_if_most_general ~service ~macaroon =
+    File_tree.insert ~element:macaroon ~tree:service ~location ~select ~terminate
 
   let find_most_general_capability ~service ~path ~permission =
     File_tree.shortest_path_match
@@ -119,23 +124,21 @@ let record_permissions capability_service permissions =
   Core.Std.List.fold 
     permissions 
     ~init:capability_service 
-    ~f:(fun service -> fun (p,m) -> CS.record_if_most_general ~permission:p ~macaroon:m ~service)
+    ~f:(fun service -> fun m -> CS.record_if_most_general ~macaroon:m ~service)
 
 let create_service_capability host key service (perm,path) =
   let location = Printf.sprintf "%s/%s/%s" (host |> Peer.host) service path in
-  let m = 
-    Nocrypto_entropy_unix.initialize (); 
-    M.create 
-      ~location
-      ~key:(key |> Coding.encode_cstruct)
-      ~id:(Rng.generate 32 |> Coding.encode_cstruct)
-  in perm,M.add_first_party_caveat m perm
+  M.create
+    ~location
+    ~key:(key |> Coding.encode_cstruct)
+    ~id:perm
 
 let mint host key service permissions =
   Core.Std.List.map permissions ~f:(create_service_capability host key service)
 
 let verify tok key mac = (* Verify that I minted this macaroon and it is sufficient for the required operation *)
-  M.verify mac ~key ~check:(fun s -> (token_of_string s) >= tok) [] (* Presented a capability at least powerful enough *)
+  M.verify mac ~key ~check:(fun _ -> true) [] (* not forged *)
+  && (token_of_string (M.identifier mac)) >= tok (* powerful enough *)
 
 let verify_location target service l = 
   match Core.Std.String.split l ~on:'/' with
@@ -157,8 +160,8 @@ let vpath_subsumes_request vpath rpath =
 let rec covered caps (perm,path) =
   match caps with
   | []        -> false
-  | (p,m)::cs -> 
-      ((p >= perm) && (vpath_subsumes_request (M.location m) path))
+  | m::cs -> 
+      (((M.identifier m |> Token.token_of_string) >= perm) && (vpath_subsumes_request (M.location m) path))
       || covered cs (perm,path)
 
 let find_permissions capability_service requests =
@@ -169,9 +172,8 @@ let find_permissions capability_service requests =
       ~service:capability_service ~path ~permission
     |> begin function 
        | None       -> c,((permission,path)::n)
-       | Some (p,m) -> ((p,m)::c),n
-       end)    
-  |> fun (covered,not_covered) -> (Core.Std.List.map ~f:(fun (p,m) -> m) covered), not_covered
+       | Some m -> (m::c),n
+       end)
 
 let request_under_verified_path vpaths rpath =
   Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
@@ -193,34 +195,13 @@ let authorise requests capabilities tok key target service =
       in (Core.Std.List.unordered_append content paths),tree') authorised_locations in
   authorised_paths
 
-let serialise_presented_capabilities capabilities =
-  `Assoc (Core.Std.List.map capabilities ~f:(fun (p,c) -> (p, `String (M.serialize c))))
-  |> Yojson.Basic.to_string
-
-let serialise_request_capabilities capabilities = 
+let serialise_capabilities capabilities = 
   let serialised = Core.Std.List.map capabilities ~f:M.serialize in
   `List (Core.Std.List.map serialised ~f:(fun s -> `String s))
 
-exception Malformed_data 
- 
-let deserialise_presented_capabilities capabilities = 
-  Yojson.Basic.from_string capabilities 
-  |> begin function 
-     | `Assoc j ->  
-         Core.Std.List.map j 
-         ~f:(begin function 
-         | p, `String s -> 
-             (M.deserialize s |> 
-               begin function  
-               | `Ok c    -> (token_of_string p),c  
-               | `Error _ -> raise Malformed_data 
-               end) 
-         | _ -> raise Malformed_data  
-         end) 
-     | _ -> raise Malformed_data 
-     end 
+exception Malformed_data
 
-let deserialise_request_capabilities capabilities = 
+let deserialise_capabilities capabilities = 
   match capabilities with
   | `List j ->  
       Core.Std.List.map j 

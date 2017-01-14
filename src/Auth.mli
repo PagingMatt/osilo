@@ -35,16 +35,15 @@ module CS : sig
 
   val record_if_most_general : 
     service:t          ->
-    permission:Token.t -> 
     macaroon:M.t       -> t
-  (** [record_if_most_general ~service ~permission ~macaroon] walks down [service] and if 
+  (** [record_if_most_general ~service ~macaroon] walks down [service] and if 
   [macaroon] is more general and powerful than any other Macaroon along the path it gives the 
   capability service with [macaroon] inserted, otherwise it just gives [service]. *)
 
   val find_most_general_capability :
     service:t          ->
     path:string        ->
-    permission:Token.t -> (Token.t * M.t) option
+    permission:Token.t -> M.t option
   (** [find_most_general_capability ~service ~path ~permission] finds the option of the most 
   general capability along [path] in [service] which satisfies [permission], otherwise, None. *)
 end
@@ -60,9 +59,9 @@ val verify : Token.t -> string -> M.t -> bool
 (** [verify token key capability] verifies that [capability] was minted with [key] and that it 
 holds a permission token of at least [token] as a first party caveat. *)
 
-val covered : (Token.t * M.t) list -> Token.t * string -> bool
+val covered : M.t list -> Token.t * string -> bool
 
-val mint : Peer.t -> Cstruct.t -> string -> (string * string) list -> (string * M.t) list
+val mint : Peer.t -> Cstruct.t -> string -> (string * string) list -> M.t list
 (** [mint source key service permissions] takes each element of [permissions] and builds a list of
 string tokens and Macaroons tuples. Each Macaroon hold a first party caveat of the token it is in 
 the tuple with and had a location of [source]/[service]/[path] where [path] is from an element of
@@ -74,22 +73,14 @@ path of each element of [targets] which are at least as powerful as the [Token.t
 target path. This uses a greedy approach to build a minimal covering set. It returns this in a pair
 with the permission path pairs that couldn't be covered. *)
 
-val record_permissions : CS.t -> (Token.t * M.t) list -> CS.t
+val record_permissions : CS.t -> M.t list -> CS.t
 (** [record_permissions capabilities_service targets] takes each element in [targets] and inserts
 it and the paired [Token.t] into [capabilities_service] if [capabilities_service] does not already
 contain a more general element which is at least as powerful as this element. *)
 
-val serialise_request_capabilities   : M.t list -> Yojson.Basic.json
-(** Serialises a list of capabilities to accompany a get request. This is [Yojson.Basic.json] as it
+val serialise_capabilities   : M.t list -> Yojson.Basic.json
+(** Serialises a list of capabilities to accompany a request. This is [Yojson.Basic.json] as it
 will then be composed with other JSON. *)
 
-val deserialise_request_capabilities : Yojson.Basic.json -> M.t list
-(** Deserialises a JSON collection of capabilities accompanying a get request into a list of [M.t]. *)
-
-val serialise_presented_capabilities : (string * M.t) list -> string
-(** Serialises a list of permission, Macaroon pairs into a string to send to another peer. These
-are capabilities for this peer that are being given to the target peer. *)
-
-val deserialise_presented_capabilities : string -> (Token.t * M.t) list
-(** Deserialises a string of permission, Macaroon pairs that have been send to give capabilities on
-the source peer. *)
+val deserialise_capabilities : Yojson.Basic.json -> M.t list
+(** Deserialises a JSON collection of capabilities accompanying a request into a list of [M.t]. *)
