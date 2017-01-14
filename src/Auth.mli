@@ -46,6 +46,11 @@ module CS : sig
     permission:Token.t -> M.t option
   (** [find_most_general_capability ~service ~path ~permission] finds the option of the most 
   general capability along [path] in [service] which satisfies [permission], otherwise, None. *)
+
+  val all_capabilities_for_peers_service :
+    t              ->
+    peer:Peer.t    ->
+    service:string -> M.t list
 end
 (** CS is the capability service, used to store capabilities given to this peer from other peers. *)
 
@@ -72,6 +77,8 @@ val find_permissions : CS.t -> (Token.t * string) list -> M.t list * (Token.t * 
 path of each element of [targets] which are at least as powerful as the [Token.t] paired with the 
 target path. This uses a greedy approach to build a minimal covering set. It returns this in a pair
 with the permission path pairs that couldn't be covered. *)
+
+val find_permissions' : CS.t -> (Token.t * string) list -> Peer.t -> string -> M.t list * (Token.t * string) list
 
 val record_permissions : CS.t -> M.t list -> CS.t
 (** [record_permissions capabilities_service targets] takes each element in [targets] and inserts
