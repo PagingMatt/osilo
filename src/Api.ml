@@ -827,7 +827,7 @@ module Peer = struct
             let paths,contents = Core.Std.List.unzip file_contents in
             let authorised_files = 
               Auth.authorise paths capabilities 
-                (Auth.Token.token_of_string "D")
+                (Auth.Token.token_of_string "W")
                 s#get_secret_key s#get_address service' in
             let authorised_file_content = 
               Core.Std.List.filter file_contents 
