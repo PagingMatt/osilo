@@ -167,8 +167,8 @@ let read ~client ~peer ~service ~paths =
           end
       >>= fun r -> (disconnect c9p cdk >|= fun () -> r))
 
-let delete ~client ~peer ~service ~files =
-  if files = [] then Lwt.return () else
+let delete ~client ~peer ~service ~paths =
+  if paths = [] then Lwt.return () else
   connect client
   >>= fun (c9p,cdk) -> 
     (checkout (build_branch ~peer ~service) cdk
@@ -190,10 +190,10 @@ let delete ~client ~peer ~service ~files =
                 end
           in
             (try
-               Lwt_list.iter_s delete_file files
+               Lwt_list.iter_s delete_file paths
                >>= fun () -> 
                  Log.debug (fun m -> m "Committing transaction."); 
-                 (Transaction.commit tr ~message:"Delete files from silo")
+                 (Transaction.commit tr ~message:"Delete paths from silo")
              with 
              | Delete_file_failed msg -> 
                  Log.info (fun m -> m "Aborting transaction.\n%s" msg); 

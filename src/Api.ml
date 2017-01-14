@@ -663,7 +663,7 @@ module Client = struct
         match service with
         | None          -> Wm.continue false rd
         | Some service' -> 
-        Silo.delete ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~files
+        Silo.delete ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~paths:files
         >>= fun () -> 
           Wm.continue true rd
       with 
@@ -904,7 +904,7 @@ module Peer = struct
         match service with 
         | None -> Wm.continue false rd
         | Some service' ->
-            Silo.delete ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~files
+            Silo.delete ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~paths:files
             >>= fun () -> Wm.continue true rd
       with
       | Malformed_data  -> Wm.continue false rd
@@ -960,7 +960,7 @@ module Peer = struct
         match service with
         | None          -> Wm.continue false rd
         | Some service' -> 
-        Silo.delete ~client:s#get_silo_client ~peer:(peer') ~service:(service') ~files
+        Silo.delete ~client:s#get_silo_client ~peer:(peer') ~service:(service') ~paths:files
         >>= fun () ->
           Wm.continue true rd
       with 

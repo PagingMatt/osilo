@@ -60,8 +60,8 @@ val delete :
   client:Client.t   ->
   peer:Peer.t       ->
   service:string    ->
-  files:string list -> 
+  paths:string list -> 
   unit Lwt.t
-(** [delete ~client ~peer ~service ~files] will delete each file (if it exists) from the list of 
-[files] from the [service] on the Datakit server pointed to by [client], for [peer]. [peer] is the
+(** [delete ~client ~peer ~service ~paths] will delete each file (if it exists) from the list of 
+[paths] from the [service] on the Datakit server pointed to by [client], for [peer]. [peer] is the
 [Peer.t] for this server. *)
