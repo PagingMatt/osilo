@@ -172,6 +172,11 @@ let rec send_retry target path body is_retry s =
       send_retry target path body true s)
     else raise Send_failing_on_retry
 
+let relog_paths_for_peer peer paths service s =
+  s#set_peer_access_log (Core.Std.List.fold 
+    ~init:s#get_peer_access_log paths
+    ~f:(fun pal -> fun path -> Peer_access_log.log pal ~host:s#get_address ~peer ~service ~path))
+
 let invalidate_paths_at_peer peer paths service s =
   let body = make_file_list paths |> Yojson.Basic.to_string in
   send_retry peer (Printf.sprintf "/peer/inv/%s/%s" (Peer.host s#get_address) service) body false s
@@ -190,7 +195,8 @@ let invalidate_paths_at_peers paths access_log service s =
     ~f:(fun peer -> peer,
       (Core.Std.List.fold path_peers ~init:[] ~f:(fun acc -> fun (path,ps) -> 
         Core.Std.List.append (if List.exists ps (fun p -> Peer.compare p peer = 0) then [path] else []) acc))) in 
-  Lwt_list.iter_s (fun (peer,paths) -> invalidate_paths_at_peer peer paths service s >|= fun _ -> ()) peer_paths
+  Lwt_list.iter_s (fun (peer,paths) -> invalidate_paths_at_peer peer paths service s 
+    >|= fun (c,_) -> if c=204 then () else relog_paths_for_peer peer paths service s) peer_paths
 
 module Client = struct
   let decrypt_message_from_client ciphertext iv s =
