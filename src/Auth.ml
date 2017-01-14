@@ -131,7 +131,7 @@ let create_service_capability host key service (perm,path) =
   M.create
     ~location
     ~key:(key |> Coding.encode_cstruct)
-    ~id:perm
+    ~id:(Token.string_of_token perm)
 
 let mint host key service permissions =
   Core.Std.List.map permissions ~f:(create_service_capability host key service)

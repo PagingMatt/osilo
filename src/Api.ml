@@ -60,7 +60,7 @@ let get_permission_list plaintext =
      | `Assoc j -> 
          List.map j 
          ~f:(begin function
-         | (permission, `String path) -> (permission, path)
+         | (permission, `String path) -> ((Auth.Token.token_of_string permission), path)
          | _                          -> raise Malformed_data 
          end)
      | _ -> raise Malformed_data
@@ -456,7 +456,7 @@ module Client = struct
 
     val mutable target : Peer.t option = None
 
-    val mutable permission_list : (string * string) list = []
+    val mutable permission_list : (Auth.Token.t * string) list = []
 
     method content_types_provided rd = 
       Wm.continue [("text/plain", self#to_text)] rd
