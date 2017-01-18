@@ -12,7 +12,9 @@ BuildTools: ocamlbuild
 Plugins: META (0.4), DevFiles (0.4)
 
 Library osilo
-  Path: src
+  Path:         src
+  Findlibname:  osilo
+  Pack:         true
   Modules:      Api,         Auth,            Coding,       Cryptography,
                 File_tree,   Http_client,     Http_server,    Peer,         
                 Silo,        Peer_access_log, Wm
