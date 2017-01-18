@@ -7,14 +7,13 @@ homepage: "https://github.com/m-harrison/osilo"
 bug-reports: "https://github.com/m-harrison/osilo/issues/new"
 license: "ISC"
 dev-repo: "https://github.com/m-harrison/osilo"
-build: [
-  [make "PREFIX=%{prefix}%"]
-]
+build: [make]
+install: [make "install"]
 build-test: [
   ["ocaml" "setup.ml" "-configure" "--enable-tests"]
-  ["ocaml" "setup.ml" "-build"]
-  ["ocaml" "setup.ml" "-test"]
+  [make "test"]
 ]
+remove: ["ocamlfind" "remove" "osilo"]
 depends: [
   "alcotest"
   "cohttp"
@@ -34,3 +33,4 @@ depends: [
   "webmachine"
   "yojson"
 ]
+available: [ocaml-version >= "4.02.3"]
