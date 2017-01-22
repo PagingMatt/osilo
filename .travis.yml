@@ -7,7 +7,7 @@ script: bash ./.travis-docker.sh
 env:
  global:
    - PACKAGE="osilo"
-   - INSTALL=false
+   - INSTALL=true
    - TESTS=true
    - PINS="macaroons:https\://github.com/nojb/ocaml-macaroons.git"
  matrix:
