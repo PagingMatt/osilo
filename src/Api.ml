@@ -165,7 +165,7 @@ let rec send_retry target path body is_retry s =
   encrypt_message_to_peer target (Cstruct.of_string body) s
   >>= fun body' -> Http_client.post ~peer:target ~path ~body:body'
   >>= fun (c,b) -> 
-    if (c >= 200 && c < 300) 
+    if not(c=400)
     then Lwt.return (c,b) 
     else if not(is_retry) then
       (s#set_keying_service (KS.invalidate s#get_keying_service target);
@@ -505,7 +505,7 @@ module Client = struct
         send_retry target' path p_body false s
         >>= fun (c,b) -> 
           (Log.debug (fun m -> m "Server responded to presented capabilities with %d" c); 
-          Wm.continue true rd)
+          Wm.continue (c=204) rd)
       with
       | Send_failing_on_retry -> Wm.continue false rd
 
