@@ -135,7 +135,7 @@ module Auth_tests = struct
   let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" 
 
   let can_mint_read_macaroons_for_test () =
-    let ps = Auth.mint server#get_address server#get_secret_key "test" [("R","test_file.json")] in 
+    let ps = Auth.mint server#get_address server#get_secret_key "test" [(R,"test_file.json")] in 
     match ps with
     | (mac::[]) ->
         Alcotest.(check string) "Passed back read token with macaroon" "R" (M.identifier mac);
@@ -145,7 +145,7 @@ module Auth_tests = struct
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
   let can_mint_write_macaroons_for_test () =
-    let ps = Auth.mint server#get_address server#get_secret_key "test" [("W","test_file.json")] in 
+    let ps = Auth.mint server#get_address server#get_secret_key "test" [(W,"test_file.json")] in 
     match ps with
     | (mac::[]) ->
         Alcotest.(check string) "Passed back write token with macaroon" "W" (M.identifier mac);
@@ -155,7 +155,7 @@ module Auth_tests = struct
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
   let write_macaroons_verifies_read_request () =
-    let ps = Auth.mint server#get_address server#get_secret_key "test" [("W","test_file.json")] in 
+    let ps = Auth.mint server#get_address server#get_secret_key "test" [(W,"test_file.json")] in 
     match ps with
     | (mac::[]) ->
         Alcotest.(check string) "Passed back write token with macaroon" "W" (M.identifier mac);
@@ -167,8 +167,8 @@ module Auth_tests = struct
   let minimal_covering_set_of_capabilities () = 
     let token = R in
     let caps = mint server#get_address server#get_secret_key "test" 
-      [((token |> string_of_token),"foo/bar"); 
-       ((token |> string_of_token),"foo/bar/FOO/BAR")] in
+      [(token,"foo/bar"); 
+       (token,"foo/bar/FOO/BAR")] in
     let paths = [(R,"localhost/test/foo/bar");(R,"localhost/test/foo/bar/FOO/BAR")] in
     let service0 = Auth.CS.empty in
     let service1 = Auth.record_permissions service0 caps in
@@ -191,7 +191,7 @@ module Auth_tests = struct
   let selection_args = 
     Core.Std.List.map paths ~f:(fun p -> (t,Printf.sprintf "127.0.0.1/foo/%s" p))
 
-  let bc_capability = Auth.mint peer (key |> Coding.decode_cstruct) "foo" [("R","a")]
+  let bc_capability = Auth.mint peer (key |> Coding.decode_cstruct) "foo" [(R,"a")]
   let cap = 
     match bc_capability with 
     | c::_ -> c
@@ -199,7 +199,7 @@ module Auth_tests = struct
   let tree' = Auth.CS.record_if_most_general ~service:(Auth.CS.empty) ~macaroon:cap
 
   let tokpaths =
-    Core.Std.List.map paths ~f:(fun p -> (s,p))
+    Core.Std.List.map paths ~f:(fun p -> (t,p))
 
   let capabilities =
     Auth.mint peer (key |> Coding.decode_cstruct) "foo" tokpaths
@@ -362,7 +362,7 @@ module File_tree_tests = struct
 
   let read_macaroon_inserted_into_service_can_be_retrieved () = 
     let token = R in 
-    match mint server#get_address server#get_secret_key "test" [((token |> string_of_token),"foo/bar")] with
+    match mint server#get_address server#get_secret_key "test" [(token,"foo/bar")] with
     | mac::[] -> 
         Alcotest.(check string) "Checks the token is minted correctly"
         (Auth.M.identifier mac) "R";
@@ -380,7 +380,7 @@ module File_tree_tests = struct
 
   let short_circuit_on_find () = 
     let token = R in
-    match mint server#get_address server#get_secret_key "test" [((token |> string_of_token),"foo/bar"); ((token |> string_of_token),"foo/bar/FOO/BAR")] with
+    match mint server#get_address server#get_secret_key "test" [(token,"foo/bar"); (token,"foo/bar/FOO/BAR")] with
     | mac1::mac2::[] -> 
         (let service = File_tree.insert ~element:(((Auth.M.identifier mac1) |> token_of_string), mac1) ~tree:(File_tree.empty) ~location ~select ~terminate in
         let service' = File_tree.insert ~element:(((Auth.M.identifier mac2) |> token_of_string), mac2) ~tree:(service) ~location ~select ~terminate in

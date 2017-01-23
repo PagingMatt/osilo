@@ -18,13 +18,13 @@ let paths =
 let s = "R"
 let t =  R
 
-let bc_capability = Auth.mint peer key service [("R","a")]
+let bc_capability = Auth.mint peer key service [(R,"a")]
 let cap = 
   match bc_capability with 
   | c::_ -> c
 
 let tokpaths =
-  List.map paths ~f:(fun p -> (s,p))
+  List.map paths ~f:(fun p -> (t,p))
 
 let selection_args = 
   List.map paths ~f:(fun p -> (t,Printf.sprintf "%s/%s/%s" (Peer.host peer) service p))

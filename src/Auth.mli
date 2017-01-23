@@ -61,9 +61,9 @@ holds a permission token of at least [token] as a first party caveat. *)
 
 val covered : M.t list -> Token.t * string -> bool
 
-val mint : Peer.t -> Cstruct.t -> string -> (string * string) list -> M.t list
+val mint : Peer.t -> Cstruct.t -> string -> (Token.t * string) list -> M.t list
 (** [mint source key service permissions] takes each element of [permissions] and builds a list of
-string tokens and Macaroons tuples. Each Macaroon hold a first party caveat of the token it is in 
+string tokens and Macaroons tuples. Each Macaroon's identifier is of the token it is in 
 the tuple with and had a location of [source]/[service]/[path] where [path] is from an element of
 [permissions]. Each Macaroon is signed with [key], this servers secret key. *)
 
