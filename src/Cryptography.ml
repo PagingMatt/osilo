@@ -52,12 +52,15 @@ end = struct
 end
 
 module CS : sig
+  exception Decryption_failed
   val encrypt_c2p : key:Cstruct.t -> plaintext:Cstruct.t -> Cstruct.t * Cstruct.t
   val encrypt_p2p : ks:KS.t -> peer:Peer.t -> plaintext:Cstruct.t -> (KS.t * Cstruct.t) Lwt.t
   val decrypt_c2p : key:Cstruct.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> Cstruct.t
   val decrypt_p2p : priv:Nocrypto.Rsa.priv -> ciphertext:Cstruct.t -> Cstruct.t
 end = struct
   open Cipher_block.AES.GCM
+
+  exception Decryption_failed
 
   let encrypt_c2p ~key ~plaintext =
     let key    = of_secret key in
@@ -68,7 +71,7 @@ end = struct
   let encrypt_p2p ~ks ~peer ~plaintext =
     KS.lookup' ks peer >>= fun (k, public) -> 
       let key     = public in 
-      let result  = Nocrypto.Rsa.encrypt ~key plaintext in
+      let result  = Nocrypto.Rsa.PKCS1.encrypt ~key plaintext in
       return (k, result)
 
   let decrypt_c2p ~key ~ciphertext ~iv =
@@ -77,7 +80,9 @@ end = struct
     result.message
 
   let decrypt_p2p ~priv ~ciphertext =
-    Nocrypto.Rsa.decrypt ~key:priv ciphertext
+    match Nocrypto.Rsa.PKCS1.decrypt ~key:priv ciphertext with
+    | Some m -> m
+    | None -> raise Decryption_failed
 end
 
 let () = Nocrypto_entropy_unix.initialize ()

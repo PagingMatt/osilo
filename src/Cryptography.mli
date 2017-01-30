@@ -47,6 +47,8 @@ end
 (** Cryptography service depends on a keying service with the responsibility to encrypt and decrypt 
 Cstruct.t messages per peer *)
 module CS : sig
+  exception Decryption_failed
+
   val encrypt_c2p :
     key:Cstruct.t ->
     plaintext:Cstruct.t -> Cstruct.t * Cstruct.t
