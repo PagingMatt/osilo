@@ -8,8 +8,9 @@ module KS : sig
   val empty      : address:Peer.t -> capacity:int -> master:Cstruct.t -> t  
   val secret     : ks:t -> Cstruct.t
   val invalidate : ks:t -> peer:Peer.t -> t 
-  val lookup     : ks:t -> peer:Peer.t -> Cstruct.t option * t
-  val lookup'    : ks:t -> peer:Peer.t -> (t * Cstruct.t) Lwt.t
+  val lookup     : ks:t -> peer:Peer.t -> Nocrypto.Rsa.pub option * t
+  exception Cannot_get_public_key of Peer.t
+  val lookup'    : ks:t -> peer:Peer.t -> (t * Nocrypto.Rsa.pub) Lwt.t
 end = struct
   module V = struct 
     type t = Nocrypto.Rsa.pub
@@ -38,13 +39,16 @@ end = struct
     | Some (k, c) -> (Some k, {ks with cache = c})
     | None        -> (None  , ks)
 
+  exception Cannot_get_public_key of Peer.t
+
   let lookup' ~ks ~peer =
     match lookup ~ks ~peer with
     | (Some key, ks') -> return (ks', key)
     | (None    , _  ) -> 
         Http_client.get ~peer ~path:"/peer/rsa/pub" 
-        >|= fun (c,body) -> if c=200 then Coding.decode_public_key else raise (Cannot_get_public_key peer)
-        >|= fun pub -> ({ks with cache = KC.add peer pub ks.cache}, pub)
+        >|= (fun (c,body) -> 
+          (if not(c=200) then raise (Cannot_get_public_key peer)
+          else let pub = Coding.decode_public_key body in ({ks with cache = KC.add peer pub ks.cache}, pub)))
 end
 
 module CS : sig

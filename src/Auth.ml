@@ -17,14 +17,14 @@ module Crypto : Macaroons.CRYPTO = struct
 
   let encrypt ~key message = 
     let ciphertext,iv = 
-      Cryptography.CS.encrypt' 
+      Cryptography.CS.encrypt_c2p
         ~key:(Cstruct.of_string key) 
         ~plaintext:(Cstruct.of_string message)
     in Coding.encode_client_message ~ciphertext ~iv
 
   let decrypt ~key message =
     let ciphertext,iv = Coding.decode_client_message ~message in
-      Cryptography.CS.decrypt' 
+      Cryptography.CS.decrypt_c2p 
         ~key:(Cstruct.of_string key) 
         ~ciphertext 
         ~iv

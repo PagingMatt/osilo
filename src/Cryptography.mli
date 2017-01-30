@@ -4,9 +4,6 @@ open Nocrypto
 open Lwt
 open Lwt.Infix
 
-exception Key_exchange_failed
-(** Generic exception thrown when key exchange fails anywhere. *)
-
 (** Keying service carries out operations on a functional key cache *)
 module KS : sig
   type t
@@ -36,6 +33,8 @@ module KS : sig
     peer:Peer.t -> Nocrypto.Rsa.pub option * t
   (** [lookup ~ks ~peer] gives an option containing the value [peer] maps to in [ks] if the mapping
    exists, paired with [ks] updated such that [peer]'s mapping is the MRU *)
+
+  exception Cannot_get_public_key of Peer.t
 
   val lookup' : 
     ks:t        -> 
