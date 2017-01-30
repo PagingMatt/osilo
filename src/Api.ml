@@ -93,15 +93,14 @@ let get_file_content_and_capability_list plaintext =
   let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_capabilities in
   content,capabilities
 
-let decrypt_message_from_peer peer ciphertext iv s =
-  let ks,message = CS.decrypt ~ks:(s#get_keying_service) ~peer ~ciphertext ~iv
-  in s#set_keying_service ks; message 
+let decrypt_message_from_peer ciphertext s =
+  CS.decrypt_p2p ~priv:(s#get_private_key) ~ciphertext
 
 let encrypt_message_to_peer peer plaintext s =
-  CS.encrypt ~ks:(s#get_keying_service) ~peer ~plaintext
-  >|= fun (ks,ciphertext,iv) -> 
+  CS.encrypt_p2p ~ks:(s#get_keying_service) ~peer ~plaintext
+  >|= fun (ks,ciphertext) -> 
     s#set_keying_service ks; 
-    Coding.encode_peer_message ~peer:(s#get_address) ~ciphertext ~iv
+    Coding.encode_peer_message ~peer:(s#get_address) ~ciphertext
 
 let attach_required_capabilities tok target service files s =
   let requests          = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
@@ -200,11 +199,11 @@ let invalidate_paths_at_peers paths access_log service s =
 
 module Client = struct
   let decrypt_message_from_client ciphertext iv s =
-    CS.decrypt' ~key:(s#get_secret_key) ~ciphertext ~iv
+    CS.decrypt_c2p ~key:(s#get_secret_key) ~ciphertext ~iv
 
   let encrypt_message_to_client message s =
     Cstruct.of_string message
-    |> (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
+    |> (fun plaintext       -> CS.encrypt_c2p ~key:(s#get_secret_key) ~plaintext)
     |> (fun (ciphertext,iv) -> Coding.encode_client_message ~ciphertext ~iv) 
 
   class get_local s = object(self)
