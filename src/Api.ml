@@ -682,6 +682,22 @@ module Client = struct
 end
 
 module Peer = struct 
+  class rsa_pub s = object(self)
+  inherit [Cohttp_lwt_body.t] Wm.resource
+
+  method content_types_provided rd = 
+    Wm.continue [("text/json", self#to_json)] rd
+
+  method content_types_accepted rd = Wm.continue [] rd
+  
+  method allowed_methods rd = Wm.continue [`GET] rd
+
+  method private to_json rd =
+    let pub = s#get_private_key |> Nocrypto.Rsa.pub_of_priv in
+    let text = Coding.encode_public_key pub in 
+    Wm.continue (`String text) rd
+end
+
   class kx_init s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 

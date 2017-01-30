@@ -36,6 +36,12 @@ val decode_client_message : message:string -> Cstruct.t * Cstruct.t
 (** [decode_peer_message ~message] takes the JSON string [message] which encodes an initial vector and
 ciphertext, sent by some client. The result is the pair containing these. *)
 
+val encode_public_key : Nocrypto.Rsa.pub -> string
+(** [encode_public_key pub] encodes the RSA public key [pub] in a JSON string. *)
+
+val decode_public_key : string -> Nocrypto.Rsa.pub
+(** [decode_public_key msg] decodes the JSON string [msg] into the corresponding RSA public key. *)
+
 val encode_peer_message : peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> string
 (** [encode_peer_message ~peer ~ciphertext ~iv] constructs the JSON string encoding [ciphertext] and
 [iv] for this endpoint, [peer]. *)

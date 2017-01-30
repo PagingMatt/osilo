@@ -65,6 +65,14 @@ let tag_pb = "public"
 let tag_gr = "group"
 let tag_ho = "host"
 let tag_me = "message"
+let tag_e = "e"
+let tag_n = "n"
+
+let encode_public_key pub =
+  pub |> Nocrypto.Rsa.sexp_of_pub |> Sexp.to_string
+
+let decode_public_key msg =
+  msg |> Sexp.of_string |> Nocrypto.Rsa.pub_of_sexp 
 
 let encode_client_message ~ciphertext ~iv = 
   `Assoc [

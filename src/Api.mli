@@ -113,7 +113,17 @@ module Client : sig
   end
 end
 
-module Peer : sig 
+module Peer : sig
+  class rsa_pub : 
+    < get_private_key : Nocrypto.Rsa.priv; .. > -> object
+    
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    method content_types_provided : provider_body content_types
+
+    method content_types_accepted : acceptor_body content_types
+  end
+
   class get : 
     < get_address : Peer.t; get_keying_service : Cryptography.KS.t;
       get_peer_access_log : Peer_access_log.t; get_secret_key : Cstruct.t;
