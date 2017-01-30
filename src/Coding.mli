@@ -42,12 +42,12 @@ val encode_public_key : Nocrypto.Rsa.pub -> string
 val decode_public_key : string -> Nocrypto.Rsa.pub
 (** [decode_public_key msg] decodes the JSON string [msg] into the corresponding RSA public key. *)
 
-val encode_peer_message : peer:Peer.t -> ciphertext:Cstruct.t -> iv:Cstruct.t -> string
-(** [encode_peer_message ~peer ~ciphertext ~iv] constructs the JSON string encoding [ciphertext] and
-[iv] for this endpoint, [peer]. *)
+val encode_peer_message : peer:Peer.t -> ciphertext:Cstruct.t -> string
+(** [encode_peer_message ~peer ~ciphertext] constructs the JSON string encoding [ciphertext] for this 
+endpoint, [peer]. *)
 
-val decode_peer_message : message:string -> Peer.t * Cstruct.t * Cstruct.t 
-(** [decode_peer_message ~message] takes the JSON string [message] which encodes an initial vector and
+val decode_peer_message : message:string -> Peer.t * Cstruct.t 
+(** [decode_peer_message ~message] takes the JSON string [message] which encodes a
 ciphertext, sent by some [peer]. The result is the tuple containing these. *)
 
 val encode_kx_init : peer:Peer.t -> public:Cstruct.t -> group:Nocrypto.Dh.group -> string
