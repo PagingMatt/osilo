@@ -47,7 +47,7 @@ class server' hostname key silo = object(self)
   method set_keying_service k = keying_service <- k
   method get_secret_key = KS.secret keying_service
 
-  val private_key = Nocrypto.Rsa.generate 2048
+  val private_key = Nocrypto.Rsa.generate 4096
   method get_private_key = private_key 
 
   val mutable capability_service : Auth.CS.t = 
