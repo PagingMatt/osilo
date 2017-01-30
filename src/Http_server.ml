@@ -19,6 +19,8 @@ class type server = object
 
   method get_secret_key : Cstruct.t
 
+  method get_private_key : Nocrypto.Rsa.priv
+
   method get_capability_service : Auth.CS.t
 
   method set_capability_service : Auth.CS.t -> unit
@@ -44,6 +46,9 @@ class server' hostname key silo = object(self)
   method get_keying_service = keying_service
   method set_keying_service k = keying_service <- k
   method get_secret_key = KS.secret keying_service
+
+  val private_key = Nocrypto.Rsa.generate 4096
+  method get_private_key = private_key 
 
   val mutable capability_service : Auth.CS.t = 
     Log.info (fun m -> m "Creating capability service with empty capability tree.");
@@ -73,7 +78,7 @@ class server' hostname key silo = object(self)
       ("/client/del/:peer/:service"   , fun () -> new Api.Client.del_remote self);
       ("/client/permit/:peer/:service", fun () -> new Api.Client.permit     self);
       ("/client/inv/:service"         , fun () -> new Api.Client.inv        self);
-      ("/peer/kx/init/"               , fun () -> new Api.Peer.kx_init      self);
+      ("/peer/rsa/pub"                , fun () -> new Api.Peer.rsa_pub      self);
       ("/peer/get/:service"           , fun () -> new Api.Peer.get          self);
       ("/peer/set/:service"           , fun () -> new Api.Peer.set          self);
       ("/peer/del/:service"           , fun () -> new Api.Peer.del          self);

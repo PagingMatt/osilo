@@ -93,15 +93,14 @@ let get_file_content_and_capability_list plaintext =
   let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_capabilities in
   content,capabilities
 
-let decrypt_message_from_peer peer ciphertext iv s =
-  let ks,message = CS.decrypt ~ks:(s#get_keying_service) ~peer ~ciphertext ~iv
-  in s#set_keying_service ks; message 
+let decrypt_message_from_peer ciphertext s =
+  CS.decrypt_p2p ~priv:(s#get_private_key) ~ciphertext
 
 let encrypt_message_to_peer peer plaintext s =
-  CS.encrypt ~ks:(s#get_keying_service) ~peer ~plaintext
-  >|= fun (ks,ciphertext,iv) -> 
+  CS.encrypt_p2p ~ks:(s#get_keying_service) ~peer ~plaintext
+  >|= fun (ks,ciphertext) -> 
     s#set_keying_service ks; 
-    Coding.encode_peer_message ~peer:(s#get_address) ~ciphertext ~iv
+    Coding.encode_peer_message ~peer:(s#get_address) ~ciphertext
 
 let attach_required_capabilities tok target service files s =
   let requests          = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
@@ -200,11 +199,11 @@ let invalidate_paths_at_peers paths access_log service s =
 
 module Client = struct
   let decrypt_message_from_client ciphertext iv s =
-    CS.decrypt' ~key:(s#get_secret_key) ~ciphertext ~iv
+    CS.decrypt_c2p ~key:(s#get_secret_key) ~ciphertext ~iv
 
   let encrypt_message_to_client message s =
     Cstruct.of_string message
-    |> (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
+    |> (fun plaintext       -> CS.encrypt_c2p ~key:(s#get_secret_key) ~plaintext)
     |> (fun (ciphertext,iv) -> Coding.encode_client_message ~ciphertext ~iv) 
 
   class get_local s = object(self)
@@ -236,7 +235,6 @@ module Client = struct
           Wm.continue false rd)
       with
       | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -293,8 +291,7 @@ module Client = struct
           plaintext <- Some plaintext';
           Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -317,8 +314,8 @@ module Client = struct
             (let body = attach_required_capabilities "R" peer' service' to_fetch'' s in
             send_retry peer' (Printf.sprintf "/peer/get/%s" service') body false s
             >>= (fun (c,b) ->
-              let _,ciphertext,iv = Coding.decode_peer_message b in
-              let plaintext = decrypt_message_from_peer peer' ciphertext iv s in
+              let _,ciphertext = Coding.decode_peer_message b in
+              let plaintext = decrypt_message_from_peer ciphertext s in
               let `Assoc fetched = get_file_content_list plaintext in
               let results = Core.Std.List.append fetched cached in
               let results' = (`Assoc results) |> Yojson.Basic.to_string in
@@ -370,8 +367,7 @@ module Client = struct
           plaintext <- Some plaintext';
           Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -427,8 +423,7 @@ module Client = struct
           plaintext <- Some plaintext';
           Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -483,8 +478,6 @@ module Client = struct
           Wm.continue false rd)
       with 
       | Coding.Decoding_failed e -> 
-          Wm.continue true rd
-      | Cryptography.CS.Decryption_failed ->
           Wm.continue true rd
       | Malformed_data ->
           Wm.continue true rd
@@ -543,8 +536,6 @@ module Client = struct
       with
       | Coding.Decoding_failed e -> 
           Wm.continue true rd
-      | Cryptography.CS.Decryption_failed ->
-          Wm.continue true rd
       | Malformed_data ->
           Wm.continue true rd
 
@@ -600,8 +591,6 @@ module Client = struct
             Wm.continue false rd)
       with
       | Coding.Decoding_failed e -> 
-          Wm.continue true rd
-      | Cryptography.CS.Decryption_failed ->
           Wm.continue true rd
       | Malformed_data ->
           Wm.continue true rd
@@ -661,8 +650,7 @@ module Client = struct
           files <- files';
           Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -682,56 +670,20 @@ module Client = struct
 end
 
 module Peer = struct 
-  class kx_init s = object(self)
+  class rsa_pub s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
-
-    val mutable source : Peer.t option = None
-
-    val mutable public : Cstruct.t option = None
-
-    val mutable group : Nocrypto.Dh.group option = None
-
+  
     method content_types_provided rd = 
       Wm.continue [("text/json", self#to_json)] rd
-
+  
     method content_types_accepted rd = Wm.continue [] rd
+    
+    method allowed_methods rd = Wm.continue [`GET] rd
   
-    method allowed_methods rd = Wm.continue [`POST] rd
-
-    method malformed_request rd =
-      try
-        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body 
-        >>= (fun message -> 
-          let (source',public',group') = Coding.decode_kx_init ~message
-          in source <- Some source'; public <- Some public'; group <- Some group';
-          Wm.continue false rd)
-      with
-      | Coding.Decoding_failed e -> 
-          (Log.debug (fun m -> m "Failed to decode message at /peer/kx/init: \n%s" e); 
-          Wm.continue true rd)
-
-    method process_post rd =
-      match source with
-      | None -> Wm.continue false rd
-      | Some source' ->
-      match public with
-      | None -> Wm.continue false rd
-      | Some public' ->
-      match group with
-      | None -> Wm.continue false rd
-      | Some group' ->
-          let ks,public'' = Cryptography.KS.mediate 
-            ~ks:s#get_keying_service 
-            ~peer:source' ~group:group' ~public:public' in
-          (s#set_keying_service ks);
-          let reply = Coding.encode_kx_reply ~peer:(s#get_address) ~public:public'' in
-          let r     = reply |> Cohttp_lwt_body.of_string in
-          let rd'   = {rd with resp_body=r } in
-          Wm.continue true rd'         
-  
-    method private to_json rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body 
-      >>= fun s -> Wm.continue (`String s) rd
+    method private to_json rd =
+      let pub = s#get_private_key |> Nocrypto.Rsa.pub_of_priv in
+      let text = Coding.encode_public_key pub in 
+      Wm.continue (`String text) rd
   end
 
   class get s = object(self)
@@ -757,9 +709,9 @@ module Peer = struct
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >|= (fun message -> 
             Coding.decode_peer_message ~message)
-          >|= (fun (source_peer,ciphertext,iv) ->
+          >|= (fun (source_peer,ciphertext) ->
               source <- Some source_peer;
-              decrypt_message_from_peer source_peer ciphertext iv s)           
+              decrypt_message_from_peer ciphertext s)           
           >>= (fun plaintext ->
             let files',capabilities = get_file_and_capability_list plaintext in
             let authorised_files = 
@@ -771,8 +723,6 @@ module Peer = struct
       | Coding.Decoding_failed s -> 
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
           Wm.continue true rd)
-      | Cryptography.CS.Decryption_failed -> 
-          Wm.continue true rd
 
     method process_post rd =
       try
@@ -826,8 +776,8 @@ module Peer = struct
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >|= (fun message -> 
             Coding.decode_peer_message ~message)
-          >|= (fun (source_peer,ciphertext,iv) ->
-              decrypt_message_from_peer source_peer ciphertext iv s)           
+          >|= (fun (source_peer,ciphertext) ->
+              decrypt_message_from_peer ciphertext s)           
           >>= (fun plaintext ->
             let file_contents,capabilities = get_file_content_and_capability_list plaintext in
             let paths,contents = Core.Std.List.unzip file_contents in
@@ -844,8 +794,6 @@ module Peer = struct
       | Coding.Decoding_failed s -> 
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
           Wm.continue true rd)
-      | Cryptography.CS.Decryption_failed ->  
-          Wm.continue true rd
 
     method process_post rd =
       try
@@ -885,9 +833,9 @@ module Peer = struct
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >|= (fun message -> 
             Coding.decode_peer_message ~message)
-          >|= (fun (source_peer,ciphertext,iv) ->
+          >|= (fun (source_peer,ciphertext) ->
               source <- Some source_peer;
-              decrypt_message_from_peer source_peer ciphertext iv s)           
+              decrypt_message_from_peer ciphertext s)           
           >>= (fun plaintext ->
             let files',capabilities = get_file_and_capability_list plaintext in
             let authorised_files = 
@@ -899,8 +847,6 @@ module Peer = struct
       | Coding.Decoding_failed s -> 
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
           Wm.continue true rd)
-      | Cryptography.CS.Decryption_failed -> 
-          Wm.continue true rd
 
     method process_post rd =
       try
@@ -946,8 +892,8 @@ module Peer = struct
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >|= (fun message -> Coding.decode_peer_message ~message)
-        >>= (fun (peer_msg,ciphertext,iv) ->
-          let plaintext = decrypt_message_from_peer peer_msg ciphertext iv s in
+        >>= (fun (peer_msg,ciphertext) ->
+          let plaintext = decrypt_message_from_peer ciphertext s in
           let files' = get_file_list plaintext in
           peer <- Some (Peer.create peer_api);
           service <- Some service';
@@ -955,8 +901,7 @@ module Peer = struct
           if (peer_api = (Peer.host peer_msg) && not(peer_api = Peer.host s#get_address)) 
           then (Wm.continue false rd) else (Wm.continue true rd))
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -999,11 +944,11 @@ module Peer = struct
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >|= (fun message -> Coding.decode_peer_message ~message)
-        >>= (fun (peer'',ciphertext,iv) -> 
+        >>= (fun (peer'',ciphertext) -> 
           if not(Peer.create peer' = peer'') then raise Malformed_data
           else 
             let plaintext = 
-              decrypt_message_from_peer peer'' ciphertext iv s in
+              decrypt_message_from_peer ciphertext s in
             let capabilities' = 
               Auth.deserialise_capabilities 
               (plaintext |> Cstruct.to_string |> Yojson.Basic.from_string) in
@@ -1013,8 +958,6 @@ module Peer = struct
           Log.debug (fun m -> m "Failed to decode message at /peer/permit/:peer/:service: \n%s" e);
           Wm.continue true rd
       | Malformed_data -> 
-          Wm.continue true rd
-      | Cryptography.CS.Decryption_failed -> 
           Wm.continue true rd
 
     method process_post rd =

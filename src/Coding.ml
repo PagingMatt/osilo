@@ -65,6 +65,14 @@ let tag_pb = "public"
 let tag_gr = "group"
 let tag_ho = "host"
 let tag_me = "message"
+let tag_e = "e"
+let tag_n = "n"
+
+let encode_public_key pub =
+  pub |> Nocrypto.Rsa.sexp_of_pub |> Sexp.to_string
+
+let decode_public_key msg =
+  msg |> Sexp.of_string |> Nocrypto.Rsa.pub_of_sexp 
 
 let encode_client_message ~ciphertext ~iv = 
   `Assoc [
@@ -78,56 +86,17 @@ let decode_client_message ~message =
   let i = j |> string_member tag_iv |> decode_cstruct in
   (c,i)
 
-let encode_peer_message ~peer ~ciphertext ~iv = 
+let encode_peer_message ~peer ~ciphertext = 
   let host = Peer.host peer in
   `Assoc [
     (tag_ho , `String host);
     (tag_ct , `String (encode_cstruct ciphertext));
-    (tag_iv , `String (encode_cstruct iv        )) 
   ] |> Yojson.Basic.to_string
 
 let decode_peer_message ~message =
   let j = Yojson.Basic.from_string message in
   let h = j |> string_member tag_ho in
   let c = j |> string_member tag_ct |> decode_cstruct in
-  let i = j |> string_member tag_iv |> decode_cstruct in
   let peer = Peer.create h in
-  (peer,c,i)
-
-let encode_kx_init ~peer ~public ~group =
-  let host = Peer.host peer in
-  let public' = encode_cstruct public in
-  let group'  = encode_group   group  in
-  `Assoc [
-    (tag_ho, `String host);
-    (tag_pb, `String public'); 
-    (tag_gr, `String group')
-  ] |> Yojson.Basic.to_string
-
-let decode_kx_init ~message =
-  let j  = Yojson.Basic.from_string message in
-  let h  = j |> string_member tag_ho in
-  let k  = j |> string_member tag_pb in
-  let k' = decode_cstruct k          in
-  let g  = j |> string_member tag_gr in
-  let g' = decode_group g            in
-  let peer = Peer.create h           in
-  (peer,k',g')
-
-let encode_kx_reply ~peer ~public =
-  let host = Peer.host peer in
-  let public' = encode_cstruct public in
-  `Assoc [
-    (tag_ho, `String host);
-    (tag_pb, `String public')
-  ]
-  |> Yojson.Basic.to_string
-
-let decode_kx_reply ~message =
-  let j = Yojson.Basic.from_string message in
-  let h = j |> string_member tag_ho in
-  let k = j |> string_member tag_pb in
-  let k' = decode_cstruct k in 
-  let peer = Peer.create h  in
-  (peer,k')
+  (peer,c)
 
