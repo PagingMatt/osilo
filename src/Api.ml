@@ -235,7 +235,6 @@ module Client = struct
           Wm.continue false rd)
       with
       | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -292,8 +291,7 @@ module Client = struct
           plaintext <- Some plaintext';
           Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -369,8 +367,7 @@ module Client = struct
           plaintext <- Some plaintext';
           Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -426,8 +423,7 @@ module Client = struct
           plaintext <- Some plaintext';
           Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -482,8 +478,6 @@ module Client = struct
           Wm.continue false rd)
       with 
       | Coding.Decoding_failed e -> 
-          Wm.continue true rd
-      | Cryptography.CS.Decryption_failed ->
           Wm.continue true rd
       | Malformed_data ->
           Wm.continue true rd
@@ -542,8 +536,6 @@ module Client = struct
       with
       | Coding.Decoding_failed e -> 
           Wm.continue true rd
-      | Cryptography.CS.Decryption_failed ->
-          Wm.continue true rd
       | Malformed_data ->
           Wm.continue true rd
 
@@ -599,8 +591,6 @@ module Client = struct
             Wm.continue false rd)
       with
       | Coding.Decoding_failed e -> 
-          Wm.continue true rd
-      | Cryptography.CS.Decryption_failed ->
           Wm.continue true rd
       | Malformed_data ->
           Wm.continue true rd
@@ -660,8 +650,7 @@ module Client = struct
           files <- files';
           Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -786,8 +775,6 @@ end
       | Coding.Decoding_failed s -> 
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
           Wm.continue true rd)
-      | Cryptography.CS.Decryption_failed -> 
-          Wm.continue true rd
 
     method process_post rd =
       try
@@ -859,8 +846,6 @@ end
       | Coding.Decoding_failed s -> 
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
           Wm.continue true rd)
-      | Cryptography.CS.Decryption_failed ->  
-          Wm.continue true rd
 
     method process_post rd =
       try
@@ -914,8 +899,6 @@ end
       | Coding.Decoding_failed s -> 
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
           Wm.continue true rd)
-      | Cryptography.CS.Decryption_failed -> 
-          Wm.continue true rd
 
     method process_post rd =
       try
@@ -970,8 +953,7 @@ end
           if (peer_api = (Peer.host peer_msg) && not(peer_api = Peer.host s#get_address)) 
           then (Wm.continue false rd) else (Wm.continue true rd))
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -1028,8 +1010,6 @@ end
           Log.debug (fun m -> m "Failed to decode message at /peer/permit/:peer/:service: \n%s" e);
           Wm.continue true rd
       | Malformed_data -> 
-          Wm.continue true rd
-      | Cryptography.CS.Decryption_failed -> 
           Wm.continue true rd
 
     method process_post rd =
