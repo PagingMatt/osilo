@@ -12,7 +12,10 @@ class type server = object
   server to [ks]. *)
 
   method get_secret_key : Cstruct.t
-  (** [get_secret_key] returns the secret private key for this server from the keying service. *)
+  (** [get_secret_key] returns the secret key for this server from the keying service. *)
+
+  method get_private_key : Nocrypto.Rsa.priv
+  (** [get_private_key] returns the RSA private key for this peer. *)
 
   method get_capability_service : Auth.CS.t
   (** [get_capability_service] returns the capability service for this server, this contains the 
