@@ -91,12 +91,6 @@ let get_file_content_and_capability_list message =
   let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_capabilities in
   content,capabilities
 
-let encrypt_message_to_peer peer plaintext s =
-  CS.encrypt ~ks:(s#get_keying_service) ~peer ~plaintext
-  >|= fun (ks,ciphertext,iv) -> 
-    s#set_keying_service ks; 
-    Coding.encode_peer_message ~peer:(s#get_address) ~ciphertext ~iv
-
 let attach_required_capabilities tok target service files s =
   let requests          = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
   let caps, not_covered = Auth.find_permissions s#get_capability_service requests in
@@ -152,19 +146,6 @@ let get_remote_file_list message =
   | _         -> raise Malformed_data
   end
 
-exception Send_failing_on_retry
-
-let rec send_retry target path body is_retry s =
-  encrypt_message_to_peer target (Cstruct.of_string body) s
-  >>= fun body' -> Http_client.post ~peer:target ~path ~body:body'
-  >>= fun (c,b) -> 
-    if (c >= 200 && c < 300) 
-    then Lwt.return (c,b) 
-    else if not(is_retry) then
-      (s#set_keying_service (KS.invalidate s#get_keying_service target);
-      send_retry target path body true s)
-    else raise Send_failing_on_retry
-
 let relog_paths_for_peer peer paths service s =
   s#set_peer_access_log (Core.Std.List.fold 
     ~init:s#get_peer_access_log paths
@@ -172,7 +153,7 @@ let relog_paths_for_peer peer paths service s =
 
 let invalidate_paths_at_peer peer paths service s =
   let body = make_file_list paths |> Yojson.Basic.to_string in
-  send_retry peer (Printf.sprintf "/peer/inv/%s/%s" (Peer.host s#get_address) service) body false s
+  Http_client.post ~peer ~path:(Printf.sprintf "/peer/inv/%s/%s" (Peer.host s#get_address) service) ~body
 
 let invalidate_paths_at_peers paths access_log service s =
   let path_peers,pal = Core.Std.List.fold ~init:([],s#get_peer_access_log) paths 
@@ -192,11 +173,6 @@ let invalidate_paths_at_peers paths access_log service s =
     >|= fun (c,_) -> if c=204 then () else relog_paths_for_peer peer paths service s) peer_paths
 
 module Client = struct
-  let encrypt_message_to_client message s =
-    Cstruct.of_string message
-    |> (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
-    |> (fun (ciphertext,iv) -> Coding.encode_client_message ~ciphertext ~iv) 
-
   class get_local s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -232,9 +208,7 @@ module Client = struct
         | Some service' -> 
         Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~paths:files
         >|= begin function
-            | `Assoc _ as j -> 
-                let message = Yojson.Basic.to_string j 
-                in encrypt_message_to_client message s
+            | `Assoc _ as j -> Yojson.Basic.to_string j 
             | _ -> raise Malformed_data
             end
         >>= fun response -> 
@@ -299,16 +273,15 @@ module Client = struct
           if not(to_fetch'' = [])
           then 
             (let body = attach_required_capabilities "R" peer' service' to_fetch'' s in
-            send_retry peer' (Printf.sprintf "/peer/get/%s" service') body false s
+            Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/get/%s" service') ~body
             >>= (fun (c,b) ->
               let `Assoc fetched = get_file_content_list b in
               let results = Core.Std.List.append fetched cached in
               let results' = (`Assoc results) |> Yojson.Basic.to_string in
               write_to_cache peer' service' fetched requests s 
-              >|= fun () -> encrypt_message_to_client results' s))
+              >|= fun () -> results'))
           else
-            (let results = (`Assoc cached) |> Yojson.Basic.to_string in
-            Lwt.return (encrypt_message_to_client results s)))
+            Lwt.return ((`Assoc cached) |> Yojson.Basic.to_string))
         >>= fun response -> 
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
       with
@@ -367,7 +340,7 @@ module Client = struct
         if not(requests = [])
           then 
             (let body = attach_required_capabilities "D" peer' service' requests s in
-            send_retry peer' (Printf.sprintf "/peer/del/%s" service') body false s
+            Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/del/%s" service') ~body
             >>= fun (c,_) -> Wm.continue (c = 204) rd)
           else
             Wm.continue false rd
@@ -462,24 +435,20 @@ module Client = struct
           Wm.continue true rd
 
     method process_post rd =
-      try
-        match target with
-        | None -> Wm.continue false rd
-        | Some target' ->
-        match service with
-        | None -> Wm.continue false rd
-        | Some service' ->
-        let capabilities = Auth.mint s#get_address s#get_secret_key service' permission_list in 
-        let p_body       = Auth.serialise_capabilities capabilities |> Yojson.Basic.to_string in
-        let path         = 
-          (Printf.sprintf "/peer/permit/%s/%s" 
-          (s#get_address |> Peer.host) service') in
-        send_retry target' path p_body false s
-        >>= fun (c,b) -> 
-          (Log.debug (fun m -> m "Server responded to presented capabilities with %d" c); 
-          Wm.continue true rd)
-      with
-      | Send_failing_on_retry -> Wm.continue false rd
+      match target with
+      | None -> Wm.continue false rd
+      | Some target' ->
+      match service with
+      | None -> Wm.continue false rd
+      | Some service' ->
+      let capabilities = Auth.mint s#get_address s#get_secret_key service' permission_list in 
+      let p_body       = Auth.serialise_capabilities capabilities |> Yojson.Basic.to_string in
+      let path         = 
+        (Printf.sprintf "/peer/permit/%s/%s" 
+        (s#get_address |> Peer.host) service') in
+      Http_client.post ~peer:target' ~path ~body:p_body
+      >>= fun (c,b) ->
+        Wm.continue true rd
 
     method private to_text rd = 
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
@@ -584,7 +553,7 @@ module Client = struct
             if not(paths = [])
               then 
                 (let body = attach_required_capabilities_and_content peer' service' paths targets s in
-                send_retry peer' (Printf.sprintf "/peer/set/%s" service') body false s
+                Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/set/%s" service') ~body
                 >>= fun (c,_) -> Wm.continue (c = 204) rd)
               else
                 Wm.continue false rd
@@ -702,8 +671,6 @@ module Peer = struct
 
     val mutable files : string list = []
 
-    val mutable source : Peer.t option = None
-
     method content_types_provided rd = 
       Wm.continue [("text/plain", self#to_text)] rd
 
@@ -730,9 +697,6 @@ module Peer = struct
 
     method process_post rd =
       try
-        match source with 
-        | None -> Wm.continue false rd
-        | Some source' ->
         match service with 
         | None -> Wm.continue false rd
         | Some service' ->
@@ -743,14 +707,11 @@ module Peer = struct
                   s#set_peer_access_log 
                     (List.fold l ~init:s#get_peer_access_log
                     ~f:(fun log -> fun (f,_) -> 
-                    Peer_access_log.log log ~host:s#get_address ~peer:source' ~service:service' ~path:f));
-                  let message = Yojson.Basic.to_string j |> Cstruct.of_string 
-                  in (match source with
-                  | Some source_peer -> encrypt_message_to_peer source_peer message s
-                  | None             -> raise Malformed_data)
+                    Peer_access_log.log log ~host:s#get_address ~peer:(Peer.create "tmp") ~service:service' ~path:f));
+                  Lwt.return (Yojson.Basic.to_string j)
               | _ -> raise Malformed_data)
-        >>= fun response -> 
-          Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
+            >>= fun response -> 
+              Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
       with
       | Malformed_data  -> Wm.continue false rd
 
