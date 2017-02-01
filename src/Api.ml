@@ -110,7 +110,7 @@ module Client = struct
     val mutable files : string list = []
 
     method content_types_provided rd = 
-      Wm.continue [("text/plain", self#to_text)] rd
+      Wm.continue [("text/json", self#to_json)] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
@@ -147,7 +147,7 @@ module Client = struct
       with 
       | _  -> Wm.continue false rd
 
-    method private to_text rd = 
+    method private to_json rd = 
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
       >>= fun s -> Wm.continue (`String s) rd
   end
@@ -162,7 +162,7 @@ module Client = struct
     val mutable plaintext : string option = None
 
     method content_types_provided rd = 
-      Wm.continue [("text/plain", self#to_text)] rd
+      Wm.continue [("text/json", self#to_json)] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
@@ -220,7 +220,7 @@ module Client = struct
       with
       | _ -> Wm.continue false rd
 
-    method private to_text rd = 
+    method private to_json rd = 
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
       >>= fun s -> Wm.continue (`String s) rd
   end
@@ -234,8 +234,7 @@ module Client = struct
 
     val mutable plaintext : string option = None
 
-    method content_types_provided rd = 
-      Wm.continue [("text/plain", self#to_text)] rd
+    method content_types_provided rd = Wm.continue [] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
@@ -281,10 +280,6 @@ module Client = struct
             Wm.continue false rd
       with
       | _ -> Wm.continue false rd
-
-    method private to_text rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun s -> Wm.continue (`String s) rd
   end
 
   class inv s = object(self)
@@ -294,8 +289,7 @@ module Client = struct
 
     val mutable plaintext : string option = None
 
-    method content_types_provided rd = 
-      Wm.continue [("text/plain", self#to_text)] rd
+    method content_types_provided rd = Wm.continue [] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
@@ -329,10 +323,6 @@ module Client = struct
         >>= fun () -> Wm.continue true rd
       with
       | _ -> Wm.continue false rd
-
-    method private to_text rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun s -> Wm.continue (`String s) rd
   end
 
   class permit s = object(self)
@@ -344,8 +334,7 @@ module Client = struct
 
     val mutable permission_list : (Auth.Token.t * string) list = []
 
-    method content_types_provided rd = 
-      Wm.continue [("text/plain", self#to_text)] rd
+    method content_types_provided rd = Wm.continue [] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
@@ -388,10 +377,6 @@ module Client = struct
       Http_client.post ~peer:target' ~path ~body:p_body ()
       >>= fun (c,b) ->
         Wm.continue true rd
-
-    method private to_text rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun s -> Wm.continue (`String s) rd
   end
 
   class set_local s = object(self)
@@ -401,8 +386,7 @@ module Client = struct
 
     val mutable service : string option = None
 
-    method content_types_provided rd =
-      Wm.continue [("text/plain", self#to_text)] rd
+    method content_types_provided rd =Wm.continue [] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
@@ -434,13 +418,9 @@ module Client = struct
         match file_content_to_set with
         | `Assoc j as contents ->
             (Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~contents
-            >>= fun () -> Wm.continue true {rd with resp_body = (Cohttp_lwt_body.of_string "Successfully written.");})
+            >>= fun () -> Wm.continue true rd)
       with
       | Malformed_data -> Wm.continue false rd
-
-    method private to_text rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun s -> Wm.continue (`String s) rd
   end
 
   class set_remote s = object(self)
@@ -452,8 +432,7 @@ module Client = struct
 
     val mutable peer : Peer.t option = None
 
-    method content_types_provided rd =
-      Wm.continue [("text/plain", self#to_text)] rd
+    method content_types_provided rd = Wm.continue [] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
@@ -502,10 +481,6 @@ module Client = struct
         | _ -> raise Malformed_data
       with
       | Malformed_data -> Wm.continue false rd
-
-    method private to_text rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun s -> Wm.continue (`String s) rd
   end
 
   class del_local s = object(self)
@@ -515,8 +490,7 @@ module Client = struct
 
     val mutable files : string list = []
 
-    method content_types_provided rd = 
-      Wm.continue [("text/plain", self#to_text)] rd
+    method content_types_provided rd = Wm.continue [] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
@@ -548,10 +522,6 @@ module Client = struct
           Wm.continue true rd
       with 
       | _  -> Wm.continue false rd
-
-    method private to_text rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun s -> Wm.continue (`String s) rd
   end
 end
 
@@ -564,8 +534,7 @@ module Peer = struct
 
     val mutable files : string list = []
 
-    method content_types_provided rd = 
-      Wm.continue [("text/plain", self#to_text)] rd
+    method content_types_provided rd = Wm.continue [("text/json", self#to_json)] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
@@ -608,7 +577,7 @@ module Peer = struct
       with
       | Malformed_data  -> Wm.continue false rd
 
-    method private to_text rd = 
+    method private to_json rd = 
       Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
       >>= fun st -> Wm.continue (`String st) rd
   end
@@ -620,8 +589,7 @@ module Peer = struct
 
     val mutable file_content : Yojson.Basic.json = `Null
 
-    method content_types_provided rd = 
-      Wm.continue [("text/plain", self#to_text)] rd
+    method content_types_provided rd = Wm.continue [] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
@@ -658,10 +626,6 @@ module Peer = struct
             >>= fun () -> Wm.continue true rd
       with
       | Malformed_data  -> Wm.continue false rd
-
-    method private to_text rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun st -> Wm.continue (`String st) rd
   end
 
   class del s = object(self)
@@ -673,8 +637,7 @@ module Peer = struct
 
     val mutable source : Peer.t option = None
 
-    method content_types_provided rd = 
-      Wm.continue [("text/plain", self#to_text)] rd
+    method content_types_provided rd = Wm.continue [] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
@@ -709,10 +672,6 @@ module Peer = struct
             >>= fun () -> Wm.continue true rd
       with
       | Malformed_data  -> Wm.continue false rd
-
-    method private to_text rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun st -> Wm.continue (`String st) rd
   end
 
   class inv s = object(self)
@@ -724,8 +683,7 @@ module Peer = struct
 
     val mutable files : string list = []
 
-    method content_types_provided rd = 
-      Wm.continue [("text/plain", self#to_text)] rd
+    method content_types_provided rd = Wm.continue [] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
@@ -762,10 +720,6 @@ module Peer = struct
           Wm.continue true rd
       with 
       | _  -> Wm.continue false rd
-
-    method private to_text rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun s -> Wm.continue (`String s) rd
   end
 
   class permit s = object(self)
@@ -773,8 +727,7 @@ module Peer = struct
 
     val mutable capabilities : Auth.M.t list = []
 
-    method content_types_provided rd = 
-      Wm.continue [("text/plain", self#to_text)] rd
+    method content_types_provided rd = Wm.continue [] rd
 
     method content_types_accepted rd = Wm.continue [] rd
   
@@ -802,9 +755,5 @@ module Peer = struct
     method process_post rd =
       let cs = Auth.record_permissions s#get_capability_service capabilities
       in s#set_capability_service cs; Wm.continue true rd
-
-    method private to_text rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun st -> Wm.continue (`String st) rd
   end
 end  
