@@ -58,7 +58,7 @@ let relog_paths_for_peer peer paths service s =
 
 let invalidate_paths_at_peer peer paths service s =
   let body = Coding.encode_file_list_message paths |> Yojson.Basic.to_string in
-  Http_client.post ~peer ~path:(Printf.sprintf "/peer/inv/%s/%s" (Peer.host s#get_address) service) ~body
+  Http_client.post ~peer ~path:(Printf.sprintf "/peer/inv/%s/%s" (Peer.host s#get_address) service) ~body ()
 
 let invalidate_paths_at_peers paths access_log service s =
   let path_peers,pal = Core.Std.List.fold ~init:([],s#get_peer_access_log) paths 
@@ -193,7 +193,7 @@ module Client = struct
           if not(to_fetch'' = [])
           then 
             (let body = attach_required_capabilities "R" peer' service' to_fetch'' s in
-            Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/get/%s" service') ~body
+            Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/get/%s" service') ~body ()
             >>= (fun (c,b) ->
               let `Assoc fetched = Coding.decode_file_content_list_message b in
               let results = Core.Std.List.append fetched cached in
@@ -260,7 +260,7 @@ module Client = struct
         if not(requests = [])
           then 
             (let body = attach_required_capabilities "D" peer' service' requests s in
-            Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/del/%s" service') ~body
+            Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/del/%s" service') ~body ()
             >>= fun (c,_) -> Wm.continue (c = 204) rd)
           else
             Wm.continue false rd
@@ -366,7 +366,7 @@ module Client = struct
       let path         = 
         (Printf.sprintf "/peer/permit/%s/%s" 
         (s#get_address |> Peer.host) service') in
-      Http_client.post ~peer:target' ~path ~body:p_body
+      Http_client.post ~peer:target' ~path ~body:p_body ()
       >>= fun (c,b) ->
         Wm.continue true rd
 
@@ -472,7 +472,7 @@ module Client = struct
             if not(paths = [])
               then 
                 (let body = attach_required_capabilities_and_content peer' service' paths targets s in
-                Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/set/%s" service') ~body
+                Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/set/%s" service') ~body ()
                 >>= fun (c,_) -> Wm.continue (c = 204) rd)
               else
                 Wm.continue false rd

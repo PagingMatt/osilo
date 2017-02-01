@@ -6,100 +6,63 @@ exception Get_failed
 exception Kx_failed
 
 let inv server service path key =
-  let key  = 
-    match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
-    | Some c -> c
-    | None   -> raise Get_failed
-  in
   let server' = Peer.create server in
   let message = (`List [`String path]) |> Yojson.Basic.to_string in
   let path = Printf.sprintf "/client/inv/%s" service in
-  Http_client.post ~peer:server' ~path ~body:message
+  Http_client.post ~peer:server' ~path ~body:message ~key ()
   >|= (fun (c,_) -> Printf.printf "%d" c) 
 
 let give server peer service file key token =
-  let key  = 
-    match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
-    | Some c -> c
-    | None   -> raise Get_failed
-  in
   let server' = Peer.create server in
   let message = (`Assoc [(token, `String file)]) |> Yojson.Basic.to_string in
   let path = Printf.sprintf "/client/permit/%s/%s" peer service in
-  Http_client.post ~peer:server' ~path ~body:message
+  Http_client.post ~peer:server' ~path ~body:message ~key ()
   >|= (fun (c,_) -> Printf.printf "%d" c) 
 
 let set_my () = 
-  let key  = 
-    match "testtesttesttesttesttesttesttest" |> Cstruct.of_string |> Nocrypto.Base64.decode with
-    | Some c -> c
-    | None   -> raise Get_failed
-  in
+  let key = "testtesttesttesttesttesttesttest" in
   let peer = Peer.create "172.16.54.52" in
   let message = (`Assoc [("new-dir/test-file",`String "test value in file")]) |> Yojson.Basic.to_string in
   let path = "/client/set/local/master" in
-  Http_client.post ~peer ~path ~body:message
+  Http_client.post ~peer ~path ~body:message ~key ()
   >|= fun _ -> ()
 
 let set_their () = 
-  let key  = 
-    match "testtesttesttesttesttesttesttest" |> Cstruct.of_string |> Nocrypto.Base64.decode with
-    | Some c -> c
-    | None   -> raise Get_failed
-  in
+  let key = "testtesttesttesttesttesttesttest" in
   let peer = Peer.create "192.168.1.86" in
   let message = (`Assoc [("new-dir/test-file",`String "test value in file")]) |> Yojson.Basic.to_string in
   let path = "/client/set/192.168.1.77/foo" in
-  Http_client.post ~peer ~path ~body:message
+  Http_client.post ~peer ~path ~body:message ~key ()
   >|= fun (c,_) -> Printf.printf "%d\n" c
 
 let del_my () = 
-  let key  = 
-    match "testtesttesttesttesttesttesttest" |> Cstruct.of_string |> Nocrypto.Base64.decode with
-    | Some c -> c
-    | None   -> raise Get_failed
-  in
+  let key  = "testtesttesttesttesttesttesttest" in
   let peer = Peer.create "172.16.54.52" in
   let message = (`List [(`String "new-dir/test-file5")]) |> Yojson.Basic.to_string in
   let path = "/client/del/local/master" in
-  Http_client.post ~peer ~path ~body:message
+  Http_client.post ~peer ~path ~body:message ~key ()
   >|= fun _ -> ()
 
 let get_my host port service file key =
-  let key  = 
-    match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
-    | Some c -> c
-    | None   -> raise Get_failed
-  in
   let peer = Peer.create host in
   let message = (`List [`String file]) |> Yojson.Basic.to_string in
   let path = Printf.sprintf "/client/get/local/%s" service in
-  Http_client.post ~peer ~path ~body:message
+  Http_client.post ~peer ~path ~body:message ~key ()
   >|= (fun (c,b) -> Printf.printf "%s\n\n" b) 
 
 let del_their host peer service file key =
-  let key  = 
-    match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
-    | Some c -> c
-    | None   -> raise Get_failed
-  in
   let host' = Peer.create host in
   let message = (`List [`String file]) |> Yojson.Basic.to_string in
   let path = Printf.sprintf "/client/del/%s/%s" peer service in
-  Http_client.post ~peer:host' ~path ~body:message
+  Http_client.post ~peer:host' ~path ~body:message ~key ()
   >|= fun (c,_) -> Printf.printf "%d" c
 
 let get_their host peer service file key =
-  let key  = 
-    match key |> Cstruct.of_string |> Nocrypto.Base64.decode with
-    | Some c -> c
-    | None   -> raise Get_failed
-  in
   let server = Peer.create host in
   let peer' = Peer.create peer in
   let message = (`List [(`Assoc [("path",`String "bar");("check_cache", `Bool false); ("write_back", `Bool false)])]) |> Yojson.Basic.to_string in
   let path = Printf.sprintf "/client/get/%s/%s" (Peer.host peer') service in
-  Http_client.post ~peer:server ~path ~body:message
+  Http_client.post ~peer:server ~path ~body:message ~key ()
   >|= (fun (c,b) -> Printf.printf "%s\n\n" b) 
 
 let ping host port =

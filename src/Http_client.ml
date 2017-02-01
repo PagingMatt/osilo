@@ -21,9 +21,9 @@ let get ~peer ~path =
   Client.get uri
   >>= handle_http_resp
 
-let post ~peer ~path ~body =
+let post ~peer ~path ~body ?(key = "") () =
   let uri = build_uri ~peer ~path in
   Log.debug (fun m -> m "POST %s... to %s" (String.sub body 0 4) (Uri.to_string uri));
   Client.post uri ~body:(Cohttp_lwt_body.of_string body) 
-    ~headers:(Header.add_authorization (Header.init ()) (`Other ""))
+    ~headers:(Header.add_authorization (Header.init ()) (`Other key))
   >>= handle_http_resp
