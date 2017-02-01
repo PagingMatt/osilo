@@ -8,7 +8,7 @@ let src = Logs.Src.create ~doc:"logger for HTTP client" "osilo.http_client"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let build_uri ~peer ~path = 
-  Uri.make ~scheme:"http" ~host:(Peer.host peer) ~port:6620 ~path:path ()
+  Uri.make ~scheme:"https" ~host:(Peer.host peer) ~port:6620 ~path:path ()
 
 let handle_http_resp (r,b) =
   let code = r |> Response.status |> Code.code_of_status in
