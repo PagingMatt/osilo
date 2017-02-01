@@ -176,16 +176,5 @@ module Peer : sig
 
     method content_types_accepted : acceptor_body content_types
   end
-
-  class kx_init : 
-    < get_address : Peer.t; get_keying_service : Cryptography.KS.t;
-      set_keying_service : Cryptography.KS.t -> 'a; .. > -> object
-
-    inherit [Cohttp_lwt_body.t] Wm.resource
-
-    method content_types_provided : provider_body content_types
-
-    method content_types_accepted : acceptor_body content_types
-  end
 end
 

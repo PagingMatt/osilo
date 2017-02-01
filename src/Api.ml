@@ -612,57 +612,6 @@ module Client = struct
 end
 
 module Peer = struct 
-  class kx_init s = object(self)
-    inherit [Cohttp_lwt_body.t] Wm.resource
-
-    val mutable source : Peer.t option = None
-
-    val mutable public : Cstruct.t option = None
-
-    val mutable group : Nocrypto.Dh.group option = None
-
-    method content_types_provided rd = 
-      Wm.continue [("text/json", self#to_json)] rd
-
-    method content_types_accepted rd = Wm.continue [] rd
-  
-    method allowed_methods rd = Wm.continue [`POST] rd
-
-    method malformed_request rd =
-      try
-        Cohttp_lwt_body.to_string rd.Wm.Rd.req_body 
-        >>= (fun message -> 
-          let (source',public',group') = Coding.decode_kx_init ~message
-          in source <- Some source'; public <- Some public'; group <- Some group';
-          Wm.continue false rd)
-      with
-      | Coding.Decoding_failed e -> 
-          (Log.debug (fun m -> m "Failed to decode message at /peer/kx/init: \n%s" e); 
-          Wm.continue true rd)
-
-    method process_post rd =
-      match source with
-      | None -> Wm.continue false rd
-      | Some source' ->
-      match public with
-      | None -> Wm.continue false rd
-      | Some public' ->
-      match group with
-      | None -> Wm.continue false rd
-      | Some group' ->
-          let ks,public'' = Cryptography.KS.mediate 
-            ~ks:s#get_keying_service 
-            ~peer:source' ~group:group' ~public:public' in
-          (s#set_keying_service ks);
-          let reply = Coding.encode_kx_reply ~peer:(s#get_address) ~public:public'' in
-          let r     = reply |> Cohttp_lwt_body.of_string in
-          let rd'   = {rd with resp_body=r } in
-          Wm.continue true rd'         
-  
-    method private to_json rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body 
-      >>= fun s -> Wm.continue (`String s) rd
-  end
 
   class get s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
