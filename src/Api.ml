@@ -45,16 +45,16 @@ let pull_out_strings l =
             end)
   | _ -> raise Malformed_data
 
-let get_file_list plaintext =
-  Cstruct.to_string plaintext
+let get_file_list message =
+  message
   |> Yojson.Basic.from_string 
   |> pull_out_strings
 
 let make_file_list lst =
   `List (Core.Std.List.map lst ~f:(fun s -> `String s))
 
-let get_permission_list plaintext = 
-  Cstruct.to_string plaintext
+let get_permission_list message = 
+  message
   |> Yojson.Basic.from_string
   |> begin function
      | `Assoc j -> 
@@ -66,17 +66,16 @@ let get_permission_list plaintext =
      | _ -> raise Malformed_data
      end
 
-let get_file_content_list plaintext = 
-  Cstruct.to_string plaintext
+let get_file_content_list message = 
+  message
   |> Yojson.Basic.from_string
   |> begin function
      | `Assoc j -> `Assoc j
      | _ -> raise Malformed_data
      end
 
-let get_file_and_capability_list plaintext =
-  let plaintext' = Cstruct.to_string plaintext in
-  let json = Yojson.Basic.from_string plaintext' in 
+let get_file_and_capability_list message =
+  let json = Yojson.Basic.from_string message in 
   let files = Yojson.Basic.Util.member "files" json |> pull_out_strings in
   let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_capabilities in
   files,capabilities
@@ -86,16 +85,11 @@ let pull_out_file_content c =
   | `Assoc j -> j
   | _        -> raise Malformed_data
 
-let get_file_content_and_capability_list plaintext =
-  let plaintext' = Cstruct.to_string plaintext in
-  let json = Yojson.Basic.from_string plaintext' in 
+let get_file_content_and_capability_list message =
+  let json = Yojson.Basic.from_string message in 
   let content = Yojson.Basic.Util.member "contents" json |> pull_out_file_content in
   let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_capabilities in
   content,capabilities
-
-let decrypt_message_from_peer peer ciphertext iv s =
-  let ks,message = CS.decrypt ~ks:(s#get_keying_service) ~peer ~ciphertext ~iv
-  in s#set_keying_service ks; message 
 
 let encrypt_message_to_peer peer plaintext s =
   CS.encrypt ~ks:(s#get_keying_service) ~peer ~plaintext
@@ -150,9 +144,8 @@ let write_to_cache peer service file_content requests s =
       ~f:(fun (p,c) -> Core.Std.List.exists write_backs (fun rf -> path_subsumed rf.path p)) in
   Silo.write ~client:s#get_silo_client ~peer ~service ~contents:(`Assoc files_to_write_back)
 
-let get_remote_file_list plaintext =
-  plaintext
-  |> Cstruct.to_string
+let get_remote_file_list message =
+  message
   |> Yojson.Basic.from_string
   |> begin function 
   | `List rfs -> Core.Std.List.map rfs ~f:Coding.decode_json_requested_file 
@@ -199,9 +192,6 @@ let invalidate_paths_at_peers paths access_log service s =
     >|= fun (c,_) -> if c=204 then () else relog_paths_for_peer peer paths service s) peer_paths
 
 module Client = struct
-  let decrypt_message_from_client ciphertext iv s =
-    CS.decrypt' ~key:(s#get_secret_key) ~ciphertext ~iv
-
   let encrypt_message_to_client message s =
     Cstruct.of_string message
     |> (fun plaintext       -> CS.encrypt' ~key:(s#get_secret_key) ~plaintext)
@@ -227,16 +217,13 @@ module Client = struct
         | None          -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_client_message ~message)
-        >>= (fun (ciphertext,iv) ->
-          let plaintext = decrypt_message_from_client ciphertext iv s in
-          let files' = get_file_list plaintext in
+        >>= (fun message ->
+          let files' = get_file_list message in
           service <- Some service';
           files <- files';
           Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -267,7 +254,7 @@ module Client = struct
 
     val mutable service : string option = None
 
-    val mutable plaintext : Cstruct.t option = None
+    val mutable plaintext : string option = None
 
     method content_types_provided rd = 
       Wm.continue [("text/plain", self#to_text)] rd
@@ -285,16 +272,13 @@ module Client = struct
         | None          -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_client_message ~message)
-        >>= (fun (ciphertext,iv) ->
-          let plaintext' = decrypt_message_from_client ciphertext iv s in
+        >>= (fun message -> 
           target <- Some peer;
           service <- Some service';
-          plaintext <- Some plaintext';
+          plaintext <- Some message;
           Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -317,9 +301,7 @@ module Client = struct
             (let body = attach_required_capabilities "R" peer' service' to_fetch'' s in
             send_retry peer' (Printf.sprintf "/peer/get/%s" service') body false s
             >>= (fun (c,b) ->
-              let _,ciphertext,iv = Coding.decode_peer_message b in
-              let plaintext = decrypt_message_from_peer peer' ciphertext iv s in
-              let `Assoc fetched = get_file_content_list plaintext in
+              let `Assoc fetched = get_file_content_list b in
               let results = Core.Std.List.append fetched cached in
               let results' = (`Assoc results) |> Yojson.Basic.to_string in
               write_to_cache peer' service' fetched requests s 
@@ -344,7 +326,7 @@ module Client = struct
 
     val mutable service : string option = None
 
-    val mutable plaintext : Cstruct.t option = None
+    val mutable plaintext : string option = None
 
     method content_types_provided rd = 
       Wm.continue [("text/plain", self#to_text)] rd
@@ -362,16 +344,13 @@ module Client = struct
         | None          -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_client_message ~message)
-        >>= (fun (ciphertext,iv) ->
-          let plaintext' = decrypt_message_from_client ciphertext iv s in
+        >>= (fun message ->
           target <- Some peer;
           service <- Some service';
-          plaintext <- Some plaintext';
+          plaintext <- Some message;
           Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -405,7 +384,7 @@ module Client = struct
 
     val mutable service : string option = None
 
-    val mutable plaintext : Cstruct.t option = None
+    val mutable plaintext : string option = None
 
     method content_types_provided rd = 
       Wm.continue [("text/plain", self#to_text)] rd
@@ -420,15 +399,12 @@ module Client = struct
         | None          -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_client_message ~message)
-        >>= (fun (ciphertext,iv) ->
-          let plaintext' = decrypt_message_from_client ciphertext iv s in
+        >>= (fun message ->
           service <- Some service';
-          plaintext <- Some plaintext';
+          plaintext <- Some message;
           Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -474,17 +450,13 @@ module Client = struct
         | None          -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_client_message ~message)
-        >>= (fun (ciphertext,iv) -> 
-          let plaintext    = decrypt_message_from_client ciphertext iv s  in
+        >>= (fun message -> 
           service <- Some service';
           target <- Some (Peer.create peer');
-          permission_list <- get_permission_list plaintext; 
+          permission_list <- get_permission_list message; 
           Wm.continue false rd)
       with 
       | Coding.Decoding_failed e -> 
-          Wm.continue true rd
-      | Cryptography.CS.Decryption_failed ->
           Wm.continue true rd
       | Malformed_data ->
           Wm.continue true rd
@@ -534,16 +506,12 @@ module Client = struct
         | None       -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_client_message ~message)
-        >>= (fun (ciphertext,iv) -> 
-          let plaintext = decrypt_message_from_client ciphertext iv s in
+        >>= (fun message -> 
             service <- Some service';
-            file_content_to_set <- get_file_content_list plaintext;
+            file_content_to_set <- get_file_content_list message;
             Wm.continue false rd)
       with
       | Coding.Decoding_failed e -> 
-          Wm.continue true rd
-      | Cryptography.CS.Decryption_failed ->
           Wm.continue true rd
       | Malformed_data ->
           Wm.continue true rd
@@ -591,17 +559,13 @@ module Client = struct
         | None       -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_client_message ~message)
-        >>= (fun (ciphertext,iv) -> 
-          let plaintext = decrypt_message_from_client ciphertext iv s in
+        >>= (fun message -> 
             service <- Some service';
             peer <- Some (Peer.create peer');
-            file_content_to_set <- get_file_content_list plaintext;
+            file_content_to_set <- get_file_content_list message;
             Wm.continue false rd)
       with
       | Coding.Decoding_failed e -> 
-          Wm.continue true rd
-      | Cryptography.CS.Decryption_failed ->
           Wm.continue true rd
       | Malformed_data ->
           Wm.continue true rd
@@ -653,16 +617,13 @@ module Client = struct
         | None          -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_client_message ~message)
-        >>= (fun (ciphertext,iv) ->
-          let plaintext = decrypt_message_from_client ciphertext iv s in
-          let files' = get_file_list plaintext in
+        >>= (fun message -> 
+          let files' = get_file_list message in
           service <- Some service';
           files <- files';
           Wm.continue false rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -755,13 +716,8 @@ module Peer = struct
       | None          -> Wm.continue true rd
       | Some service' -> 
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
-          >|= (fun message -> 
-            Coding.decode_peer_message ~message)
-          >|= (fun (source_peer,ciphertext,iv) ->
-              source <- Some source_peer;
-              decrypt_message_from_peer source_peer ciphertext iv s)           
-          >>= (fun plaintext ->
-            let files',capabilities = get_file_and_capability_list plaintext in
+          >>= (fun message -> 
+            let files',capabilities = get_file_and_capability_list message in
             let authorised_files = 
               Auth.authorise files' capabilities 
                 (Auth.Token.token_of_string "R")
@@ -771,8 +727,6 @@ module Peer = struct
       | Coding.Decoding_failed s -> 
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
           Wm.continue true rd)
-      | Cryptography.CS.Decryption_failed -> 
-          Wm.continue true rd
 
     method process_post rd =
       try
@@ -824,12 +778,8 @@ module Peer = struct
       | None          -> Wm.continue true rd
       | Some service' -> 
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
-          >|= (fun message -> 
-            Coding.decode_peer_message ~message)
-          >|= (fun (source_peer,ciphertext,iv) ->
-              decrypt_message_from_peer source_peer ciphertext iv s)           
-          >>= (fun plaintext ->
-            let file_contents,capabilities = get_file_content_and_capability_list plaintext in
+          >>= (fun message -> 
+            let file_contents,capabilities = get_file_content_and_capability_list message in
             let paths,contents = Core.Std.List.unzip file_contents in
             let authorised_files = 
               Auth.authorise paths capabilities 
@@ -844,8 +794,6 @@ module Peer = struct
       | Coding.Decoding_failed s -> 
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
           Wm.continue true rd)
-      | Cryptography.CS.Decryption_failed ->  
-          Wm.continue true rd
 
     method process_post rd =
       try
@@ -883,13 +831,8 @@ module Peer = struct
       | None          -> Wm.continue true rd
       | Some service' -> 
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
-          >|= (fun message -> 
-            Coding.decode_peer_message ~message)
-          >|= (fun (source_peer,ciphertext,iv) ->
-              source <- Some source_peer;
-              decrypt_message_from_peer source_peer ciphertext iv s)           
-          >>= (fun plaintext ->
-            let files',capabilities = get_file_and_capability_list plaintext in
+          >>= (fun message -> 
+            let files',capabilities = get_file_and_capability_list message in
             let authorised_files = 
               Auth.authorise files' capabilities 
                 (Auth.Token.token_of_string "D")
@@ -899,8 +842,6 @@ module Peer = struct
       | Coding.Decoding_failed s -> 
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s); 
           Wm.continue true rd)
-      | Cryptography.CS.Decryption_failed -> 
-          Wm.continue true rd
 
     method process_post rd =
       try
@@ -945,18 +886,14 @@ module Peer = struct
         | None          -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_peer_message ~message)
-        >>= (fun (peer_msg,ciphertext,iv) ->
-          let plaintext = decrypt_message_from_peer peer_msg ciphertext iv s in
-          let files' = get_file_list plaintext in
+        >>= (fun message -> 
+          let files' = get_file_list message in
           peer <- Some (Peer.create peer_api);
           service <- Some service';
           files <- files';
-          if (peer_api = (Peer.host peer_msg) && not(peer_api = Peer.host s#get_address)) 
-          then (Wm.continue false rd) else (Wm.continue true rd))
+          Wm.continue (peer_api = Peer.host s#get_address) rd)
       with
-      | Coding.Decoding_failed e -> Wm.continue true rd 
-      | Cryptography.CS.Decryption_failed -> Wm.continue true rd
+      | Coding.Decoding_failed e -> Wm.continue true rd
 
     method process_post rd =
       try
@@ -998,23 +935,14 @@ module Peer = struct
         | None          -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >|= (fun message -> Coding.decode_peer_message ~message)
-        >>= (fun (peer'',ciphertext,iv) -> 
-          if not(Peer.create peer' = peer'') then raise Malformed_data
-          else 
-            let plaintext = 
-              decrypt_message_from_peer peer'' ciphertext iv s in
-            let capabilities' = 
-              Auth.deserialise_capabilities 
-              (plaintext |> Cstruct.to_string |> Yojson.Basic.from_string) in
-            (capabilities <- capabilities'; Wm.continue false rd))
+        >>= (fun message -> 
+          let capabilities' = 
+            Auth.deserialise_capabilities 
+            (message |> Yojson.Basic.from_string) 
+          in (capabilities <- capabilities'; Wm.continue false rd))
       with
       | Coding.Decoding_failed e -> 
           Log.debug (fun m -> m "Failed to decode message at /peer/permit/:peer/:service: \n%s" e);
-          Wm.continue true rd
-      | Malformed_data -> 
-          Wm.continue true rd
-      | Cryptography.CS.Decryption_failed -> 
           Wm.continue true rd
 
     method process_post rd =
