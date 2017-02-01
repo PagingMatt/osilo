@@ -278,41 +278,10 @@ module Coding_tests = struct
       "Checks encoding and decoding a client message produces the same string to send"
       s s'
 
-  let symm_peer_message () =
-    let c     = Coding.decode_cstruct a          in
-    let i     = Coding.decode_cstruct b          in
-    let s     = Coding.encode_peer_message ~peer ~ciphertext:c ~iv:i   in
-    let p,c',i' = Coding.decode_peer_message s        in
-    let s'    = Coding.encode_peer_message ~peer ~ciphertext:c' ~iv:i' in
-    Alcotest.(check cstruct)
-      "Checks decoding and re-encoding a peer message produces the same ciphertext"
-      c c';
-    Alcotest.(check cstruct)
-      "Checks decoding and re-encoding a peer message produces the same initial vector"
-      i i';
-    Alcotest.(check string)
-      "Checks encoding and decoding a peer message produces the same string to send"
-      s s'
-
-  let symm_dh_reply () =
-    let p  = Coding.decode_cstruct a   in
-    let r  = Coding.encode_kx_reply ~peer ~public:p  in
-    let peer',p' = Coding.decode_kx_reply r  in
-    let r' = Coding.encode_kx_reply ~peer ~public:p' in
-    Alcotest.(check cstruct)
-      "Checks public key decoded from KX reply is the same as the one it was encoded with"
-      p p';
-    Alcotest.(check string)
-      "Checks kx reply initially encoded is same as decoding and re-encoding reply"
-      r r'
-
   let tests = [
     ("Tests that encoding/decoding cstructs is symmetric", `Quick, symm_cstruct);
     (*("Tests that encoding/decoding DH groups is symmetric", `Quick, symm_group);*)
     ("Tests that encoding/decoding encrypted client messages is symmetric", `Quick, symm_client_message);
-    ("Tests that encoding/decoding encrypted peer messages is symmetric", `Quick, symm_peer_message);
-    (*("Tests that encoding/decoding a DH key exchange init is symmetric", `Quick, symm_dh_init);*)
-    ("Tests that encoding/decoding a DH key exchange reply is symmetric", `Quick, symm_dh_reply)
   ]
 end
 
