@@ -3,29 +3,19 @@ open Nocrypto
 let src = Logs.Src.create ~doc:"logger for osilo authorisation" "osilo.auth"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let encode_cstruct m = 
-    m
-    |> Nocrypto.Base64.encode
-    |> Cstruct.to_string
-
 module Crypto : Macaroons.CRYPTO = struct
-  exception Decoding_failed of string
-
-  let decode_cstruct m =
-    match m |> Cstruct.of_string |> Nocrypto.Base64.decode with
-    | Some m' -> m'
-    | None    -> raise (Decoding_failed m)
+  open Cryptography.Serialisation
 
   let hmac ~key message =
     Nocrypto.Hash.SHA512.hmac
       ~key:(Cstruct.of_string key)
       (Cstruct.of_string message)
-    |> encode_cstruct
+    |> serialise_cstruct
 
   let hash message =
     Nocrypto.Hash.SHA512.digest
       (Cstruct.of_string message)
-    |> encode_cstruct
+    |> serialise_cstruct
 
   let encrypt ~key message = 
     let ciphertext,iv = 
@@ -33,29 +23,15 @@ module Crypto : Macaroons.CRYPTO = struct
         ~key:(Cstruct.of_string key) 
         ~plaintext:(Cstruct.of_string message)
     in 
-    `Assoc [
-      ("ciphertext"     , `String (encode_cstruct ciphertext));
-      ("initial_vector" , `String (encode_cstruct iv        )) 
-    ] |> Yojson.Basic.to_string
-
-  let string_member s j = 
-    match Yojson.Basic.Util.member s j with
-    | `String m -> m
-    | _         -> raise (Decoding_failed s)
-
-  let decode_client_message ~message =
-    let j = Yojson.Basic.from_string message in
-    let c = j |> string_member "ciphertext"     |> decode_cstruct in
-    let i = j |> string_member "initial_vector" |> decode_cstruct in
-    (c,i)
+    serialise_encrypted ~ciphertext ~iv
 
   let decrypt ~key message =
-    let ciphertext,iv = decode_client_message ~message in
+    let ciphertext,iv = deserialise_encrypted ~message in
       Cryptography.decrypt
         ~key:(Cstruct.of_string key) 
         ~ciphertext 
         ~iv
-    |> encode_cstruct
+    |> serialise_cstruct
 
   let () = Nocrypto_entropy_unix.initialize ()
 end
@@ -154,10 +130,11 @@ let record_permissions capability_service permissions =
     ~f:(fun service -> fun m -> CS.record_if_most_general ~macaroon:m ~service)
 
 let create_service_capability host key service (perm,path) =
+  let open Cryptography.Serialisation in
   let location = Printf.sprintf "%s/%s/%s" (host |> Peer.host) service path in
   M.create
     ~location
-    ~key:(key |> encode_cstruct)
+    ~key:(key |> serialise_cstruct)
     ~id:(Token.string_of_token perm)
 
 let mint host key service permissions =
@@ -206,7 +183,8 @@ let request_under_verified_path vpaths rpath =
   Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
 
 let authorise requests capabilities tok key target service =
-  let key' = encode_cstruct key in
+  let open Cryptography.Serialisation in
+  let key' = serialise_cstruct key in
   let verified_capabilities = Core.Std.List.filter capabilities ~f:(verify tok key') in
   let authorised_locations  = Core.Std.List.map verified_capabilities ~f:(M.location) in 
   let path_tree = Core.Std.List.fold ~init:File_tree.empty 

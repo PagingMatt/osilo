@@ -2,6 +2,14 @@
 
 open Nocrypto
 
+module Serialisation : sig 
+  exception Deserialisation_failed of string
+  val serialise_cstruct     : Cstruct.t -> string
+  val deserialise_cstruct   : string    -> Cstruct.t
+  val serialise_encrypted   : ciphertext:Cstruct.t -> iv:Cstruct.t -> string
+  val deserialise_encrypted : message:string -> Cstruct.t * Cstruct.t
+end
+
 val encrypt :
   key:Cstruct.t ->
   plaintext:Cstruct.t -> Cstruct.t * Cstruct.t
