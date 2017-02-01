@@ -92,6 +92,15 @@ class ping = object(self)
     Wm.continue (`String (Printf.sprintf "%s" text)) rd
 end
 
+let authorise rd s =
+  let headers = rd.Wm.Rd.req_headers in
+  let secret  = s#get_secret_key |> Cryptography.Serialisation.serialise_cstruct in 
+  Wm.continue
+  (match Cohttp.Header.get_authorization headers with
+  | Some (`Other key) -> if secret = key then `Authorized else `Basic "Wrong key"
+  | _                 -> `Basic "No key")
+  rd
+
 module Client = struct
   class get_local s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -106,6 +115,8 @@ module Client = struct
     method content_types_accepted rd = Wm.continue [] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
+
+    method is_authorized rd = authorise rd s
 
     method malformed_request rd =
       try 
@@ -156,6 +167,8 @@ module Client = struct
     method content_types_accepted rd = Wm.continue [] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
+
+    method is_authorized rd = authorise rd s
 
     method malformed_request rd =
       try 
@@ -228,6 +241,8 @@ module Client = struct
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
+    method is_authorized rd = authorise rd s
+
     method malformed_request rd =
       try 
         match Wm.Rd.lookup_path_info "peer" rd with
@@ -286,6 +301,8 @@ module Client = struct
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
+    method is_authorized rd = authorise rd s
+
     method malformed_request rd =
       try 
         match Wm.Rd.lookup_path_info "service" rd with
@@ -332,7 +349,9 @@ module Client = struct
 
     method content_types_accepted rd = Wm.continue [] rd
   
-    method allowed_methods rd = Wm.continue [`POST] rd      
+    method allowed_methods rd = Wm.continue [`POST] rd  
+
+    method is_authorized rd = authorise rd s    
 
     method malformed_request rd =
       try
@@ -389,6 +408,8 @@ module Client = struct
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
+    method is_authorized rd = authorise rd s
+
     method malformed_request rd =
       try
         match Wm.Rd.lookup_path_info "service" rd with
@@ -437,6 +458,8 @@ module Client = struct
     method content_types_accepted rd = Wm.continue [] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
+
+    method is_authorized rd = authorise rd s
 
     method malformed_request rd =
       try
@@ -498,6 +521,8 @@ module Client = struct
     method content_types_accepted rd = Wm.continue [] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
+
+    method is_authorized rd = authorise rd s
 
     method malformed_request rd =
       try 
