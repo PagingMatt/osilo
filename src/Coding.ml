@@ -48,21 +48,6 @@ let decode_json_requested_file j =
     write_back  = bool_member    "write_back"  j;
   }
 
-let tag_ct = "ciphertext"
-let tag_iv = "initial_vector"
-
-let encode_client_message ~ciphertext ~iv = 
-  `Assoc [
-    (tag_ct , `String (encode_cstruct ciphertext));
-    (tag_iv , `String (encode_cstruct iv        )) 
-  ] |> Yojson.Basic.to_string
-
-let decode_client_message ~message =
-  let j = Yojson.Basic.from_string message in
-  let c = j |> string_member tag_ct |> decode_cstruct in
-  let i = j |> string_member tag_iv |> decode_cstruct in
-  (c,i)
-
 let encode_capabilities capabilities = 
   let serialised = Core.Std.List.map capabilities ~f:Auth.M.serialize in
   `List (Core.Std.List.map serialised ~f:(fun s -> `String s))

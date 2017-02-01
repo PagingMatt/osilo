@@ -22,14 +22,6 @@ transmission. *)
 val decode_cstruct : string -> Cstruct.t
 (** [decode_cstruct m] takes the base 64 [string] and attempts to decode it into a [Cstruct.t]. *)
 
-val encode_client_message : ciphertext:Cstruct.t -> iv:Cstruct.t -> string
-(** [encode_client_message ~ciphertext ~iv] constructs the JSON string encoding [ciphertext] and
-[iv] to send between server and client. *)
-
-val decode_client_message : message:string -> Cstruct.t * Cstruct.t 
-(** [decode_peer_message ~message] takes the JSON string [message] which encodes an initial vector and
-ciphertext, sent by some client. The result is the pair containing these. *)
-
 val decode_file_list_message : string -> string list
 
 val encode_file_list_message : string list -> Yojson.Basic.json

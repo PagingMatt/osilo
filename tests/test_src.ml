@@ -263,11 +263,12 @@ module Coding_tests = struct
       c c'
 
   let symm_client_message () =
-    let c     = Coding.decode_cstruct a          in
-    let i     = Coding.decode_cstruct b          in
-    let s     = Coding.encode_client_message ~ciphertext:c ~iv:i   in
-    let c',i' = Coding.decode_client_message s        in
-    let s'    = Coding.encode_client_message ~ciphertext:c' ~iv:i' in
+    let open Cryptography.Serialisation in
+    let c     = deserialise_cstruct a          in
+    let i     = deserialise_cstruct b          in
+    let s     = serialise_encrypted ~ciphertext:c ~iv:i   in
+    let c',i' = deserialise_encrypted s        in
+    let s'    = serialise_encrypted ~ciphertext:c' ~iv:i' in
     Alcotest.(check cstruct)
       "Checks decoding and re-encoding a client message produces the same ciphertext"
       c c';
