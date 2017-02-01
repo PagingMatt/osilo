@@ -101,6 +101,14 @@ let authorise rd s =
   | _                 -> `Basic "No key")
   rd
 
+let validate_json rd = (* checks can parse JSON *)
+  try 
+    Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+    >|= Yojson.Basic.from_string
+    >>= fun _ -> Wm.continue true rd 
+  with
+    _ -> Wm.continue false rd 
+
 module Client = struct
   class get_local s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -112,7 +120,8 @@ module Client = struct
     method content_types_provided rd = 
       Wm.continue [("text/json", self#to_json)] rd
 
-    method content_types_accepted rd = Wm.continue [] rd
+    method content_types_accepted rd = 
+      Wm.continue [("text/json", validate_json)] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
@@ -164,7 +173,8 @@ module Client = struct
     method content_types_provided rd = 
       Wm.continue [("text/json", self#to_json)] rd
 
-    method content_types_accepted rd = Wm.continue [] rd
+    method content_types_accepted rd = 
+      Wm.continue [("text/json", validate_json)] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
@@ -236,7 +246,8 @@ module Client = struct
 
     method content_types_provided rd = Wm.continue [] rd
 
-    method content_types_accepted rd = Wm.continue [] rd
+    method content_types_accepted rd = 
+      Wm.continue [("text/json", validate_json)] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
@@ -291,7 +302,8 @@ module Client = struct
 
     method content_types_provided rd = Wm.continue [] rd
 
-    method content_types_accepted rd = Wm.continue [] rd
+    method content_types_accepted rd = 
+      Wm.continue [("text/json", validate_json)] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
@@ -336,7 +348,8 @@ module Client = struct
 
     method content_types_provided rd = Wm.continue [] rd
 
-    method content_types_accepted rd = Wm.continue [] rd
+    method content_types_accepted rd = 
+      Wm.continue [("text/json", validate_json)] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd  
 
@@ -388,7 +401,8 @@ module Client = struct
 
     method content_types_provided rd =Wm.continue [] rd
 
-    method content_types_accepted rd = Wm.continue [] rd
+    method content_types_accepted rd = 
+      Wm.continue [("text/json", validate_json)] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
@@ -434,7 +448,8 @@ module Client = struct
 
     method content_types_provided rd = Wm.continue [] rd
 
-    method content_types_accepted rd = Wm.continue [] rd
+    method content_types_accepted rd = 
+      Wm.continue [("text/json", validate_json)] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
@@ -492,7 +507,8 @@ module Client = struct
 
     method content_types_provided rd = Wm.continue [] rd
 
-    method content_types_accepted rd = Wm.continue [] rd
+    method content_types_accepted rd = 
+      Wm.continue [("text/json", validate_json)] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
@@ -536,7 +552,8 @@ module Peer = struct
 
     method content_types_provided rd = Wm.continue [("text/json", self#to_json)] rd
 
-    method content_types_accepted rd = Wm.continue [] rd
+    method content_types_accepted rd = 
+      Wm.continue [("text/json", validate_json)] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd 
 
@@ -591,7 +608,8 @@ module Peer = struct
 
     method content_types_provided rd = Wm.continue [] rd
 
-    method content_types_accepted rd = Wm.continue [] rd
+    method content_types_accepted rd = 
+      Wm.continue [("text/json", validate_json)] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd 
 
@@ -639,7 +657,8 @@ module Peer = struct
 
     method content_types_provided rd = Wm.continue [] rd
 
-    method content_types_accepted rd = Wm.continue [] rd
+    method content_types_accepted rd = 
+      Wm.continue [("text/json", validate_json)] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd 
 
@@ -685,7 +704,8 @@ module Peer = struct
 
     method content_types_provided rd = Wm.continue [] rd
 
-    method content_types_accepted rd = Wm.continue [] rd
+    method content_types_accepted rd = 
+      Wm.continue [("text/json", validate_json)] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
@@ -729,7 +749,8 @@ module Peer = struct
 
     method content_types_provided rd = Wm.continue [] rd
 
-    method content_types_accepted rd = Wm.continue [] rd
+    method content_types_accepted rd = 
+      Wm.continue [("text/json", validate_json)] rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
