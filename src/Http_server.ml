@@ -13,10 +13,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 class type server = object
   method get_address : Peer.t
 
-  method get_keying_service : Cryptography.KS.t
-
-  method set_keying_service : Cryptography.KS.t -> unit
-
   method get_secret_key : Cstruct.t
 
   method get_capability_service : Auth.CS.t
@@ -36,14 +32,12 @@ class server' hostname key silo = object(self)
   val s_log : unit = Log.info (fun m -> m "Starting peer %s." hostname);
 
   val address : Peer.t = Peer.create hostname
+
   method get_address = address 
 
-  val mutable keying_service : KS.t = 
-    Log.info (fun m -> m "Creating keying service with empty key cache."); 
-    KS.empty ~address:(Peer.create hostname) ~capacity:1024 ~master:key
-  method get_keying_service = keying_service
-  method set_keying_service k = keying_service <- k
-  method get_secret_key = KS.secret keying_service
+  val secret_key : Cstruct.t = key
+
+  method get_secret_key = secret_key
 
   val mutable capability_service : Auth.CS.t = 
     Log.info (fun m -> m "Creating capability service with empty capability tree.");

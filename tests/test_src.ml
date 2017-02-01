@@ -316,32 +316,6 @@ module Coding_tests = struct
   ]
 end
 
-module Cryptography_tests = struct
-  open Cryptography
-
-  let group = Nocrypto.Dh.gen_group 32
-
-  let can_mediate_key_exchange () =
-    let ks = KS.empty ~address:peer ~capacity:4 ~master:(Cstruct.of_string "test") in
-    let peer = Peer.create "localhost" in
-    let peer_secret,peer_public = Nocrypto.Dh.gen_key group in
-    let ks2,my_public = KS.mediate ~ks ~peer ~group ~public:peer_public in
-    let my_shared,ks3 = 
-      match KS.lookup ~ks:ks2 ~peer with 
-      | (Some k, ks4) -> k,ks4
-      | (None  , _  ) -> Alcotest.fail "Did not add peer to KS" 
-    in
-    match Nocrypto.Dh.shared group peer_secret my_public with 
-    | None             -> Alcotest.fail "Could not generate shared secret"
-    | Some peer_shared -> 
-        Alcotest.(check cstruct) "Checks secret computed at peer matches my secret in my KS"
-        my_shared peer_shared
-
-  let tests = [
-    "Can add peer -> key mapping in an empty KS", `Quick, can_mediate_key_exchange;
-  ]
-end
-
 module File_tree_tests = struct
   open Auth
   open Auth.Token
@@ -478,7 +452,6 @@ let () =
     "Auth module"         , Auth_tests.tests;
     "Peer module"        , Peer_tests.tests;
     "Coding module"      , Coding_tests.tests;
-    "Cryptography module", Cryptography_tests.tests; 
     "File tree module", File_tree_tests.tests; 
     "Peer access log module", Peer_access_log_tests.tests; 
   ]
