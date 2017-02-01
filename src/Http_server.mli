@@ -29,5 +29,5 @@ class type server = object
   (** [start] is the non-terminating operation to start this REST server. *)
 end
 
-class server' : string -> Cstruct.t -> string -> server
+class server' : string -> Cstruct.t -> string -> string -> string -> server
 (** Server class encapsulates a [Webmachine] server. *)
