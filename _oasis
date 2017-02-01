@@ -21,7 +21,7 @@ Library osilo
   BuildDepends: core,        cstruct,         cohttp.lwt,   datakit-client,
                 lwt,         nocrypto.unix,   lru,          protocol-9p.unix, 
                 sexplib,     uri,             webmachine,   yojson,
-                threads,     logs.fmt,        macaroons
+                threads,     logs.fmt,        macaroons,    tls
 
 Executable server
   Path: server
