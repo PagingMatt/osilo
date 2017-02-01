@@ -77,3 +77,5 @@ val record_permissions : CS.t -> M.t list -> CS.t
 (** [record_permissions capabilities_service targets] takes each element in [targets] and inserts
 it and the paired [Token.t] into [capabilities_service] if [capabilities_service] does not already
 contain a more general element which is at least as powerful as this element. *)
+
+val vpath_subsumes_request : string -> string -> bool
