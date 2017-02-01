@@ -109,6 +109,10 @@ let validate_json rd = (* checks can parse JSON *)
   with
     _ -> Wm.continue false rd 
 
+let to_json rd = 
+  Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
+  >>= fun s -> Wm.continue (`String s) rd
+
 module Client = struct
   class get_local s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -118,7 +122,7 @@ module Client = struct
     val mutable files : string list = []
 
     method content_types_provided rd = 
-      Wm.continue [("text/json", self#to_json)] rd
+      Wm.continue [("text/json", to_json)] rd
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
@@ -155,10 +159,6 @@ module Client = struct
           Wm.continue true {rd with resp_body = (Cohttp_lwt_body.of_string response)}
       with 
       | _  -> Wm.continue false rd
-
-    method private to_json rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun s -> Wm.continue (`String s) rd
   end
 
   class get_remote s = object(self)
@@ -171,7 +171,7 @@ module Client = struct
     val mutable plaintext : string option = None
 
     method content_types_provided rd = 
-      Wm.continue [("text/json", self#to_json)] rd
+      Wm.continue [("text/json", to_json)] rd
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
@@ -229,10 +229,6 @@ module Client = struct
           Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
       with
       | _ -> Wm.continue false rd
-
-    method private to_json rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun s -> Wm.continue (`String s) rd
   end
 
   class del_remote s = object(self)
@@ -244,7 +240,8 @@ module Client = struct
 
     val mutable plaintext : string option = None
 
-    method content_types_provided rd = Wm.continue [] rd
+    method content_types_provided rd = 
+      Wm.continue [("text/json", to_json)] rd
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
@@ -300,7 +297,8 @@ module Client = struct
 
     val mutable plaintext : string option = None
 
-    method content_types_provided rd = Wm.continue [] rd
+    method content_types_provided rd = 
+      Wm.continue [("text/json", to_json)] rd
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
@@ -346,7 +344,8 @@ module Client = struct
 
     val mutable permission_list : (Auth.Token.t * string) list = []
 
-    method content_types_provided rd = Wm.continue [] rd
+    method content_types_provided rd = 
+      Wm.continue [("text/json", to_json)] rd
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
@@ -399,7 +398,8 @@ module Client = struct
 
     val mutable service : string option = None
 
-    method content_types_provided rd =Wm.continue [] rd
+    method content_types_provided rd = 
+      Wm.continue [("text/json", to_json)] rd
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
@@ -446,7 +446,8 @@ module Client = struct
 
     val mutable peer : Peer.t option = None
 
-    method content_types_provided rd = Wm.continue [] rd
+    method content_types_provided rd = 
+      Wm.continue [("text/json", to_json)] rd
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
@@ -505,7 +506,8 @@ module Client = struct
 
     val mutable files : string list = []
 
-    method content_types_provided rd = Wm.continue [] rd
+    method content_types_provided rd = 
+      Wm.continue [("text/json", to_json)] rd
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
@@ -550,7 +552,8 @@ module Peer = struct
 
     val mutable files : string list = []
 
-    method content_types_provided rd = Wm.continue [("text/json", self#to_json)] rd
+    method content_types_provided rd = 
+      Wm.continue [("text/json", to_json)] rd
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
@@ -593,10 +596,6 @@ module Peer = struct
               Wm.continue true {rd with resp_body = Cohttp_lwt_body.of_string response}
       with
       | Malformed_data  -> Wm.continue false rd
-
-    method private to_json rd = 
-      Cohttp_lwt_body.to_string rd.Wm.Rd.resp_body
-      >>= fun st -> Wm.continue (`String st) rd
   end
 
   class set s = object(self)
@@ -606,7 +605,8 @@ module Peer = struct
 
     val mutable file_content : Yojson.Basic.json = `Null
 
-    method content_types_provided rd = Wm.continue [] rd
+    method content_types_provided rd = 
+      Wm.continue [("text/json", to_json)] rd
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
@@ -655,7 +655,8 @@ module Peer = struct
 
     val mutable source : Peer.t option = None
 
-    method content_types_provided rd = Wm.continue [] rd
+    method content_types_provided rd = 
+      Wm.continue [("text/json", to_json)] rd
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
@@ -702,7 +703,8 @@ module Peer = struct
 
     val mutable files : string list = []
 
-    method content_types_provided rd = Wm.continue [] rd
+    method content_types_provided rd = 
+      Wm.continue [("text/json", to_json)] rd
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
@@ -747,7 +749,8 @@ module Peer = struct
 
     val mutable capabilities : Auth.M.t list = []
 
-    method content_types_provided rd = Wm.continue [] rd
+    method content_types_provided rd = 
+      Wm.continue [("text/json", to_json)] rd
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
