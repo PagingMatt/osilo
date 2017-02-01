@@ -12,95 +12,24 @@ type 'a content_types = ((string * 'a) list, Cohttp_lwt_body.t) Wm.op
 let src = Logs.Src.create ~doc:"logger for osilo API" "osilo.api"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-class ping = object(self)
-  inherit [Cohttp_lwt_body.t] Wm.resource
-
-  method content_types_provided rd = 
-    Wm.continue [("text/plain", self#to_text)] rd
-
-  method content_types_accepted rd = Wm.continue [] rd
-  
-  method allowed_methods rd = Wm.continue [`GET] rd
-
-  method private to_text rd = 
-    let text = Log.debug (fun m -> m "Have been pinged."); "i am alive." in 
-    Wm.continue (`String (Printf.sprintf "%s" text)) rd
-end
-
 let get_path_info_exn rd wildcard =
   match Wm.Rd.lookup_path_info wildcard rd with 
   | Some p -> p
   | None   -> raise (Path_info_exn wildcard) 
 
-let pull_out_strings l = 
-  match l with
-  | `List j -> 
-      List.map j 
-        ~f:(begin function
-            | `String s -> s
-            | _         -> raise Malformed_data 
-            end)
-  | _ -> raise Malformed_data
-
-let get_file_list message =
-  message
-  |> Yojson.Basic.from_string 
-  |> pull_out_strings
-
-let make_file_list lst =
-  `List (Core.Std.List.map lst ~f:(fun s -> `String s))
-
-let get_permission_list message = 
-  message
-  |> Yojson.Basic.from_string
-  |> begin function
-     | `Assoc j -> 
-         List.map j 
-         ~f:(begin function
-         | (permission, `String path) -> ((Auth.Token.token_of_string permission), path)
-         | _                          -> raise Malformed_data 
-         end)
-     | _ -> raise Malformed_data
-     end
-
-let get_file_content_list message = 
-  message
-  |> Yojson.Basic.from_string
-  |> begin function
-     | `Assoc j -> `Assoc j
-     | _ -> raise Malformed_data
-     end
-
-let get_file_and_capability_list message =
-  let json = Yojson.Basic.from_string message in 
-  let files = Yojson.Basic.Util.member "files" json |> pull_out_strings in
-  let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_capabilities in
-  files,capabilities
-
-let pull_out_file_content c =
-  match c with
-  | `Assoc j -> j
-  | _        -> raise Malformed_data
-
-let get_file_content_and_capability_list message =
-  let json = Yojson.Basic.from_string message in 
-  let content = Yojson.Basic.Util.member "contents" json |> pull_out_file_content in
-  let capabilities = Yojson.Basic.Util.member "capabilities" json |> Auth.deserialise_capabilities in
-  content,capabilities
-
 let attach_required_capabilities tok target service files s =
   let requests          = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
   let caps, not_covered = Auth.find_permissions s#get_capability_service requests in
-  let caps'             = Auth.serialise_capabilities caps in 
+  let caps'             = Coding.encode_capabilities caps in 
   `Assoc [
-    ("files"       , (make_file_list files));
+    ("files"       , (Coding.encode_file_list_message files));
     ("capabilities", caps');
   ] |> Yojson.Basic.to_string
 
 let attach_required_capabilities_and_content target service paths contents s =
   let requests          = Core.Std.List.map paths ~f:(fun c -> Log.info (fun m -> m "Attaching W to %s" c); (Auth.Token.token_of_string "W"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
   let caps, not_covered = Auth.find_permissions s#get_capability_service requests in
-  let caps'             = Auth.serialise_capabilities caps in 
+  let caps'             = Coding.encode_capabilities caps in 
   `Assoc [
     ("contents"    , contents);
     ("capabilities", caps'   );
@@ -135,21 +64,13 @@ let write_to_cache peer service file_content requests s =
       ~f:(fun (p,c) -> Core.Std.List.exists write_backs (fun rf -> path_subsumed rf.path p)) in
   Silo.write ~client:s#get_silo_client ~peer ~service ~contents:(`Assoc files_to_write_back)
 
-let get_remote_file_list message =
-  message
-  |> Yojson.Basic.from_string
-  |> begin function 
-  | `List rfs -> Core.Std.List.map rfs ~f:Coding.decode_json_requested_file 
-  | _         -> raise Malformed_data
-  end
-
 let relog_paths_for_peer peer paths service s =
   s#set_peer_access_log (Core.Std.List.fold 
     ~init:s#get_peer_access_log paths
     ~f:(fun pal -> fun path -> Peer_access_log.log pal ~host:s#get_address ~peer ~service ~path))
 
 let invalidate_paths_at_peer peer paths service s =
-  let body = make_file_list paths |> Yojson.Basic.to_string in
+  let body = Coding.encode_file_list_message paths |> Yojson.Basic.to_string in
   Http_client.post ~peer ~path:(Printf.sprintf "/peer/inv/%s/%s" (Peer.host s#get_address) service) ~body
 
 let invalidate_paths_at_peers paths access_log service s =
@@ -168,6 +89,21 @@ let invalidate_paths_at_peers paths access_log service s =
         Core.Std.List.append (if List.exists ps (fun p -> Peer.compare p peer = 0) then [path] else []) acc))) in 
   Lwt_list.iter_s (fun (peer,paths) -> invalidate_paths_at_peer peer paths service s 
     >|= fun (c,_) -> if c=204 then () else relog_paths_for_peer peer paths service s) peer_paths
+
+class ping = object(self)
+  inherit [Cohttp_lwt_body.t] Wm.resource
+
+  method content_types_provided rd = 
+    Wm.continue [("text/plain", self#to_text)] rd
+
+  method content_types_accepted rd = Wm.continue [] rd
+  
+  method allowed_methods rd = Wm.continue [`GET] rd
+
+  method private to_text rd = 
+    let text = Log.debug (fun m -> m "Have been pinged."); "i am alive." in 
+    Wm.continue (`String (Printf.sprintf "%s" text)) rd
+end
 
 module Client = struct
   class get_local s = object(self)
@@ -191,7 +127,7 @@ module Client = struct
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >>= (fun message ->
-          let files' = get_file_list message in
+          let files' = Coding.decode_file_list_message message in
           service <- Some service';
           files <- files';
           Wm.continue false rd)
@@ -262,7 +198,7 @@ module Client = struct
         match plaintext with
         | None            -> Wm.continue false rd
         | Some plaintext' -> 
-        let requests = get_remote_file_list plaintext' in
+        let requests = Coding.decode_remote_file_list_message plaintext' in
         let to_check,to_fetch = Core.Std.List.partition_tf requests ~f:(fun rf -> rf.check_cache) in
         read_from_cache peer' service' (Core.Std.List.map to_check ~f:(fun rf -> rf.path)) s (* Note, if a file is just `Null it is assumed to be not cached *)
         >>= fun (cached,to_fetch') ->
@@ -272,7 +208,7 @@ module Client = struct
             (let body = attach_required_capabilities "R" peer' service' to_fetch'' s in
             Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/get/%s" service') ~body
             >>= (fun (c,b) ->
-              let `Assoc fetched = get_file_content_list b in
+              let `Assoc fetched = Coding.decode_file_content_list_message b in
               let results = Core.Std.List.append fetched cached in
               let results' = (`Assoc results) |> Yojson.Basic.to_string in
               write_to_cache peer' service' fetched requests s 
@@ -333,7 +269,7 @@ module Client = struct
         match plaintext with
         | None            -> Wm.continue false rd
         | Some plaintext' -> 
-        let requests = get_file_list plaintext' in
+        let requests = Coding.decode_file_list_message plaintext' in
         if not(requests = [])
           then 
             (let body = attach_required_capabilities "D" peer' service' requests s in
@@ -384,7 +320,7 @@ module Client = struct
         match plaintext with
         | None            -> Wm.continue false rd
         | Some plaintext' -> 
-        let paths = get_file_list plaintext' in
+        let paths = Coding.decode_file_list_message plaintext' in
         invalidate_paths_at_peers paths s#get_peer_access_log service' s
         >>= fun () -> Wm.continue true rd
       with
@@ -423,7 +359,7 @@ module Client = struct
         >>= (fun message -> 
           service <- Some service';
           target <- Some (Peer.create peer');
-          permission_list <- get_permission_list message; 
+          permission_list <- Coding.decode_permission_list_message message; 
           Wm.continue false rd)
       with 
       | Coding.Decoding_failed e -> 
@@ -439,7 +375,7 @@ module Client = struct
       | None -> Wm.continue false rd
       | Some service' ->
       let capabilities = Auth.mint s#get_address s#get_secret_key service' permission_list in 
-      let p_body       = Auth.serialise_capabilities capabilities |> Yojson.Basic.to_string in
+      let p_body       = Coding.encode_capabilities capabilities |> Yojson.Basic.to_string in
       let path         = 
         (Printf.sprintf "/peer/permit/%s/%s" 
         (s#get_address |> Peer.host) service') in
@@ -455,7 +391,7 @@ module Client = struct
   class set_local s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
-    val mutable file_content_to_set : Yojson.Basic.json = `Null
+    val mutable file_content_to_set : [`Assoc of (string * Yojson.Basic.json) list] = `Assoc []
 
     val mutable service : string option = None
 
@@ -474,7 +410,7 @@ module Client = struct
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >>= (fun message -> 
             service <- Some service';
-            file_content_to_set <- get_file_content_list message;
+            file_content_to_set <- Coding.decode_file_content_list_message message;
             Wm.continue false rd)
       with
       | Coding.Decoding_failed e -> 
@@ -491,7 +427,6 @@ module Client = struct
         | `Assoc j as contents ->
             (Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~contents
             >>= fun () -> Wm.continue true {rd with resp_body = (Cohttp_lwt_body.of_string "Successfully written.");})
-        | _ -> raise Malformed_data
       with
       | Malformed_data -> Wm.continue false rd
 
@@ -503,7 +438,7 @@ module Client = struct
   class set_remote s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
-    val mutable file_content_to_set : Yojson.Basic.json = `Null
+    val mutable file_content_to_set : [`Assoc of (string * Yojson.Basic.json) list] = `Assoc []
 
     val mutable service : string option = None
 
@@ -528,7 +463,7 @@ module Client = struct
         >>= (fun message -> 
             service <- Some service';
             peer <- Some (Peer.create peer');
-            file_content_to_set <- get_file_content_list message;
+            file_content_to_set <- Coding.decode_file_content_list_message message;
             Wm.continue false rd)
       with
       | Coding.Decoding_failed e -> 
@@ -584,7 +519,7 @@ module Client = struct
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >>= (fun message -> 
-          let files' = get_file_list message in
+          let files' = Coding.decode_file_list_message message in
           service <- Some service';
           files <- files';
           Wm.continue false rd)
@@ -630,7 +565,7 @@ module Peer = struct
       | Some service' -> 
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >>= (fun message -> 
-            let files',capabilities = get_file_and_capability_list message in
+            let files',capabilities = Coding.decode_file_and_capability_list_message message in
             let authorised_files = 
               Auth.authorise files' capabilities 
                 (Auth.Token.token_of_string "R")
@@ -686,7 +621,7 @@ module Peer = struct
       | Some service' -> 
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >>= (fun message -> 
-            let file_contents,capabilities = get_file_content_and_capability_list message in
+            let file_contents,capabilities = Coding.decode_file_content_and_capability_list_message message in
             let paths,contents = Core.Std.List.unzip file_contents in
             let authorised_files = 
               Auth.authorise paths capabilities 
@@ -739,7 +674,7 @@ module Peer = struct
       | Some service' -> 
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >>= (fun message -> 
-            let files',capabilities = get_file_and_capability_list message in
+            let files',capabilities = Coding.decode_file_and_capability_list_message message in
             let authorised_files = 
               Auth.authorise files' capabilities 
                 (Auth.Token.token_of_string "D")
@@ -794,7 +729,7 @@ module Peer = struct
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >>= (fun message -> 
-          let files' = get_file_list message in
+          let files' = Coding.decode_file_list_message message in
           peer <- Some (Peer.create peer_api);
           service <- Some service';
           files <- files';
@@ -844,7 +779,7 @@ module Peer = struct
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >>= (fun message -> 
           let capabilities' = 
-            Auth.deserialise_capabilities 
+            Coding.decode_capabilities
             (message |> Yojson.Basic.from_string) 
           in (capabilities <- capabilities'; Wm.continue false rd))
       with
