@@ -29,6 +29,7 @@ depends: [
   "ocamlbuild" {build}
   "protocol-9p"
   "sexplib"
+  "tls"
   "uri"
   "webmachine"
   "yojson"

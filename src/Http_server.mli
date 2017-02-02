@@ -4,13 +4,6 @@ class type server = object
   method get_address : Peer.t
   (** [get_addess] returns the [Peer.t] that represents this server. *)
 
-  method get_keying_service : Cryptography.KS.t
-  (** [get_keying_service] returns the [Cryptography.KS.t] for this server. *)
-
-  method set_keying_service : Cryptography.KS.t -> unit
-  (** [set_keying_service ks] is a side effecting function to assign the keying service for this
-  server to [ks]. *)
-
   method get_secret_key : Cstruct.t
   (** [get_secret_key] returns the secret private key for this server from the keying service. *)
 
@@ -36,5 +29,5 @@ class type server = object
   (** [start] is the non-terminating operation to start this REST server. *)
 end
 
-class server' : string -> Cstruct.t -> string -> server
+class server' : string -> Cstruct.t -> string -> string -> string -> server
 (** Server class encapsulates a [Webmachine] server. *)

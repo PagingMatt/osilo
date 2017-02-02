@@ -13,10 +13,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 class type server = object
   method get_address : Peer.t
 
-  method get_keying_service : Cryptography.KS.t
-
-  method set_keying_service : Cryptography.KS.t -> unit
-
   method get_secret_key : Cstruct.t
 
   method get_capability_service : Auth.CS.t
@@ -32,18 +28,16 @@ class type server = object
   method start : unit Lwt.t
 end
   
-class server' hostname key silo = object(self)
+class server' hostname secret_key silo key cert = object(self)
   val s_log : unit = Log.info (fun m -> m "Starting peer %s." hostname);
 
   val address : Peer.t = Peer.create hostname
+
   method get_address = address 
 
-  val mutable keying_service : KS.t = 
-    Log.info (fun m -> m "Creating keying service with empty key cache."); 
-    KS.empty ~address:(Peer.create hostname) ~capacity:1024 ~master:key
-  method get_keying_service = keying_service
-  method set_keying_service k = keying_service <- k
-  method get_secret_key = KS.secret keying_service
+  val secret_key : Cstruct.t = secret_key
+
+  method get_secret_key = secret_key
 
   val mutable capability_service : Auth.CS.t = 
     Log.info (fun m -> m "Creating capability service with empty capability tree.");
@@ -73,7 +67,6 @@ class server' hostname key silo = object(self)
       ("/client/del/:peer/:service"   , fun () -> new Api.Client.del_remote self);
       ("/client/permit/:peer/:service", fun () -> new Api.Client.permit     self);
       ("/client/inv/:service"         , fun () -> new Api.Client.inv        self);
-      ("/peer/kx/init/"               , fun () -> new Api.Peer.kx_init      self);
       ("/peer/get/:service"           , fun () -> new Api.Peer.get          self);
       ("/peer/set/:service"           , fun () -> new Api.Peer.set          self);
       ("/peer/del/:service"           , fun () -> new Api.Peer.del          self);
@@ -89,7 +82,7 @@ class server' hostname key silo = object(self)
 
   method start = 
     let server = Server.make ~callback:self#callback () in
-    let mode   = `TCP (`Port 6620) in
+    let mode   = `TLS (`Crt_file_path cert, `Key_file_path key, `No_password, `Port 6620) in
     Log.info (fun m -> m "Starting REST server for peer %s on port %d." hostname 6620); 
     Server.create ~mode server
 end

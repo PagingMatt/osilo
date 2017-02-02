@@ -4,31 +4,34 @@ let src = Logs.Src.create ~doc:"logger for osilo authorisation" "osilo.auth"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Crypto : Macaroons.CRYPTO = struct
+  open Cryptography.Serialisation
+
   let hmac ~key message =
     Nocrypto.Hash.SHA512.hmac
       ~key:(Cstruct.of_string key)
       (Cstruct.of_string message)
-    |> Coding.encode_cstruct
+    |> serialise_cstruct
 
   let hash message =
     Nocrypto.Hash.SHA512.digest
       (Cstruct.of_string message)
-    |> Coding.encode_cstruct
+    |> serialise_cstruct
 
   let encrypt ~key message = 
     let ciphertext,iv = 
-      Cryptography.CS.encrypt' 
+      Cryptography.encrypt 
         ~key:(Cstruct.of_string key) 
         ~plaintext:(Cstruct.of_string message)
-    in Coding.encode_client_message ~ciphertext ~iv
+    in 
+    serialise_encrypted ~ciphertext ~iv
 
   let decrypt ~key message =
-    let ciphertext,iv = Coding.decode_client_message ~message in
-      Cryptography.CS.decrypt' 
+    let ciphertext,iv = deserialise_encrypted ~message in
+      Cryptography.decrypt
         ~key:(Cstruct.of_string key) 
         ~ciphertext 
         ~iv
-    |> Coding.encode_cstruct
+    |> serialise_cstruct
 
   let () = Nocrypto_entropy_unix.initialize ()
 end
@@ -127,10 +130,11 @@ let record_permissions capability_service permissions =
     ~f:(fun service -> fun m -> CS.record_if_most_general ~macaroon:m ~service)
 
 let create_service_capability host key service (perm,path) =
+  let open Cryptography.Serialisation in
   let location = Printf.sprintf "%s/%s/%s" (host |> Peer.host) service path in
   M.create
     ~location
-    ~key:(key |> Coding.encode_cstruct)
+    ~key:(key |> serialise_cstruct)
     ~id:(Token.string_of_token perm)
 
 let mint host key service permissions =
@@ -179,7 +183,8 @@ let request_under_verified_path vpaths rpath =
   Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
 
 let authorise requests capabilities tok key target service =
-  let key' = Coding.encode_cstruct key in
+  let open Cryptography.Serialisation in
+  let key' = serialise_cstruct key in
   let verified_capabilities = Core.Std.List.filter capabilities ~f:(verify tok key') in
   let authorised_locations  = Core.Std.List.map verified_capabilities ~f:(M.location) in 
   let path_tree = Core.Std.List.fold ~init:File_tree.empty 
@@ -194,24 +199,3 @@ let authorise requests capabilities tok key target service =
       let content,tree' = File_tree.trim ~tree ~location:(Core.Std.String.split loc ~on:'/')
       in (Core.Std.List.unordered_append content paths),tree') authorised_locations in
   authorised_paths
-
-let serialise_capabilities capabilities = 
-  let serialised = Core.Std.List.map capabilities ~f:M.serialize in
-  `List (Core.Std.List.map serialised ~f:(fun s -> `String s))
-
-exception Malformed_data
-
-let deserialise_capabilities capabilities = 
-  match capabilities with
-  | `List j ->  
-      Core.Std.List.map j 
-        ~f:(begin function 
-            | `String s -> 
-                (M.deserialize s |> 
-                 begin function  
-                 | `Ok c    -> c  
-                 | `Error _ -> raise Malformed_data 
-                 end) 
-            | _ -> raise Malformed_data  
-            end) 
-  | _ -> raise Malformed_data 

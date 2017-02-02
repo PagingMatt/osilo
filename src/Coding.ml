@@ -19,16 +19,6 @@ let decode_cstruct m =
   | Some m' -> m'
   | None    -> raise (Decoding_failed m)
 
-let encode_group g = 
-  g
-  |> Nocrypto.Dh.sexp_of_group 
-  |> Sexp.to_string
-
-let decode_group g = 
-  g
-  |> Sexp.of_string
-  |> Nocrypto.Dh.group_of_sexp
-
 let string_member s j = 
   match Yojson.Basic.Util.member s j with
   | `String m -> m
@@ -58,76 +48,85 @@ let decode_json_requested_file j =
     write_back  = bool_member    "write_back"  j;
   }
 
-(* TODO pull these into a module *)
-let tag_ct = "ciphertext"
-let tag_iv = "initial_vector"
-let tag_pb = "public"
-let tag_gr = "group"
-let tag_ho = "host"
-let tag_me = "message"
+let encode_capabilities capabilities = 
+  let serialised = Core.Std.List.map capabilities ~f:Auth.M.serialize in
+  `List (Core.Std.List.map serialised ~f:(fun s -> `String s))
 
-let encode_client_message ~ciphertext ~iv = 
-  `Assoc [
-    (tag_ct , `String (encode_cstruct ciphertext));
-    (tag_iv , `String (encode_cstruct iv        )) 
-  ] |> Yojson.Basic.to_string
+let decode_capabilities capabilities = 
+  match capabilities with
+  | `List j ->  
+      Core.Std.List.map j 
+        ~f:(begin function 
+            | `String s -> 
+                (Auth.M.deserialize s |> 
+                 begin function  
+                 | `Ok c    -> c  
+                 | `Error _ -> raise (Decoding_failed "Error on deserialisation") 
+                 end) 
+            | _ -> raise (Decoding_failed "Wasn't a string")  
+            end) 
+  | _ -> raise (Decoding_failed "Wasn't a list") 
 
-let decode_client_message ~message =
-  let j = Yojson.Basic.from_string message in
-  let c = j |> string_member tag_ct |> decode_cstruct in
-  let i = j |> string_member tag_iv |> decode_cstruct in
-  (c,i)
+let pull_out_strings l = 
+  match l with
+  | `List j -> 
+      List.map j 
+        ~f:(begin function
+            | `String s -> s
+            | _         -> raise (Decoding_failed "Wasn't a string") 
+            end)
+  | _ -> raise (Decoding_failed "Wasn't a list of strings")
 
-let encode_peer_message ~peer ~ciphertext ~iv = 
-  let host = Peer.host peer in
-  `Assoc [
-    (tag_ho , `String host);
-    (tag_ct , `String (encode_cstruct ciphertext));
-    (tag_iv , `String (encode_cstruct iv        )) 
-  ] |> Yojson.Basic.to_string
+let decode_file_list_message message =
+  message
+  |> Yojson.Basic.from_string 
+  |> pull_out_strings
 
-let decode_peer_message ~message =
-  let j = Yojson.Basic.from_string message in
-  let h = j |> string_member tag_ho in
-  let c = j |> string_member tag_ct |> decode_cstruct in
-  let i = j |> string_member tag_iv |> decode_cstruct in
-  let peer = Peer.create h in
-  (peer,c,i)
+let encode_file_list_message lst =
+  `List (Core.Std.List.map lst ~f:(fun s -> `String s))
 
-let encode_kx_init ~peer ~public ~group =
-  let host = Peer.host peer in
-  let public' = encode_cstruct public in
-  let group'  = encode_group   group  in
-  `Assoc [
-    (tag_ho, `String host);
-    (tag_pb, `String public'); 
-    (tag_gr, `String group')
-  ] |> Yojson.Basic.to_string
+let decode_remote_file_list_message message =
+  message
+  |> Yojson.Basic.from_string
+  |> begin function 
+  | `List rfs -> Core.Std.List.map rfs ~f:decode_json_requested_file 
+  | _         -> raise (Decoding_failed message)
+  end
 
-let decode_kx_init ~message =
-  let j  = Yojson.Basic.from_string message in
-  let h  = j |> string_member tag_ho in
-  let k  = j |> string_member tag_pb in
-  let k' = decode_cstruct k          in
-  let g  = j |> string_member tag_gr in
-  let g' = decode_group g            in
-  let peer = Peer.create h           in
-  (peer,k',g')
+let decode_file_and_capability_list_message message =
+  let json = Yojson.Basic.from_string message in 
+  let files = Yojson.Basic.Util.member "files" json |> pull_out_strings in
+  let capabilities = Yojson.Basic.Util.member "capabilities" json |> decode_capabilities in
+  files,capabilities
 
-let encode_kx_reply ~peer ~public =
-  let host = Peer.host peer in
-  let public' = encode_cstruct public in
-  `Assoc [
-    (tag_ho, `String host);
-    (tag_pb, `String public')
-  ]
-  |> Yojson.Basic.to_string
+let pull_out_file_content c =
+  match c with
+  | `Assoc j -> j
+  | _        -> raise (Decoding_failed "Wasn't an association list")
 
-let decode_kx_reply ~message =
-  let j = Yojson.Basic.from_string message in
-  let h = j |> string_member tag_ho in
-  let k = j |> string_member tag_pb in
-  let k' = decode_cstruct k in 
-  let peer = Peer.create h  in
-  (peer,k')
+let decode_file_content_and_capability_list_message message =
+  let json = Yojson.Basic.from_string message in 
+  let content = Yojson.Basic.Util.member "contents" json |> pull_out_file_content in
+  let capabilities = Yojson.Basic.Util.member "capabilities" json |> decode_capabilities in
+  content,capabilities
 
+let decode_file_content_list_message message = 
+  message
+  |> Yojson.Basic.from_string
+  |> begin function
+     | `Assoc j -> `Assoc j
+     | _ -> raise (Decoding_failed message)
+     end
+
+let decode_permission_list_message message = 
+  message
+  |> Yojson.Basic.from_string
+  |> begin function
+     | `Assoc j -> 
+         List.map j 
+         ~f:(begin function
+         | (permission, `String path) -> ((Auth.Token.token_of_string permission), path)
+         | _                          -> raise (Decoding_failed message) 
+         end)
+     | _ -> raise (Decoding_failed message)
+     end

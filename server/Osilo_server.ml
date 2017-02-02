@@ -11,10 +11,14 @@ module Terminal = struct
         ~doc:"  Hostname of this server."
         +> flag "-k" (required string)
         ~doc:"  Base 64 secret key shared with clients"
-        +> flag "-ds" (required string)
+        +> flag "-d" (required string)
         ~doc:"  Hostname of Datakit server"
+        +> flag "-key" (required string)
+        ~doc:"  Path to key file"
+        +> flag "-cert" (required string)
+        ~doc:"  Path to certificate file"
       )
-      (fun h k ds () -> Lwt_main.run (new Http_server.server' h (Coding.decode_cstruct k) ds )#start)
+      (fun h k d key cert () -> Lwt_main.run (new Http_server.server' h (Coding.decode_cstruct k) d key cert)#start)
 
   let commands = 
     Command.group 
