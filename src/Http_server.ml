@@ -64,7 +64,7 @@ class server' hostname secret_key silo key cert = object(self)
 
   val mutable keying_service : Cryptography.Keying.t = 
     Log.info (fun m -> m "Creating keying service with empty public key cache."); 
-    Keying.empty ~capacity:1024
+    Keying.empty ~capacity:1048576 (* store 256 4096-bit RSA keys *)
   method get_keying_service = keying_service
   method set_keying_service k = keying_service <- k
 
