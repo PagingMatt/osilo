@@ -19,6 +19,10 @@ class type server = object
 
   method get_public_key : Nocrypto.Rsa.pub
 
+  method get_keying_service : Cryptography.Keying.t
+
+  method set_keying_service : Cryptography.Keying.t -> unit
+
   method get_capability_service : Auth.CS.t
 
   method set_capability_service : Auth.CS.t -> unit
@@ -57,6 +61,12 @@ class server' hostname secret_key silo key cert = object(self)
   method get_private_key = private_key
 
   method get_public_key = Nocrypto.Rsa.pub_of_priv private_key
+
+  val mutable keying_service : Cryptography.Keying.t = 
+    Log.info (fun m -> m "Creating keying service with empty public key cache."); 
+    Keying.empty ~capacity:1024
+  method get_keying_service = keying_service
+  method set_keying_service k = keying_service <- k
 
   val mutable capability_service : Auth.CS.t = 
     Log.info (fun m -> m "Creating capability service with empty capability tree.");

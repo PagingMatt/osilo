@@ -14,6 +14,14 @@ module Signing : sig
   include (module type of Rsa.PSS(Hash.SHA512))
 end
 
+module Keying : sig  
+  type t
+  exception Public_key_not_found of Peer.t
+  val empty      : capacity:int -> t  
+  val invalidate : ks:t -> peer:Peer.t -> t
+  val lookup     : ks:t -> peer:Peer.t -> (t * Nocrypto.Rsa.pub) Lwt.t
+end
+
 val encrypt :
   key:Cstruct.t ->
   plaintext:Cstruct.t -> Cstruct.t * Cstruct.t

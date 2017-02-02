@@ -11,6 +11,10 @@ class type server = object
 
   method get_public_key : Nocrypto.Rsa.pub
 
+  method get_keying_service : Cryptography.Keying.t
+
+  method set_keying_service : Cryptography.Keying.t -> unit
+
   method get_capability_service : Auth.CS.t
   (** [get_capability_service] returns the capability service for this server, this contains the 
   capabilities that other peers have given to this peer. *)
