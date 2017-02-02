@@ -15,6 +15,10 @@ class type server = object
 
   method get_secret_key : Cstruct.t
 
+  method get_private_key : Nocrypto.Rsa.priv
+
+  method get_public_key : Nocrypto.Rsa.pub
+
   method get_capability_service : Auth.CS.t
 
   method set_capability_service : Auth.CS.t -> unit
@@ -49,6 +53,10 @@ class server' hostname secret_key silo key cert = object(self)
     |> begin function
        | `RSA prv -> prv
        end
+
+  method get_private_key = private_key
+
+  method get_public_key = Nocrypto.Rsa.pub_of_priv private_key
 
   val mutable capability_service : Auth.CS.t = 
     Log.info (fun m -> m "Creating capability service with empty capability tree.");
