@@ -557,6 +557,21 @@ end
 
 module Peer = struct 
 
+  class pub s = object(self)
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    method content_types_provided rd = Wm.continue [("text/plain", self#to_text)] rd
+
+    method content_types_accepted rd = Wm.continue [] rd
+  
+    method allowed_methods rd = Wm.continue [`GET] rd
+
+    method private to_text rd =
+      let pub = s#get_public_key in
+      let str = Nocrypto.Rsa.sexp_of_pub pub |> Sexp.to_string in
+      Wm.continue (`String str) rd
+  end
+
   class get s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 

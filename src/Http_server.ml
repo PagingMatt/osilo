@@ -86,6 +86,7 @@ class server' hostname secret_key silo key cert = object(self)
       ("/client/del/:peer/:service"   , fun () -> new Api.Client.del_remote self);
       ("/client/permit/:peer/:service", fun () -> new Api.Client.permit     self);
       ("/client/inv/:service"         , fun () -> new Api.Client.inv        self);
+      ("/peer/pub"                    , fun () -> new Api.Peer.pub          self);
       ("/peer/get/:service"           , fun () -> new Api.Peer.get          self);
       ("/peer/set/:service"           , fun () -> new Api.Peer.set          self);
       ("/peer/del/:service"           , fun () -> new Api.Peer.del          self);

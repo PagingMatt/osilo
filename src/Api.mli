@@ -110,6 +110,14 @@ module Client : sig
 end
 
 module Peer : sig 
+  class pub : <get_public_key : Nocrypto.Rsa.pub; ..> -> object
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    method content_types_provided : provider_body content_types
+
+    method content_types_accepted : acceptor_body content_types
+  end
+
   class get : 
     < get_address : Peer.t;
       get_peer_access_log : Peer_access_log.t; get_secret_key : Cstruct.t;
