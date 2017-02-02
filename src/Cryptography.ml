@@ -40,7 +40,7 @@ end = struct
     ] |> Yojson.Basic.to_string
 end
 
-module Signing = Rsa.PSS (Hash.SHA512)
+module Signing = Rsa.PSS (Hash.SHA256)
 
 module Keying : sig  
   type t
