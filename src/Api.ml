@@ -115,13 +115,17 @@ let authorise rd s =
   rd
 
 let authorise_p2p rd s =
-  let p = get_path_info_exn rd "peer" in
+  let p = Wm.Rd.lookup_path_info "peer" rd in
   Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
   >>= fun message -> 
     let headers = rd.Wm.Rd.req_headers in
     match Cohttp.Header.get_authorization headers with
     | Some (`Basic (src,sign)) -> 
-      (if (src = p) then 
+      (if 
+        (match p with
+        | Some p' -> p' = src
+        | None    -> true)
+      then 
         verify message sign src s >>= 
           (begin function
            | true  -> Wm.continue `Authorized rd
