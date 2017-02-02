@@ -15,15 +15,24 @@ let handle_http_resp (r,b) =
   Cohttp_lwt_body.to_string b 
   >|= fun body -> (code,body)
 
+type auth = 
+  | None
+  | Key of string
+  | Sig of string * string
+
 let get ~peer ~path =
   let uri = build_uri ~peer ~path in
   Log.debug (fun m -> m "GET %s" (Uri.to_string uri));
   Client.get uri
   >>= handle_http_resp
 
-let post ~peer ~path ~body ?(key = "") () =
+let post ~peer ~path ~body ~auth =
   let uri = build_uri ~peer ~path in
-  Log.debug (fun m -> m "POST %s... to %s" (String.sub body 0 4) (Uri.to_string uri));
-  Client.post uri ~body:(Cohttp_lwt_body.of_string body) 
-    ~headers:(Header.add_authorization (Header.init ()) (`Other key))
+  let headers = 
+    match auth with
+    | None      -> (Header.init ())
+    | Key k     -> (Header.add_authorization (Header.init ()) (`Other k))
+    | Sig (p,s) -> (Header.add_authorization (Header.init ()) (`Basic (p,s)))
+  in
+  Client.post uri ~body:(Cohttp_lwt_body.of_string body) ~headers
   >>= handle_http_resp
