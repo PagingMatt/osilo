@@ -22,7 +22,6 @@ type auth =
 
 let get ~peer ~path =
   let uri = build_uri ~peer ~path in
-  Log.debug (fun m -> m "GET %s" (Uri.to_string uri));
   Client.get uri
   >>= handle_http_resp
 

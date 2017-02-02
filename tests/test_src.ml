@@ -416,6 +416,22 @@ module Peer_tests = struct
   ]
 end
 
+module Cryptography_tests = struct
+  let sign_verify_test () = 
+    let server = new Http_server.server' "localhost" (Coding.decode_cstruct "testtesttesttesttesttesttesttest") "localhost" "example_key.pem" "test_cert" in
+    let message = "foo bar." in
+    let sign = Api.sign message server in
+    let verified = Cryptography.Signing.verify 
+      ~key:server#get_public_key ~signature:(Cstruct.of_string sign) (Cstruct.of_string message) in
+    Alcotest.(check bool)
+      "Checks verifies"
+      verified true
+
+  let tests = [
+    ("Signing and verifying is symmetric", `Quick, sign_verify_test);
+  ]
+end
+
 let () = 
   Alcotest.run "Osilo Tests" [
     "API module"         , Api_tests.tests;

@@ -16,6 +16,8 @@ class ping : object
   method content_types_accepted : acceptor_body content_types
 end
 
+val sign : string -> <get_private_key : Nocrypto.Rsa.priv; ..> -> string
+
 module Client : sig 
   class get_local : 
     < get_address : Peer.t; get_secret_key : Cstruct.t;
