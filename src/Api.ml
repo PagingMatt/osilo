@@ -51,6 +51,11 @@ let write_to_cache peer service file_content requests s =
       ~f:(fun (p,c) -> Core.Std.List.exists write_backs (fun rf -> Auth.vpath_subsumes_request rf.path p)) in
   Silo.write ~client:s#get_silo_client ~peer ~service ~contents:(`Assoc files_to_write_back)
 
+let sign message s =
+  Cstruct.of_string message
+  |> Cryptography.Signing.sign ~key:s#get_private_key 
+  |> Cstruct.to_string
+
 let relog_paths_for_peer peer paths service s =
   s#set_peer_access_log (Core.Std.List.fold 
     ~init:s#get_peer_access_log paths
@@ -59,7 +64,8 @@ let relog_paths_for_peer peer paths service s =
 let invalidate_paths_at_peer peer paths service s =
   let open Http_client in
   let body = Coding.encode_file_list_message paths |> Yojson.Basic.to_string in
-  Http_client.post ~peer ~path:(Printf.sprintf "/peer/inv/%s/%s" (Peer.host s#get_address) service) ~body ~auth:None
+  Http_client.post ~peer ~path:(Printf.sprintf "/peer/inv/%s/%s" (Peer.host s#get_address) service) ~body 
+    ~auth:(Sig (Peer.host s#get_address, sign body s))
 
 let invalidate_paths_at_peers paths access_log service s =
   let path_peers,pal = Core.Std.List.fold ~init:([],s#get_peer_access_log) paths 
@@ -101,11 +107,6 @@ let authorise rd s =
   | Some (`Other key) -> if secret = key then `Authorized else `Basic "Wrong key"
   | _                 -> `Basic "No key")
   rd
-
-let sign message s =
-  Cstruct.of_string message
-  |> Cryptography.Signing.sign ~key:s#get_private_key 
-  |> Cstruct.to_string
 
 let validate_json rd = (* checks can parse JSON *)
   try 
@@ -223,7 +224,8 @@ module Client = struct
           then 
             (let body = attach_required_capabilities "R" peer' service' to_fetch'' s in
             let open Http_client in
-            Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/get/%s" service') ~body ~auth:None
+            Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/get/%s" service') ~body 
+              ~auth:(Sig (Peer.host s#get_address, sign body s))
             >>= (fun (c,b) ->
               let `Assoc fetched = Coding.decode_file_content_list_message b in
               let results = Core.Std.List.append fetched cached in
@@ -289,7 +291,8 @@ module Client = struct
         if not(requests = [])
           then 
             (let body = attach_required_capabilities "D" peer' service' requests s in
-            Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/del/%s" service') ~body ~auth:None
+            Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/del/%s" service') ~body
+              ~auth:(Sig (Peer.host s#get_address, sign body s))
             >>= fun (c,_) -> Wm.continue (c = 204) rd)
           else
             Wm.continue false rd
@@ -393,7 +396,8 @@ module Client = struct
       let path         = 
         (Printf.sprintf "/peer/permit/%s/%s" 
         (s#get_address |> Peer.host) service') in
-      Http_client.post ~peer:target' ~path ~body:p_body ~auth:None
+      Http_client.post ~peer:target' ~path ~body:p_body 
+        ~auth:(Sig (Peer.host s#get_address, sign p_body s))
       >>= fun (c,b) ->
         Wm.continue true rd
   end
@@ -497,7 +501,8 @@ module Client = struct
             if not(paths = [])
               then 
                 (let body = attach_required_capabilities_and_content peer' service' paths targets s in
-                Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/set/%s" service') ~body ~auth:None
+                Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/set/%s" service') ~body 
+                  ~auth:(Sig (Peer.host s#get_address, sign body s))
                 >>= fun (c,_) -> Wm.continue (c = 204) rd)
               else
                 Wm.continue false rd

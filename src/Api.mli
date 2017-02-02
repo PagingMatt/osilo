@@ -30,7 +30,7 @@ module Client : sig
 
   class get_remote : 
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
-      get_secret_key : Cstruct.t;
+      get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv;
       get_silo_client : Silo.Client.t; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -53,7 +53,7 @@ module Client : sig
 
   class set_remote : 
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
-      get_secret_key : Cstruct.t; .. > -> object
+      get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -75,7 +75,7 @@ module Client : sig
 
   class del_remote : 
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
-      get_secret_key : Cstruct.t; .. > -> object
+      get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -86,7 +86,7 @@ module Client : sig
 
   class permit : 
     < get_address : Peer.t;
-      get_secret_key : Cstruct.t; .. > -> object
+      get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -98,7 +98,8 @@ module Client : sig
   class inv : 
     < get_address : Peer.t;
       get_peer_access_log : Peer_access_log.t; get_secret_key : Cstruct.t;
-      set_peer_access_log : Peer_access_log.t -> unit; .. > -> object
+      set_peer_access_log : Peer_access_log.t -> unit;
+      get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
 
