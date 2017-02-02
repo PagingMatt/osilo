@@ -102,6 +102,11 @@ let authorise rd s =
   | _                 -> `Basic "No key")
   rd
 
+let sign message s =
+  Cstruct.of_string message
+  |> Cryptography.Signing.sign ~key:s#get_private_key 
+  |> Cstruct.to_string
+
 let validate_json rd = (* checks can parse JSON *)
   try 
     Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
