@@ -39,6 +39,17 @@ class server' hostname secret_key silo key cert = object(self)
 
   method get_secret_key = secret_key
 
+  val private_key : Nocrypto.Rsa.priv = 
+    let buf  = String.make 65536 'x' in
+    let file = Unix.openfile ~mode:[O_RDONLY] (Printf.sprintf "%s" key) in file
+    |> Unix.read ~buf
+    |> (fun l -> (Unix.close file); String.prefix buf l)
+    |> Cstruct.of_string
+    |> X509.Encoding.Pem.Private_key.of_pem_cstruct1
+    |> begin function
+       | `RSA prv -> prv
+       end
+
   val mutable capability_service : Auth.CS.t = 
     Log.info (fun m -> m "Creating capability service with empty capability tree.");
     Auth.CS.empty
