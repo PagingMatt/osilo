@@ -56,6 +56,12 @@ let sign message s =
   |> Cryptography.Signing.sign ~key:s#get_private_key 
   |> Cstruct.to_string
 
+let verify message sign peer s =
+  Cryptography.Keying.lookup ~ks:(s#get_keying_service) ~peer:(Peer.create peer)
+  >|= fun (ks,pub) ->
+    s#set_keying_service ks;
+    Cryptography.Signing.verify ~key:pub ~signature:(Cstruct.of_string sign) (Cstruct.of_string message)
+
 let relog_paths_for_peer peer paths service s =
   s#set_peer_access_log (Core.Std.List.fold 
     ~init:s#get_peer_access_log paths
@@ -107,6 +113,22 @@ let authorise rd s =
   | Some (`Other key) -> if secret = key then `Authorized else `Basic "Wrong key"
   | _                 -> `Basic "No key")
   rd
+
+let authorise_p2p rd s =
+  let p = get_path_info_exn rd "peer" in
+  Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
+  >>= fun message -> 
+    let headers = rd.Wm.Rd.req_headers in
+    match Cohttp.Header.get_authorization headers with
+    | Some (`Basic (src,sign)) -> 
+      (if (src = p) then 
+        verify message sign src s >>= 
+          (begin function
+           | true  -> Wm.continue `Authorized rd
+           | false -> Wm.continue (`Basic "Signature not verifiable") rd
+          end)
+      else Wm.continue (`Basic "Wrong source peer") rd)
+    | _ -> Wm.continue (`Basic "No authorisation provided") rd
 
 let validate_json rd = (* checks can parse JSON *)
   try 
@@ -584,6 +606,8 @@ module Peer = struct
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
+
+    method is_authorized rd = authorise_p2p rd s
   
     method allowed_methods rd = Wm.continue [`POST] rd 
 
@@ -637,6 +661,8 @@ module Peer = struct
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
+
+    method is_authorized rd = authorise_p2p rd s
   
     method allowed_methods rd = Wm.continue [`POST] rd 
 
@@ -687,6 +713,8 @@ module Peer = struct
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
+
+    method is_authorized rd = authorise_p2p rd s
   
     method allowed_methods rd = Wm.continue [`POST] rd 
 
@@ -735,6 +763,8 @@ module Peer = struct
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
+
+    method is_authorized rd = authorise_p2p rd s
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
@@ -781,6 +811,8 @@ module Peer = struct
 
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
+
+    method is_authorized rd = authorise_p2p rd s
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
