@@ -10,6 +10,10 @@ module Serialisation : sig
   val deserialise_encrypted : message:string -> Cstruct.t * Cstruct.t
 end
 
+module Signing : sig
+  include (module type of Rsa.PSS(Hash.SHA512))
+end
+
 val encrypt :
   key:Cstruct.t ->
   plaintext:Cstruct.t -> Cstruct.t * Cstruct.t

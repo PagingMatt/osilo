@@ -39,6 +39,8 @@ end = struct
     ] |> Yojson.Basic.to_string
 end
 
+module Signing = Rsa.PSS (Hash.SHA512)
+
 let encrypt ~key ~plaintext =
   let key    = of_secret key in
   let iv     = Rng.generate 256 in 
