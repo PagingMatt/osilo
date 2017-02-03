@@ -44,7 +44,8 @@ let decrypt_read s file_content =
             let ciphertext,iv = Cryptography.Serialisation.deserialise_encrypted ~message   in
             let pl            = Cryptography.decrypt ~key:s#get_secret_key ~ciphertext ~iv  in
             f,(pl |> Cstruct.to_string |> Yojson.Basic.from_string)
-        | _          -> raise Malformed_data))
+        | `Null -> f,c
+        | _     -> raise Malformed_data))
   | _ -> raise Malformed_data
 
 let encrypt_write s file_content =
