@@ -43,7 +43,7 @@ let decrypt_read s file_content =
         | `String message -> 
             let ciphertext,iv = Cryptography.Serialisation.deserialise_encrypted ~message   in
             let pl            = Cryptography.decrypt ~key:s#get_secret_key ~ciphertext ~iv  in
-            f,`String (Cstruct.to_string pl)
+            f,(pl |> Cstruct.to_string |> Yojson.Basic.from_string)
         | _          -> raise Malformed_data))
   | _ -> raise Malformed_data
 
@@ -51,13 +51,10 @@ let encrypt_write s file_content =
   match file_content with
   | `Assoc l -> 
       `Assoc (List.map l ~f:(fun (f,c) -> 
-        match c with
-        | `String message -> 
-            let plaintext     = Cstruct.of_string message in
-            let ciphertext,iv = Cryptography.encrypt ~key:s#get_secret_key ~plaintext in
-            let e = Cryptography.Serialisation.serialise_encrypted ~ciphertext ~iv    in
-            f,`String e
-        | _          -> raise Malformed_data))
+          let plaintext     = c |> Yojson.Basic.to_string |> Cstruct.of_string      in
+          let ciphertext,iv = Cryptography.encrypt ~key:s#get_secret_key ~plaintext in
+          let e = Cryptography.Serialisation.serialise_encrypted ~ciphertext ~iv    in
+          f,`String e))
   | _ -> raise Malformed_data
 
 let read_from_cache peer service files s =
