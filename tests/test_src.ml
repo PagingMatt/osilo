@@ -132,7 +132,7 @@ module Auth_tests = struct
     Alcotest.(check bool) "R is not greater than or equal to D." (r >= d) false
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
-  let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" "test_key" "test_cert"
+  let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" "example_key.pem" "test_cert"
 
   let can_mint_read_macaroons_for_test () =
     let ps = Auth.mint server#get_address server#get_secret_key "test" [(R,"test_file.json")] in 
@@ -291,7 +291,7 @@ module File_tree_tests = struct
   open Auth.Token
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
-  let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" "test_key" "test_cert"
+  let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" "example_key.pem" "test_cert"
 
   let location = fun (_,m) -> (M.location m |> Core.Std.String.split ~on:'/')
 
@@ -416,10 +416,42 @@ module Peer_tests = struct
   ]
 end
 
+module Cryptography_tests = struct
+  open Sexplib
+
+  let sign_verify_test () = 
+    let server = new Http_server.server' "localhost" (Coding.decode_cstruct "testtesttesttesttesttesttesttest") "localhost" "example_key.pem" "test_cert" in
+    let message = "foo bar." in
+    let sign = Api.sign message server in
+    let verified = Cryptography.Signing.verify 
+      ~key:server#get_public_key ~signature:(Cstruct.of_string sign) (Cstruct.of_string message) in
+    Alcotest.(check bool)
+      "Checks verifies"
+      verified true
+
+  let verify_test () = 
+    let message = "[\"MwAAAGxvY2F0aW9uIG9zaWxvLm1hdHRhaGFycmlzb24uY29tL2Jsb2dnZXIvcG9zdHMKEQAAAGlkZW50aWZpZXIgUgpnAAAAc2lnbmF0dXJlIE1iNk1HWDQ5MnZiRGZaajFQbk11OWJHUWtkM29ZazRzZmNYRzV1dy9FQWlYYytPdTFWZk9tS1F6VmNoeUhuSWYydWtZelZqMjJPQktzemc1bTZvVTF3PT0K\"]" in
+    let signature = "MhRedYvVgP2QH/o1LFXnbhLin+xzX87bwp45CHij5lYDTyThE2FbGL1t12vdNUmRO53XRw0R1uvA3Qo0Eji0YffKxqhdChYbt71OI9wYNH281T1IqQrxXXOnQFQGOKzNEZrbhQzT3E60FgiM9DLe2DcwMTfoaavEv+AJpSJ6CDOgUPb1ifB+0zwaiirSRob4XZNmTQUE9MqiuwS/fZ50PEkMAsnUhzbOn6wiWw2SiK4o2DrsfNYNb01mUyfy07lcQJZtYrKPaaML9MdLh7kYpOt94UQDYpX8t5x1JAS4dzmeNEAYKboy7vFzspqRWQqEdKg7DTdsD/nmrf/ZHPr7LA=="
+    |> Cryptography.Serialisation.deserialise_cstruct in
+    let key = "((e 65537)(n 24254383114293383472285170238421455864401353152668305030780651190114163719337426933403646687495743501728407070026247791023751253719276859573226372935586077561211287586961643164829810071680875868930569237295965307606470152492239405694424417863645980000881058038785966251765474666005596490920472551579179499318384229885967996918173532080385239428255347061480393526840976083437738174290808472480644023129478974522996729201300482738251241255622337361210893932552729250794709526849726043809809044114843555854457212449994868172941952261923296641260011714761627890659260622648741711855550009000828936974812726635006566009271))"
+    |> Sexp.of_string |> Nocrypto.Rsa.pub_of_sexp in
+    let verified = Cryptography.Signing.verify 
+      ~key ~signature (Cstruct.of_string message) in
+    Alcotest.(check bool)
+      "Checks verifies"
+      verified true
+
+  let tests = [
+    ("Signing and verifying is symmetric", `Quick, sign_verify_test);
+    ("Verifying real world example", `Quick, verify_test);
+  ]
+end
+
 let () = 
   Alcotest.run "Osilo Tests" [
     "API module"         , Api_tests.tests;
     "Auth module"         , Auth_tests.tests;
+    "Crypto module"         , Cryptography_tests.tests;
     "Peer module"        , Peer_tests.tests;
     "Coding module"      , Coding_tests.tests;
     "File tree module", File_tree_tests.tests; 

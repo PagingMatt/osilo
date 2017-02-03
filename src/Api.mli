@@ -16,6 +16,8 @@ class ping : object
   method content_types_accepted : acceptor_body content_types
 end
 
+val sign : string -> <get_private_key : Nocrypto.Rsa.priv; ..> -> string
+
 module Client : sig 
   class get_local : 
     < get_address : Peer.t; get_secret_key : Cstruct.t;
@@ -30,7 +32,7 @@ module Client : sig
 
   class get_remote : 
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
-      get_secret_key : Cstruct.t;
+      get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv;
       get_silo_client : Silo.Client.t; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -53,7 +55,7 @@ module Client : sig
 
   class set_remote : 
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
-      get_secret_key : Cstruct.t; .. > -> object
+      get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -75,7 +77,7 @@ module Client : sig
 
   class del_remote : 
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
-      get_secret_key : Cstruct.t; .. > -> object
+      get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -86,7 +88,7 @@ module Client : sig
 
   class permit : 
     < get_address : Peer.t;
-      get_secret_key : Cstruct.t; .. > -> object
+      get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -98,7 +100,8 @@ module Client : sig
   class inv : 
     < get_address : Peer.t;
       get_peer_access_log : Peer_access_log.t; get_secret_key : Cstruct.t;
-      set_peer_access_log : Peer_access_log.t -> unit; .. > -> object
+      set_peer_access_log : Peer_access_log.t -> unit;
+      get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -109,8 +112,19 @@ module Client : sig
 end
 
 module Peer : sig 
+  exception Raw_content_not_stored
+  
+  class pub : <get_public_key : Nocrypto.Rsa.pub; ..> -> object
+    inherit [Cohttp_lwt_body.t] Wm.resource
+
+    method content_types_provided : provider_body content_types
+
+    method content_types_accepted : acceptor_body content_types
+  end
+
   class get : 
-    < get_address : Peer.t;
+    < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
+      set_keying_service : Cryptography.Keying.t -> unit;
       get_peer_access_log : Peer_access_log.t; get_secret_key : Cstruct.t;
       get_silo_client : Silo.Client.t;
       set_peer_access_log : Peer_access_log.t -> 'b; .. > -> object
@@ -123,7 +137,8 @@ module Peer : sig
   end
 
   class set : 
-    < get_address : Peer.t;
+    < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
+      set_keying_service : Cryptography.Keying.t -> unit;
       get_secret_key : Cstruct.t; get_silo_client : Silo.Client.t; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -134,7 +149,8 @@ module Peer : sig
   end
 
   class del : 
-    < get_address : Peer.t;
+    < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
+      set_keying_service : Cryptography.Keying.t -> unit;
       get_secret_key : Cstruct.t; get_silo_client : Silo.Client.t; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -145,7 +161,8 @@ module Peer : sig
   end
 
   class inv : 
-    < get_address : Peer.t;
+    < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
+      set_keying_service : Cryptography.Keying.t -> unit;
       get_silo_client : Silo.Client.t; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -156,7 +173,8 @@ module Peer : sig
   end
 
   class permit : 
-    < get_capability_service : Auth.CS.t;
+    < get_capability_service : Auth.CS.t; get_keying_service : Cryptography.Keying.t;
+      set_keying_service : Cryptography.Keying.t -> unit;
       set_capability_service : Auth.CS.t -> 'a; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource

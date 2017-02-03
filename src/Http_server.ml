@@ -15,6 +15,14 @@ class type server = object
 
   method get_secret_key : Cstruct.t
 
+  method get_private_key : Nocrypto.Rsa.priv
+
+  method get_public_key : Nocrypto.Rsa.pub
+
+  method get_keying_service : Cryptography.Keying.t
+
+  method set_keying_service : Cryptography.Keying.t -> unit
+
   method get_capability_service : Auth.CS.t
 
   method set_capability_service : Auth.CS.t -> unit
@@ -38,6 +46,27 @@ class server' hostname secret_key silo key cert = object(self)
   val secret_key : Cstruct.t = secret_key
 
   method get_secret_key = secret_key
+
+  val private_key : Nocrypto.Rsa.priv = 
+    let buf  = String.make 65536 'x' in
+    let file = Unix.openfile ~mode:[O_RDONLY] (Printf.sprintf "%s" key) in file
+    |> Unix.read ~buf
+    |> (fun l -> (Unix.close file); String.prefix buf l)
+    |> Cstruct.of_string
+    |> X509.Encoding.Pem.Private_key.of_pem_cstruct1
+    |> begin function
+       | `RSA prv -> prv
+       end
+
+  method get_private_key = private_key
+
+  method get_public_key = Nocrypto.Rsa.pub_of_priv private_key
+
+  val mutable keying_service : Cryptography.Keying.t = 
+    Log.info (fun m -> m "Creating keying service with empty public key cache."); 
+    Keying.empty ~capacity:1048576 (* store 256 4096-bit RSA keys *)
+  method get_keying_service = keying_service
+  method set_keying_service k = keying_service <- k
 
   val mutable capability_service : Auth.CS.t = 
     Log.info (fun m -> m "Creating capability service with empty capability tree.");
@@ -67,6 +96,7 @@ class server' hostname secret_key silo key cert = object(self)
       ("/client/del/:peer/:service"   , fun () -> new Api.Client.del_remote self);
       ("/client/permit/:peer/:service", fun () -> new Api.Client.permit     self);
       ("/client/inv/:service"         , fun () -> new Api.Client.inv        self);
+      ("/peer/pub"                    , fun () -> new Api.Peer.pub          self);
       ("/peer/get/:service"           , fun () -> new Api.Peer.get          self);
       ("/peer/set/:service"           , fun () -> new Api.Peer.set          self);
       ("/peer/del/:service"           , fun () -> new Api.Peer.del          self);
