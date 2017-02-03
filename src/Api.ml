@@ -124,13 +124,13 @@ let authorise_p2p rd message s =
       | Some p' -> p' = src
       | None    -> true)
     then 
-      verify message sign src s >>= 
+      verify message sign src s >|= 
         (begin function
-         | true  -> Wm.continue `Authorized rd
-         | false -> Wm.continue (`Basic "Signature not verifiable") rd
+         | true  -> Some src
+         | false -> None 
         end)
-    else Wm.continue (`Basic "Wrong source peer") rd)
-  | _ -> Wm.continue (`Basic "No authorisation provided") rd
+    else Lwt.return None)
+  | _ -> Lwt.return None
 
 let validate_json rd = (* checks can parse JSON *)
   try 
@@ -607,6 +607,8 @@ module Peer = struct
 
     val mutable raw : string option = None
 
+    val mutable source : Peer.t option = None
+
     method content_types_provided rd = 
       Wm.continue [("text/json", to_json)] rd
 
@@ -615,8 +617,13 @@ module Peer = struct
 
     method is_authorized rd = 
       match raw with
-      | Some message -> authorise_p2p rd message s
-      | None         -> raise Raw_content_not_stored
+      | Some message -> 
+          authorise_p2p rd message s
+          >>= begin function 
+              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | None     -> Wm.continue (`Basic "Not authorised") rd
+              end
+      | None -> Wm.continue (`Basic "No raw content to authorise") rd
   
     method allowed_methods rd = Wm.continue [`POST] rd 
 
@@ -643,6 +650,9 @@ module Peer = struct
         match service with 
         | None -> Wm.continue false rd
         | Some service' ->
+        match source with 
+        | None -> Wm.continue false rd
+        | Some source' ->
             Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~paths:files
             >>= fun j ->
               (match j with 
@@ -650,7 +660,7 @@ module Peer = struct
                   s#set_peer_access_log 
                     (List.fold l ~init:s#get_peer_access_log
                     ~f:(fun log -> fun (f,_) -> 
-                    Peer_access_log.log log ~host:s#get_address ~peer:(Peer.create "tmp") ~service:service' ~path:f));
+                    Peer_access_log.log log ~host:s#get_address ~peer:source' ~service:service' ~path:f));
                   Lwt.return (Yojson.Basic.to_string j)
               | _ -> raise Malformed_data)
             >>= fun response -> 
@@ -668,6 +678,8 @@ module Peer = struct
 
     val mutable raw : string option = None
 
+    val mutable source : Peer.t option = None
+
     method content_types_provided rd = 
       Wm.continue [("text/json", to_json)] rd
 
@@ -676,8 +688,13 @@ module Peer = struct
 
     method is_authorized rd = 
       match raw with
-      | Some message -> authorise_p2p rd message s
-      | None         -> raise Raw_content_not_stored
+      | Some message -> 
+          authorise_p2p rd message s
+          >>= begin function 
+              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | None     -> Wm.continue (`Basic "Not authorised") rd
+              end
+      | None -> Wm.continue (`Basic "No raw content to authorise") rd
   
     method allowed_methods rd = Wm.continue [`POST] rd 
 
@@ -734,8 +751,13 @@ module Peer = struct
 
     method is_authorized rd = 
       match raw with
-      | Some message -> authorise_p2p rd message s
-      | None         -> raise Raw_content_not_stored
+      | Some message -> 
+          authorise_p2p rd message s
+          >>= begin function 
+              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | None     -> Wm.continue (`Basic "Not authorised") rd
+              end
+      | None -> Wm.continue (`Basic "No raw content to authorise") rd
   
     method allowed_methods rd = Wm.continue [`POST] rd 
 
@@ -782,6 +804,8 @@ module Peer = struct
 
     val mutable raw : string option = None
 
+    val mutable source : Peer.t option = None
+
     method content_types_provided rd = 
       Wm.continue [("text/json", to_json)] rd
 
@@ -790,8 +814,13 @@ module Peer = struct
 
     method is_authorized rd = 
       match raw with
-      | Some message -> authorise_p2p rd message s
-      | None         -> raise Raw_content_not_stored
+      | Some message -> 
+          authorise_p2p rd message s
+          >>= begin function 
+              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | None     -> Wm.continue (`Basic "Not authorised") rd
+              end
+      | None -> Wm.continue (`Basic "No raw content to authorise") rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
@@ -836,6 +865,8 @@ module Peer = struct
 
     val mutable raw : string option = None
 
+    val mutable source : Peer.t option = None
+
     method content_types_provided rd = 
       Wm.continue [("text/json", to_json)] rd
 
@@ -844,8 +875,13 @@ module Peer = struct
 
     method is_authorized rd = 
       match raw with
-      | Some message -> authorise_p2p rd message s
-      | None         -> raise Raw_content_not_stored
+      | Some message -> 
+          authorise_p2p rd message s
+          >>= begin function 
+              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | None     -> Wm.continue (`Basic "Not authorised") rd
+              end
+      | None -> Wm.continue (`Basic "No raw content to authorise") rd
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
