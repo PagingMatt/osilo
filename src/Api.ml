@@ -114,25 +114,23 @@ let authorise rd s =
   | _                 -> `Basic "No key")
   rd
 
-let authorise_p2p rd s =
+let authorise_p2p rd message s =
   let p = Wm.Rd.lookup_path_info "peer" rd in
-  Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-  >>= fun message -> 
-    let headers = rd.Wm.Rd.req_headers in
-    match Cohttp.Header.get_authorization headers with
-    | Some (`Basic (src,sign)) -> 
-      (if 
-        (match p with
-        | Some p' -> p' = src
-        | None    -> true)
-      then 
-        verify message sign src s >>= 
-          (begin function
-           | true  -> Wm.continue `Authorized rd
-           | false -> Wm.continue (`Basic "Signature not verifiable") rd
-          end)
-      else Wm.continue (`Basic "Wrong source peer") rd)
-    | _ -> Wm.continue (`Basic "No authorisation provided") rd
+  let headers = rd.Wm.Rd.req_headers in
+  match Cohttp.Header.get_authorization headers with
+  | Some (`Basic (src,sign)) -> 
+    (if 
+      (match p with
+      | Some p' -> p' = src
+      | None    -> true)
+    then 
+      verify message sign src s >>= 
+        (begin function
+         | true  -> Wm.continue `Authorized rd
+         | false -> Wm.continue (`Basic "Signature not verifiable") rd
+        end)
+    else Wm.continue (`Basic "Wrong source peer") rd)
+  | _ -> Wm.continue (`Basic "No authorisation provided") rd
 
 let validate_json rd = (* checks can parse JSON *)
   try 
@@ -583,6 +581,8 @@ end
 
 module Peer = struct 
 
+  exception Raw_content_not_stored
+
   class pub s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -613,7 +613,10 @@ module Peer = struct
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
 
-    method is_authorized rd = authorise_p2p rd s
+    method is_authorized rd = 
+      match raw with
+      | Some message -> authorise_p2p rd message s
+      | None         -> raise Raw_content_not_stored
   
     method allowed_methods rd = Wm.continue [`POST] rd 
 
@@ -671,7 +674,10 @@ module Peer = struct
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
 
-    method is_authorized rd = authorise_p2p rd s
+    method is_authorized rd = 
+      match raw with
+      | Some message -> authorise_p2p rd message s
+      | None         -> raise Raw_content_not_stored
   
     method allowed_methods rd = Wm.continue [`POST] rd 
 
@@ -726,7 +732,10 @@ module Peer = struct
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
 
-    method is_authorized rd = authorise_p2p rd s
+    method is_authorized rd = 
+      match raw with
+      | Some message -> authorise_p2p rd message s
+      | None         -> raise Raw_content_not_stored
   
     method allowed_methods rd = Wm.continue [`POST] rd 
 
@@ -779,7 +788,10 @@ module Peer = struct
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
 
-    method is_authorized rd = authorise_p2p rd s
+    method is_authorized rd = 
+      match raw with
+      | Some message -> authorise_p2p rd message s
+      | None         -> raise Raw_content_not_stored
   
     method allowed_methods rd = Wm.continue [`POST] rd
 
@@ -830,7 +842,10 @@ module Peer = struct
     method content_types_accepted rd = 
       Wm.continue [("text/json", validate_json)] rd
 
-    method is_authorized rd = authorise_p2p rd s
+    method is_authorized rd = 
+      match raw with
+      | Some message -> authorise_p2p rd message s
+      | None         -> raise Raw_content_not_stored
   
     method allowed_methods rd = Wm.continue [`POST] rd
 

@@ -112,6 +112,8 @@ module Client : sig
 end
 
 module Peer : sig 
+  exception Raw_content_not_stored
+  
   class pub : <get_public_key : Nocrypto.Rsa.pub; ..> -> object
     inherit [Cohttp_lwt_body.t] Wm.resource
 
