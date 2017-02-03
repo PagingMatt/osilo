@@ -55,7 +55,7 @@ let encrypt_write s file_content =
         | `String message -> 
             let plaintext     = Cstruct.of_string message in
             let ciphertext,iv = Cryptography.encrypt ~key:s#get_secret_key ~plaintext in
-            let e =  Cryptography.Serialisation.serialise_encrypted ~ciphertext ~iv   in
+            let e = Cryptography.Serialisation.serialise_encrypted ~ciphertext ~iv    in
             f,`String e
         | _          -> raise Malformed_data))
   | _ -> raise Malformed_data
