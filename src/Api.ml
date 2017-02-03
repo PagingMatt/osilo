@@ -423,7 +423,7 @@ module Client = struct
       Http_client.post ~peer:target' ~path ~body:p_body 
         ~auth:(Sig (Peer.host s#get_address, sign p_body s))
       >>= fun (c,b) ->
-        Wm.continue true rd
+        Wm.continue (c=204) rd
   end
 
   class set_local s = object(self)
