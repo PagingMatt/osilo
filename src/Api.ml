@@ -605,6 +605,8 @@ module Peer = struct
 
     val mutable files : string list = []
 
+    val mutable raw : string option = None
+
     method content_types_provided rd = 
       Wm.continue [("text/json", to_json)] rd
 
@@ -621,6 +623,7 @@ module Peer = struct
       | Some service' -> 
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >>= (fun message -> 
+            raw <- Some message;
             let files',capabilities = Coding.decode_file_and_capability_list_message message in
             let authorised_files = 
               Auth.authorise files' capabilities 
@@ -660,6 +663,8 @@ module Peer = struct
 
     val mutable file_content : Yojson.Basic.json = `Null
 
+    val mutable raw : string option = None
+
     method content_types_provided rd = 
       Wm.continue [("text/json", to_json)] rd
 
@@ -676,6 +681,7 @@ module Peer = struct
       | Some service' -> 
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >>= (fun message -> 
+            raw <- Some message;
             let file_contents,capabilities = Coding.decode_file_content_and_capability_list_message message in
             let paths,contents = Core.Std.List.unzip file_contents in
             let authorised_files = 
@@ -712,6 +718,8 @@ module Peer = struct
 
     val mutable source : Peer.t option = None
 
+    val mutable raw : string option = None
+
     method content_types_provided rd = 
       Wm.continue [("text/json", to_json)] rd
 
@@ -728,6 +736,7 @@ module Peer = struct
       | Some service' -> 
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >>= (fun message -> 
+            raw <- Some message;
             let files',capabilities = Coding.decode_file_and_capability_list_message message in
             let authorised_files = 
               Auth.authorise files' capabilities 
@@ -762,6 +771,8 @@ module Peer = struct
 
     val mutable files : string list = []
 
+    val mutable raw : string option = None
+
     method content_types_provided rd = 
       Wm.continue [("text/json", to_json)] rd
 
@@ -782,6 +793,7 @@ module Peer = struct
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >>= (fun message -> 
+          raw <- Some message;
           let files' = Coding.decode_file_list_message message in
           peer <- Some (Peer.create peer_api);
           service <- Some service';
@@ -810,6 +822,8 @@ module Peer = struct
 
     val mutable capabilities : Auth.M.t list = []
 
+    val mutable raw : string option = None
+
     method content_types_provided rd = 
       Wm.continue [("text/json", to_json)] rd
 
@@ -829,7 +843,8 @@ module Peer = struct
         | None          -> Wm.continue true rd
         | Some service' -> 
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
-        >>= (fun message -> 
+        >>= (fun message ->
+          raw <- Some message;
           let capabilities' = 
             Coding.decode_capabilities
             (message |> Yojson.Basic.from_string) 
