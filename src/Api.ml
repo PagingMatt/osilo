@@ -51,6 +51,9 @@ let write_to_cache peer service file_content requests s =
       ~f:(fun (p,c) -> Core.Std.List.exists write_backs (fun rf -> Auth.vpath_subsumes_request rf.path p)) in
   Silo.write ~client:s#get_silo_client ~peer ~service ~contents:(`Assoc files_to_write_back)
 
+let delete_from_cache peer service paths s =
+  Silo.delete ~client:s#get_silo_client ~peer ~service ~paths
+
 let sign message s =
   Cstruct.of_string message
   |> Cryptography.Signing.sign ~key:s#get_private_key 
@@ -796,8 +799,6 @@ module Peer = struct
   class inv s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
-    val mutable peer : Peer.t option = None
-
     val mutable service : string option = None
 
     val mutable files : string list = []
@@ -836,7 +837,6 @@ module Peer = struct
         >>= (fun message -> 
           raw <- Some message;
           let files' = Coding.decode_file_list_message message in
-          peer <- Some (Peer.create peer_api);
           service <- Some service';
           files <- files';
           Wm.continue (peer_api = Peer.host s#get_address) rd)
@@ -845,15 +845,14 @@ module Peer = struct
 
     method process_post rd =
       try
-        match peer with
-        | None          -> Wm.continue false rd
-        | Some peer' -> 
+        match source with
+        | None      -> Wm.continue false rd
+        | Some peer -> 
         match service with
         | None          -> Wm.continue false rd
         | Some service' -> 
-        Silo.delete ~client:s#get_silo_client ~peer:(peer') ~service:(service') ~paths:files
-        >>= fun () ->
-          Wm.continue true rd
+        delete_from_cache peer service' files s
+        >>= fun () -> Wm.continue true rd
       with 
       | _  -> Wm.continue false rd
   end
