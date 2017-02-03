@@ -35,8 +35,32 @@ let attach_required_capabilities_and_content target service paths contents s =
     ("capabilities", caps'   );
   ] |> Yojson.Basic.to_string
 
+let decrypt_read s file_content =
+  match file_content with
+  | `Assoc l -> 
+      `Assoc (List.map l ~f:(fun (f,c) -> 
+        match c with
+        | `String message -> 
+            let ciphertext,iv = Cryptography.Serialisation.deserialise_encrypted ~message   in
+            let pl            = Cryptography.decrypt ~key:s#get_secret_key ~ciphertext ~iv  in
+            f,(pl |> Cstruct.to_string |> Yojson.Basic.from_string)
+        | `Null -> f,c
+        | _     -> raise Malformed_data))
+  | _ -> raise Malformed_data
+
+let encrypt_write s file_content =
+  match file_content with
+  | `Assoc l -> 
+      `Assoc (List.map l ~f:(fun (f,c) -> 
+          let plaintext     = c |> Yojson.Basic.to_string |> Cstruct.of_string      in
+          let ciphertext,iv = Cryptography.encrypt ~key:s#get_secret_key ~plaintext in
+          let e = Cryptography.Serialisation.serialise_encrypted ~ciphertext ~iv    in
+          f,`String e))
+  | _ -> raise Malformed_data
+
 let read_from_cache peer service files s =
   Silo.read ~client:s#get_silo_client ~peer ~service ~paths:files
+  >|= decrypt_read s
   >|= begin function 
       | `Assoc l -> Core.Std.List.partition_tf l ~f:(fun (n,j) -> not(j = `Null))
       | _        -> raise Malformed_data
@@ -49,7 +73,19 @@ let write_to_cache peer service file_content requests s =
   let files_to_write_back = 
     Core.Std.List.filter file_content 
       ~f:(fun (p,c) -> Core.Std.List.exists write_backs (fun rf -> Auth.vpath_subsumes_request rf.path p)) in
-  Silo.write ~client:s#get_silo_client ~peer ~service ~contents:(`Assoc files_to_write_back)
+  Silo.write ~client:s#get_silo_client ~peer ~service ~contents:((`Assoc files_to_write_back) |> (encrypt_write s))
+
+let delete_from_cache peer service paths s =
+  Silo.delete ~client:s#get_silo_client ~peer ~service ~paths
+
+let read_from_silo service paths s =
+  Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service ~paths
+  >|= decrypt_read s
+
+let write_to_silo service content s =
+  Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service ~contents:(content |> (encrypt_write s))
+
+let delete_from_silo service paths s = delete_from_cache s#get_address service paths s
 
 let sign message s =
   Cstruct.of_string message
@@ -181,7 +217,7 @@ module Client = struct
         match service with
         | None          -> Wm.continue false rd
         | Some service' -> 
-        Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~paths:files
+        read_from_silo service' files s
         >|= begin function
             | `Assoc _ as j -> Yojson.Basic.to_string j 
             | _ -> raise Malformed_data
@@ -466,7 +502,7 @@ module Client = struct
         | Some service' ->
         match file_content_to_set with
         | `Assoc j as contents ->
-            (Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~contents
+            (write_to_silo service' contents s
             >>= fun () -> Wm.continue true rd)
       with
       | Malformed_data -> Wm.continue false rd
@@ -571,9 +607,8 @@ module Client = struct
         match service with
         | None          -> Wm.continue false rd
         | Some service' -> 
-        Silo.delete ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~paths:files
-        >>= fun () -> 
-          Wm.continue true rd
+        delete_from_silo service' files s
+        >>= fun () -> Wm.continue true rd
       with 
       | _  -> Wm.continue false rd
   end
@@ -653,7 +688,7 @@ module Peer = struct
         match source with 
         | None -> Wm.continue false rd
         | Some source' ->
-            Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~paths:files
+            read_from_silo service' files s
             >>= fun j ->
               (match j with 
               | `Assoc l  ->
@@ -726,7 +761,7 @@ module Peer = struct
         match service with 
         | None -> Wm.continue false rd
         | Some service' ->
-            Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~contents:file_content
+            write_to_silo service' file_content s
             >>= fun () -> Wm.continue true rd
       with
       | Malformed_data  -> Wm.continue false rd
@@ -787,7 +822,7 @@ module Peer = struct
         match service with 
         | None -> Wm.continue false rd
         | Some service' ->
-            Silo.delete ~client:s#get_silo_client ~peer:s#get_address ~service:service' ~paths:files
+            delete_from_silo service' files s
             >>= fun () -> Wm.continue true rd
       with
       | Malformed_data  -> Wm.continue false rd
@@ -795,8 +830,6 @@ module Peer = struct
 
   class inv s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
-
-    val mutable peer : Peer.t option = None
 
     val mutable service : string option = None
 
@@ -836,7 +869,6 @@ module Peer = struct
         >>= (fun message -> 
           raw <- Some message;
           let files' = Coding.decode_file_list_message message in
-          peer <- Some (Peer.create peer_api);
           service <- Some service';
           files <- files';
           Wm.continue (peer_api = Peer.host s#get_address) rd)
@@ -845,15 +877,14 @@ module Peer = struct
 
     method process_post rd =
       try
-        match peer with
-        | None          -> Wm.continue false rd
-        | Some peer' -> 
+        match source with
+        | None      -> Wm.continue false rd
+        | Some peer -> 
         match service with
         | None          -> Wm.continue false rd
         | Some service' -> 
-        Silo.delete ~client:s#get_silo_client ~peer:(peer') ~service:(service') ~paths:files
-        >>= fun () ->
-          Wm.continue true rd
+        delete_from_cache peer service' files s
+        >>= fun () -> Wm.continue true rd
       with 
       | _  -> Wm.continue false rd
   end
