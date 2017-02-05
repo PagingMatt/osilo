@@ -79,3 +79,5 @@ it and the paired [Token.t] into [capabilities_service] if [capabilities_service
 contain a more general element which is at least as powerful as this element. *)
 
 val vpath_subsumes_request : string -> string -> bool
+(** [vpath_subsumes_request verified testing] returns [true] if [testing] is at or in a subdirectory
+of [verified]. Otherwise it is [false].*)
