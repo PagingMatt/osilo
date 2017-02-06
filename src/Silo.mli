@@ -33,7 +33,6 @@ exception Write_failed of string
 exception Delete_failed of string
 exception Delete_file_failed of string
 
-
 val write :
   client:Client.t            ->
   peer:Peer.t                ->
