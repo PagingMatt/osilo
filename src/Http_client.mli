@@ -4,6 +4,7 @@ type auth =
   | None
   | Key of string
   | Sig of string * string
+(** Exposed type for passing in authentication credentials for HTTPS headers. *)
 
 val get : 
   peer:Peer.t -> 
