@@ -1,4 +1,7 @@
+(** Annotated file tree types. *)
+
 type 'a t
+(** Internal type for annotated file trees, parameterised by the type of annotation. *)
 
 exception Path_empty
 (** Raised when inserting and hit an empty path, this should never happen as the terminating
