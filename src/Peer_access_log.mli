@@ -1,6 +1,10 @@
+(** Module to log peer reads of my data. *)
+
 type t 
+(** Internal type for peer access log. *)
 
 val empty : t
+(** [empty] gives and empty peer access log. *)
 
 val log : t -> host:Peer.t -> peer:Peer.t -> service:string -> path:string -> t
 (** [log l ~host ~peer ~service ~path] takes the current peer access log and gives back another where it 

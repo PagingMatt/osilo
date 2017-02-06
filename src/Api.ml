@@ -615,9 +615,6 @@ module Client = struct
 end
 
 module Peer = struct 
-
-  exception Raw_content_not_stored
-
   class pub s = object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 

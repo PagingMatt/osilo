@@ -5,15 +5,19 @@ class type server = object
   (** [get_addess] returns the [Peer.t] that represents this server. *)
 
   method get_secret_key : Cstruct.t
-  (** [get_secret_key] returns the secret private key for this server from the keying service. *)
+  (** [get_secret_key] returns the secret private key for this server. *)
 
   method get_private_key : Nocrypto.Rsa.priv
+  (** [get_private_key] returns the private RSA key for this server. *)
 
   method get_public_key : Nocrypto.Rsa.pub
+  (** [get_public_key] returns the public RSA key for this server. *)
 
   method get_keying_service : Cryptography.Keying.t
+  (** [get_keying_service] returns the public RSA key store for this server. *)
 
   method set_keying_service : Cryptography.Keying.t -> unit
+  (** [get_keying_service ks] sets the public RSA key store for this server to [ks]. *)
 
   method get_capability_service : Auth.CS.t
   (** [get_capability_service] returns the capability service for this server, this contains the 

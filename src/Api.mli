@@ -1,3 +1,5 @@
+(** Encapsulates all instantiations of Webmachine classes for REST server. *)
+
 exception Malformed_data
 (** Raised when data passed through a POST is not as expected. *)
 
@@ -5,8 +7,13 @@ exception Path_info_exn of string
 (** Raised when expected wildcard doesn't exist in path. *)
 
 type provider_body = Cohttp_lwt_body.t Wm.provider
+(** Reduce replication with [provider_body] type. *)
+
 type acceptor_body = Cohttp_lwt_body.t Wm.acceptor
+(** Reduce replication with [acceptor_body] type. *)
+
 type 'a content_types = ((string * 'a) list, Cohttp_lwt_body.t) Wm.op
+(** Parameterise [content_types] by either [provider_body] or [acceptor_body]. *)
 
 class ping : object
   inherit [Cohttp_lwt_body.t] Wm.resource
@@ -15,8 +22,10 @@ class ping : object
 
   method content_types_accepted : acceptor_body content_types
 end
+(** Entrypoint for pinging a peer to check liveness. *)
 
 val sign : string -> <get_private_key : Nocrypto.Rsa.priv; ..> -> string
+(** Function to sign a message. *)
 
 module Client : sig 
   class get_local : 
@@ -29,6 +38,7 @@ module Client : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for client to read its own data. *)
 
   class get_remote : 
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
@@ -41,6 +51,7 @@ module Client : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for client to get peer to read another peer's data. *)
 
   class set_local : 
     < get_address : Peer.t; get_secret_key : Cstruct.t;
@@ -52,6 +63,7 @@ module Client : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for client to write its own data. *)
 
   class set_remote : 
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
@@ -63,6 +75,7 @@ module Client : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for client to get peer to write another peer's data. *)
 
   class del_local : 
     < get_address : Peer.t; get_secret_key : Cstruct.t;
@@ -74,6 +87,7 @@ module Client : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for client to delete its own data. *)
 
   class del_remote : 
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
@@ -85,6 +99,7 @@ module Client : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for client to get peer to delete another peer's data. *)
 
   class permit : 
     < get_address : Peer.t;
@@ -96,6 +111,7 @@ module Client : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for client to get its peer to mint and send capabilities to another peer. *)
 
   class inv : 
     < get_address : Peer.t;
@@ -109,11 +125,12 @@ module Client : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for client to get its peer to remotely invalidate its data remotely cached. *)
 end
+(** Entrypoint for all C2P communication. All data posted here is portable/cross-platform.
+Clients can be implemented in any language with HTTPS posting and a JSON parser. *)
 
 module Peer : sig 
-  exception Raw_content_not_stored
-  
   class pub : <get_public_key : Nocrypto.Rsa.pub; ..> -> object
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -121,6 +138,7 @@ module Peer : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for peer to ask for another peer's public RSA key. *)
 
   class get : 
     < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
@@ -135,6 +153,7 @@ module Peer : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for a peer to read this peer's data. *)
 
   class set : 
     < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
@@ -147,6 +166,7 @@ module Peer : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for a peer wanting to write this peer's data. *)
 
   class del : 
     < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
@@ -159,6 +179,7 @@ module Peer : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for a peer wanting to delete this peer's data. *)
 
   class inv : 
     < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
@@ -171,6 +192,7 @@ module Peer : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for a peer wanting to invalidate its data cached at this peer. *)
 
   class permit : 
     < get_capability_service : Auth.CS.t; get_keying_service : Cryptography.Keying.t;
@@ -183,5 +205,8 @@ module Peer : sig
 
     method content_types_accepted : acceptor_body content_types
   end
+  (** Entrypoint for a peer wanting to give a capability to this peer. *)
 end
+(** Entrypoint for all P2P communication. All data posted here is completely dependent on
+the osilo platform. *)
 
