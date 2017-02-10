@@ -11,25 +11,23 @@ let inv server service path key =
   let message = (`List [`String path]) |> Yojson.Basic.to_string in
   let path = Printf.sprintf "/client/inv/%s" service in
   Http_client.post ~peer:server' ~path ~body:message ~auth:None
-  >|= (fun (c,_) -> Printf.printf "%d" c) 
+  >|= (fun (c,_) -> Printf.printf "%d" c)
 
 let give server peer service file key token =
   let server' = Peer.create server in
   let message = (`Assoc [(token, `String file)]) |> Yojson.Basic.to_string in
   let path = Printf.sprintf "/client/permit/%s/%s" peer service in
   Http_client.post ~peer:server' ~path ~body:message ~auth:None
-  >|= (fun (c,_) -> Printf.printf "%d" c) 
+  >|= (fun (c,_) -> Printf.printf "%d" c)
 
-let set_my () = 
-  let key = "testtesttesttesttesttesttesttest" in
+let set_my () =
   let peer = Peer.create "172.16.54.52" in
   let message = (`Assoc [("new-dir/test-file",`String "test value in file")]) |> Yojson.Basic.to_string in
   let path = "/client/set/local/master" in
   Http_client.post ~peer ~path ~body:message ~auth:None
   >|= fun _ -> ()
 
-let set_their () = 
-  let key = "testtesttesttesttesttesttesttest" in
+let set_their () =
   let peer = Peer.create "192.168.1.86" in
   let message = (`Assoc [("new-dir/test-file",`String "test value in file")]) |> Yojson.Basic.to_string in
   let path = "/client/set/192.168.1.77/foo" in
@@ -37,7 +35,6 @@ let set_their () =
   >|= fun (c,_) -> Printf.printf "%d\n" c
 
 let del_my () = 
-  let key  = "testtesttesttesttesttesttesttest" in
   let peer = Peer.create "172.16.54.52" in
   let message = (`List [(`String "new-dir/test-file5")]) |> Yojson.Basic.to_string in
   let path = "/client/del/local/master" in
@@ -49,7 +46,7 @@ let get_my host port service file key =
   let message = (`List [`String file]) |> Yojson.Basic.to_string in
   let path = Printf.sprintf "/client/get/local/%s" service in
   Http_client.post ~peer ~path ~body:message ~auth:None
-  >|= (fun (c,b) -> Printf.printf "%s\n\n" b) 
+  >|= (fun (c,b) -> Printf.printf "%s\n\n" b)
 
 let del_their host peer service file key =
   let host' = Peer.create host in
@@ -64,16 +61,16 @@ let get_their host peer service file key =
   let message = (`List [(`Assoc [("path",`String "bar");("check_cache", `Bool false); ("write_back", `Bool false)])]) |> Yojson.Basic.to_string in
   let path = Printf.sprintf "/client/get/%s/%s" (Peer.host peer') service in
   Http_client.post ~peer:server ~path ~body:message ~auth:None
-  >|= (fun (c,b) -> Printf.printf "%s\n\n" b) 
+  >|= (fun (c,b) -> Printf.printf "%s\n\n" b)
 
 let ping host port =
   let peer = Peer.create host in
   Http_client.get ~peer ~path:"/ping/";
-  >|= fun (c,_) -> Printf.printf "Response code: %d\n" c 
+  >|= fun (c,_) -> Printf.printf "Response code: %d\n" c
 
 module Terminal = struct
 
-  let set_my = 
+  let set_my =
     Command.basic
       ~summary:"Set a piece of my data"
       Command.Spec.(
@@ -81,7 +78,7 @@ module Terminal = struct
       )
       (fun () -> Lwt_main.run (set_my ()))
 
-  let set_their = 
+  let set_their =
     Command.basic
       ~summary:"Set a piece of their data"
       Command.Spec.(
@@ -89,7 +86,7 @@ module Terminal = struct
       )
       (fun () -> Lwt_main.run (set_their ()))
 
-  let get_my = 
+  let get_my =
     Command.basic
       ~summary:"Get a piece of my data"
       Command.Spec.(
@@ -102,7 +99,7 @@ module Terminal = struct
       )
       (fun h p s f k () -> Lwt_main.run (get_my h p s f k))
 
-  let del_my = 
+  let del_my =
     Command.basic
       ~summary:"Delete a piece of my data"
       Command.Spec.(
@@ -110,7 +107,7 @@ module Terminal = struct
       )
       (fun () -> Lwt_main.run (del_my ()))
 
-  let get_their = 
+  let get_their =
     Command.basic
       ~summary:"Get a piece of their data"
       Command.Spec.(
@@ -123,7 +120,7 @@ module Terminal = struct
       )
       (fun h p s f k () -> Lwt_main.run (get_their h p s f k))
 
-  let del_their = 
+  let del_their =
     Command.basic
       ~summary:"Delete a piece of their data"
       Command.Spec.(
@@ -150,7 +147,7 @@ module Terminal = struct
       )
       (fun h p s f k t () -> Lwt_main.run (give h p s f k t))
 
-  let ping = 
+  let ping =
     Command.basic
       ~summary:"Ping specified osilo server."
       Command.Spec.(
@@ -160,7 +157,7 @@ module Terminal = struct
       )
       (fun h p () -> Lwt_main.run (ping h p))
 
-  let inv = 
+  let inv =
     Command.basic
       ~summary:"Invalidate remotely cached data."
       Command.Spec.(
@@ -172,13 +169,13 @@ module Terminal = struct
       )
       (fun h s p k () -> Lwt_main.run (inv h s p k))
 
-  let commands = 
-    Command.group 
+  let commands =
+    Command.group
       ~summary:"Terminal entry point for osilo terminal client."
       [("inv",inv);("del-my",del_my);("del-their",del_their);("get-my",get_my);("get-their",get_their);("set-my",set_my);("set-their",set_their);("ping", ping);("give",give)]
 end
 
-let () = 
+let () =
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level (Some Logs.Info);
   Nocrypto_entropy_unix.initialize ();
