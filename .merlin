@@ -1,0 +1,25 @@
+S src
+S client
+S server
+S tests
+
+B _build/src
+B +threads
+
+PKG alcotest
+PKG core
+PKG core_bench
+PKG cstruct
+PKG cohttp.lwt
+PKG datakit-client
+PKG lwt
+PKG nocrypto.unix
+PKG lru
+PKG protocol-9p.unix
+PKG sexplib
+PKG uri
+PKG webmachine
+PKG yojson
+PKG logs.fmt
+PKG macaroons
+PKG tls
