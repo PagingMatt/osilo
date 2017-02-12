@@ -14,13 +14,13 @@ module Serialisation : sig
   (** [deserialise_cstruct msg] attempts to deserialise [msg] into a [Cstruct.t], raising
   [Deserialisation_failed msg] if [msg] cannot be deserialised into a [Cstruct.t]. *)
 
-  val serialise_encrypted : ciphertext:Cstruct.t -> iv:Cstruct.t -> string
-  (** [serialise_encrypted ~ciphertext ~iv] gives a string which represents [ciphertext]
-  and [iv]. *)
+  val serialise_encrypted : ciphertext:Cstruct.t -> nonce:Cstruct.t -> string
+(** [serialise_encrypted ~ciphertext ~nonce] gives a string which represents
+    [ciphertext] and [nonce]. *)
 
   val deserialise_encrypted : message:string -> Cstruct.t * Cstruct.t
   (** [deserialise_encrypted ~message] takes the [string] [message] and attempts to
-  deserialise this back into the ciphertext, initial vector pair that [message]
+  deserialise this back into the ciphertext, nonce pair that [message]
   represents. Failing this it raises [Deserialisation_failed mesage]. *)
 end
 (** Encapsulates serialisation functions for the cryptographic types. *)

@@ -7,7 +7,7 @@ module Serialisation : sig
   exception Deserialisation_failed of string
   val serialise_cstruct     : Cstruct.t -> string
   val deserialise_cstruct   : string    -> Cstruct.t
-  val serialise_encrypted   : ciphertext:Cstruct.t -> iv:Cstruct.t -> string
+  val serialise_encrypted   : ciphertext:Cstruct.t -> nonce:Cstruct.t -> string
   val deserialise_encrypted : message:string -> Cstruct.t * Cstruct.t
 end = struct
   exception Deserialisation_failed of string
@@ -30,13 +30,13 @@ end = struct
   let deserialise_encrypted ~message =
     let j = Yojson.Basic.from_string message in
     let c = j |> string_member "ciphertext"     |> deserialise_cstruct in
-    let i = j |> string_member "initial_vector" |> deserialise_cstruct in
+    let i = j |> string_member "nonce" |> deserialise_cstruct in
     (c,i)
 
-  let serialise_encrypted ~ciphertext ~iv =
+  let serialise_encrypted ~ciphertext ~nonce =
    `Assoc [
       ("ciphertext"     , `String (serialise_cstruct ciphertext));
-      ("initial_vector" , `String (serialise_cstruct iv        ))
+      ("nonce" , `String (serialise_cstruct iv        ))
     ] |> Yojson.Basic.to_string
 end
 
