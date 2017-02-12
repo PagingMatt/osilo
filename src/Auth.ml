@@ -17,20 +17,20 @@ module Crypto : Macaroons.CRYPTO = struct
       (Cstruct.of_string message)
     |> serialise_cstruct
 
-  let encrypt ~key message = 
-    let ciphertext,iv = 
-      Cryptography.encrypt 
-        ~key:(Cstruct.of_string key) 
+  let encrypt ~key message =
+    let ciphertext,nonce =
+      Cryptography.encrypt
+        ~key:(Cstruct.of_string key)
         ~plaintext:(Cstruct.of_string message)
-    in 
-    serialise_encrypted ~ciphertext ~iv
+    in
+    serialise_encrypted ~ciphertext ~nonce
 
   let decrypt ~key message =
-    let ciphertext,iv = deserialise_encrypted ~message in
+    let ciphertext,nonce = deserialise_encrypted ~message in
       Cryptography.decrypt
-        ~key:(Cstruct.of_string key) 
-        ~ciphertext 
-        ~iv
+        ~key:(Cstruct.of_string key)
+        ~ciphertext
+        ~nonce
     |> serialise_cstruct
 
   let () = Nocrypto_entropy_unix.initialize ()
@@ -52,8 +52,8 @@ end = struct
 
   let token_of_string t =
     match t with
-    | "R" -> R 
-    | "W" -> W 
+    | "R" -> R
+    | "W" -> W
     | "D" -> D
     | _   -> raise (Invalid_token t)
 
@@ -76,12 +76,12 @@ end = struct
     | R -> (t2 = R)
 end
 
-module CS : sig 
-  type t 
+module CS : sig
+  type t
 
   val empty : t
 
-  val record_if_most_general : 
+  val record_if_most_general :
     service:t          ->
     macaroon:M.t       -> t
 
@@ -89,7 +89,7 @@ module CS : sig
     service:t               ->
     path:string             ->
     permission:Token.t      -> M.t option
-end = struct 
+end = struct
   type t = M.t File_tree.t
 
   open Token
@@ -98,17 +98,17 @@ end = struct
 
   let location m = (M.location m |> Core.Std.String.split ~on:'/')
 
-  let select m1 m2 = 
-    if (M.identifier m2 |> Token.token_of_string) >> (M.identifier m1 |> Token.token_of_string) 
+  let select m1 m2 =
+    if (M.identifier m2 |> Token.token_of_string) >> (M.identifier m1 |> Token.token_of_string)
     then m2 else m1
 
   let satisfies permission m = (M.identifier m |> Token.token_of_string) >= permission
 
-  let terminate elopt el = 
-    match elopt with 
+  let terminate elopt el =
+    match elopt with
     | None     -> false
-    | Some el' -> 
-        (M.identifier el' |> Token.token_of_string) 
+    | Some el' ->
+        (M.identifier el' |> Token.token_of_string)
         >= (M.identifier el |> Token.token_of_string)
 
   let record_if_most_general ~service ~macaroon =
@@ -117,16 +117,16 @@ end = struct
   let find_most_general_capability ~service ~path ~permission =
     File_tree.shortest_path_match
       ~tree:service
-      ~location:(Core.Std.String.split path ~on:'/') 
+      ~location:(Core.Std.String.split path ~on:'/')
       ~satisfies:(satisfies permission)
 end
 
 open Token
 
-let record_permissions capability_service permissions = 
-  Core.Std.List.fold 
-    permissions 
-    ~init:capability_service 
+let record_permissions capability_service permissions =
+  Core.Std.List.fold
+    permissions
+    ~init:capability_service
     ~f:(fun service -> fun m -> CS.record_if_most_general ~macaroon:m ~service)
 
 let create_service_capability host key service (perm,path) =
@@ -144,7 +144,7 @@ let verify tok key mac = (* Verify that I minted this macaroon and it is suffici
   M.verify mac ~key ~check:(fun _ -> true) [] (* not forged *)
   && (token_of_string (M.identifier mac)) >= tok (* powerful enough *)
 
-let verify_location target service l = 
+let verify_location target service l =
   match Core.Std.String.split l ~on:'/' with
   | x::y::zs -> if (x=Peer.host target) && (y=service) then Core.Std.String.concat ~sep:"/" zs else ""
   | _        -> ""
@@ -153,9 +153,9 @@ let vpath_subsumes_request vpath rpath =
   let vpath' = Core.Std.String.split vpath ~on:'/' in
   let rpath' = Core.Std.String.split rpath ~on:'/' in
   let rec walker v r =
-    match v with 
+    match v with
     | []    -> true
-    | x::xs -> 
+    | x::xs ->
       match r with
       | []    -> false
       | y::ys -> x=y && (walker xs ys)
@@ -164,17 +164,17 @@ let vpath_subsumes_request vpath rpath =
 let rec covered caps (perm,path) =
   match caps with
   | []        -> false
-  | m::cs -> 
+  | m::cs ->
       (((M.identifier m |> Token.token_of_string) >= perm) && (vpath_subsumes_request (M.location m) path))
       || covered cs (perm,path)
 
 let find_permissions capability_service requests =
   Core.Std.List.fold requests ~init:([],[])
-  ~f:(fun (c,n) -> fun (permission,path) -> 
+  ~f:(fun (c,n) -> fun (permission,path) ->
     if covered c (permission,path) then (c,n) else
-      CS.find_most_general_capability 
+      CS.find_most_general_capability
       ~service:capability_service ~path ~permission
-    |> begin function 
+    |> begin function
        | None       -> c,((permission,path)::n)
        | Some m -> (m::c),n
        end)
@@ -186,15 +186,15 @@ let authorise requests capabilities tok key target service =
   let open Cryptography.Serialisation in
   let key' = serialise_cstruct key in
   let verified_capabilities = Core.Std.List.filter capabilities ~f:(verify tok key') in
-  let authorised_locations  = Core.Std.List.map verified_capabilities ~f:(M.location) in 
-  let path_tree = Core.Std.List.fold ~init:File_tree.empty 
-        ~f:(fun tree -> fun element -> 
-          File_tree.insert ~element ~tree 
-          ~location:(fun path -> Core.Std.String.split 
+  let authorised_locations  = Core.Std.List.map verified_capabilities ~f:(M.location) in
+  let path_tree = Core.Std.List.fold ~init:File_tree.empty
+        ~f:(fun tree -> fun element ->
+          File_tree.insert ~element ~tree
+          ~location:(fun path -> Core.Std.String.split
             (Printf.sprintf "%s/%s/%s" (Peer.host target) service path) ~on:'/')
           ~select:(fun p -> fun _ -> p)
           ~terminate:(fun o -> fun _ -> match o with | Some e -> true | None -> false)) requests in
-  let (authorised_paths,_) = 
+  let (authorised_paths,_) =
     Core.Std.List.fold ~init:([],path_tree) ~f:(fun (paths,tree) -> fun loc ->
       let content,tree' = File_tree.trim ~tree ~location:(Core.Std.String.split loc ~on:'/')
       in (Core.Std.List.unordered_append content paths),tree') authorised_locations in
