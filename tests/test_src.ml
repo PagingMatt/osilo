@@ -267,9 +267,9 @@ module Coding_tests = struct
     let open Cryptography.Serialisation in
     let c     = deserialise_cstruct a          in
     let i     = deserialise_cstruct b          in
-    let s     = serialise_encrypted ~ciphertext:c ~iv:i   in
+    let s     = serialise_encrypted ~ciphertext:c ~nonce:i   in
     let c',i' = deserialise_encrypted s        in
-    let s'    = serialise_encrypted ~ciphertext:c' ~iv:i' in
+    let s'    = serialise_encrypted ~ciphertext:c' ~nonce:i' in
     Alcotest.(check cstruct)
       "Checks decoding and re-encoding a client message produces the same ciphertext"
       c c';
