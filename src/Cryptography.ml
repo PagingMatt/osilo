@@ -30,13 +30,13 @@ end = struct
   let deserialise_encrypted ~message =
     let j = Yojson.Basic.from_string message in
     let c = j |> string_member "ciphertext"     |> deserialise_cstruct in
-    let i = j |> string_member "nonce" |> deserialise_cstruct in
-    (c,i)
+    let n = j |> string_member "nonce" |> deserialise_cstruct in
+    (c,n)
 
   let serialise_encrypted ~ciphertext ~nonce =
    `Assoc [
-      ("ciphertext"     , `String (serialise_cstruct ciphertext));
-      ("nonce" , `String (serialise_cstruct iv        ))
+      ("ciphertext", `String (serialise_cstruct ciphertext));
+      ("nonce"     , `String (serialise_cstruct nonce))
     ] |> Yojson.Basic.to_string
 end
 
