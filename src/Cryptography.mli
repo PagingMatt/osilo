@@ -2,7 +2,7 @@
 
 open Nocrypto
 
-module Serialisation : sig 
+module Serialisation : sig
   exception Deserialisation_failed of string
   (** [Deserialisation_failed msg] is raised when the input to a deserialisation function
   is invalid. *)
@@ -30,7 +30,7 @@ module Signing : sig
 end
 (** Instantiation of PSS RSA signing functor with SHA512 hash. *)
 
-module Keying : sig  
+module Keying : sig
   type t
   (** Abstracted type of the keying module which represents the key store. *)
 
@@ -42,7 +42,7 @@ module Keying : sig
   (** [empty ~capacity] creates an empty key store of size [capacity]. *)
 
   val invalidate : ks:t -> peer:Peer.t -> t
-  (** [invalidate ~ks ~peer] returns [ks] where if [peer] is in [ks], it is 
+  (** [invalidate ~ks ~peer] returns [ks] where if [peer] is in [ks], it is
   removed and otherwise [ks] is unchanged. *)
 
   val lookup : ks:t -> peer:Peer.t -> (t * Nocrypto.Rsa.pub) Lwt.t
@@ -58,13 +58,14 @@ end
 
 val encrypt :
   key:Cstruct.t ->
-  plaintext:Cstruct.t -> Cstruct.t * Cstruct.t
-(** [encrypt ~key ~plaintext] encrypts the [plaintext] using the secret [key] and returns a pair
-containing the ciphertext and the inital vector used. *)
+  iv:Cstruct.t  ->
+  plaintext:Cstruct.t -> Cstruct.t
+(** [encrypt ~key ~iv ~plaintext] encrypts the [plaintext] using the secret
+    [key] and initial vector [iv], then returns the ciphertext. *)
 
 val decrypt :
   key:Cstruct.t ->
   ciphertext:Cstruct.t ->
   iv:Cstruct.t -> Cstruct.t
-(** [decrypt ~key ~ciphertext ~iv] decrypts the [ciphertext] with the secret [key], using
-the initial vector [iv]. *)
+(** [decrypt ~key ~ciphertext ~iv] decrypts the [ciphertext] with the secret
+    [key], using the initial vector [iv]. *)
