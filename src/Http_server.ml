@@ -35,19 +35,20 @@ class type server = object
 
   method start : unit Lwt.t
 end
-  
+
 class server' hostname secret_key silo key cert = object(self)
   val s_log : unit = Log.info (fun m -> m "Starting peer %s." hostname);
 
   val address : Peer.t = Peer.create hostname
 
-  method get_address = address 
+  method get_address = address
 
   val secret_key : Cstruct.t = secret_key
 
   method get_secret_key = secret_key
 
-  val private_key : Nocrypto.Rsa.priv = 
+  val private_key : Nocrypto.Rsa.priv =
+    let open Core.Std.Unix in
     let buf  = String.make 65536 'x' in
     let file = Unix.openfile ~mode:[O_RDONLY] (Printf.sprintf "%s" key) in file
     |> Unix.read ~buf
@@ -62,25 +63,25 @@ class server' hostname secret_key silo key cert = object(self)
 
   method get_public_key = Nocrypto.Rsa.pub_of_priv private_key
 
-  val mutable keying_service : Cryptography.Keying.t = 
-    Log.info (fun m -> m "Creating keying service with empty public key cache."); 
+  val mutable keying_service : Cryptography.Keying.t =
+    Log.info (fun m -> m "Creating keying service with empty public key cache.");
     Keying.empty ~capacity:1048576 (* store 256 4096-bit RSA keys *)
   method get_keying_service = keying_service
   method set_keying_service k = keying_service <- k
 
-  val mutable capability_service : Auth.CS.t = 
+  val mutable capability_service : Auth.CS.t =
     Log.info (fun m -> m "Creating capability service with empty capability tree.");
     Auth.CS.empty
   method get_capability_service = capability_service
   method set_capability_service c = capability_service <- c
 
-  val mutable peer_access_log : Peer_access_log.t = 
+  val mutable peer_access_log : Peer_access_log.t =
     Log.info (fun m -> m "Creating peer access log with empty log tree.");
     Peer_access_log.empty
   method get_peer_access_log = peer_access_log
   method set_peer_access_log p = peer_access_log <- p
 
-  val mutable silo_client : Client.t = 
+  val mutable silo_client : Client.t =
     Log.info (fun m -> m "Creating data silo client for datakit server at %s." silo);
     Client.create ~server:silo
   method get_silo_client = silo_client
@@ -103,16 +104,16 @@ class server' hostname secret_key silo key cert = object(self)
       ("/peer/inv/:peer/:service"     , fun () -> new Api.Peer.inv          self);
       ("/peer/permit/:peer/:service"  , fun () -> new Api.Peer.permit       self);
     ] in
-    Wm.dispatch' api ~body ~request 
+    Wm.dispatch' api ~body ~request
     >|= begin function
-        | Some r -> r 
+        | Some r -> r
         | None   -> (`Not_found, Cohttp.Header.init (), `String "Not found", [])
         end
     >>= fun (status, headers, body, _) -> Server.respond ~headers ~status ~body ()
 
-  method start = 
+  method start =
     let server = Server.make ~callback:self#callback () in
     let mode   = `TLS (`Crt_file_path cert, `Key_file_path key, `No_password, `Port 6620) in
-    Log.info (fun m -> m "Starting REST server for peer %s on port %d." hostname 6620); 
+    Log.info (fun m -> m "Starting REST server for peer %s on port %d." hostname 6620);
     Server.create ~mode server
 end
