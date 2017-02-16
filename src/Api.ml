@@ -357,7 +357,7 @@ module Client = struct
               ~auth:(Sig (Peer.host s#get_address, sign body s))
             >>= fun (c,_) ->
             (if c = 204 then
-               (delete_from_cache peer' service' requests s#get_silo_client)
+               (delete_from_cache peer' service' requests s)
                >>= fun () -> Wm.continue true rd
             else Wm.continue false rd))
           else

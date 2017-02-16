@@ -27,8 +27,8 @@ end
 val sign : string -> <get_private_key : Nocrypto.Rsa.priv; ..> -> string
 (** Function to sign a message. *)
 
-module Client : sig 
-  class get_local : 
+module Client : sig
+  class get_local :
     < get_address : Peer.t; get_secret_key : Cstruct.t;
       get_silo_client : Silo.Client.t; .. > -> object
 
@@ -40,7 +40,7 @@ module Client : sig
   end
   (** Entrypoint for client to read its own data. *)
 
-  class get_remote : 
+  class get_remote :
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
       get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv;
       get_silo_client : Silo.Client.t; .. > -> object
@@ -53,7 +53,7 @@ module Client : sig
   end
   (** Entrypoint for client to get peer to read another peer's data. *)
 
-  class set_local : 
+  class set_local :
     < get_address : Peer.t; get_secret_key : Cstruct.t;
       get_silo_client : Silo.Client.t; .. > -> object
 
@@ -65,7 +65,7 @@ module Client : sig
   end
   (** Entrypoint for client to write its own data. *)
 
-  class set_remote : 
+  class set_remote :
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
       get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
@@ -77,7 +77,7 @@ module Client : sig
   end
   (** Entrypoint for client to get peer to write another peer's data. *)
 
-  class del_local : 
+  class del_local :
     < get_address : Peer.t; get_secret_key : Cstruct.t;
       get_silo_client : Silo.Client.t; .. > -> object
 
@@ -89,9 +89,10 @@ module Client : sig
   end
   (** Entrypoint for client to delete its own data. *)
 
-  class del_remote : 
+  class del_remote :
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
-      get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv; .. > -> object
+      get_silo_client : Silo.Client.t; get_secret_key : Cstruct.t;
+      get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -101,7 +102,7 @@ module Client : sig
   end
   (** Entrypoint for client to get peer to delete another peer's data. *)
 
-  class permit : 
+  class permit :
     < get_address : Peer.t;
       get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
@@ -113,7 +114,7 @@ module Client : sig
   end
   (** Entrypoint for client to get its peer to mint and send capabilities to another peer. *)
 
-  class inv : 
+  class inv :
     < get_address : Peer.t;
       get_peer_access_log : Peer_access_log.t; get_secret_key : Cstruct.t;
       set_peer_access_log : Peer_access_log.t -> unit;
@@ -130,7 +131,7 @@ end
 (** Entrypoint for all C2P communication. All data posted here is portable/cross-platform.
 Clients can be implemented in any language with HTTPS posting and a JSON parser. *)
 
-module Peer : sig 
+module Peer : sig
   class pub : <get_public_key : Nocrypto.Rsa.pub; ..> -> object
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -140,7 +141,7 @@ module Peer : sig
   end
   (** Entrypoint for peer to ask for another peer's public RSA key. *)
 
-  class get : 
+  class get :
     < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
       set_keying_service : Cryptography.Keying.t -> unit;
       get_peer_access_log : Peer_access_log.t; get_secret_key : Cstruct.t;
@@ -155,7 +156,7 @@ module Peer : sig
   end
   (** Entrypoint for a peer to read this peer's data. *)
 
-  class set : 
+  class set :
     < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
       set_keying_service : Cryptography.Keying.t -> unit;
       get_secret_key : Cstruct.t; get_silo_client : Silo.Client.t; .. > -> object
@@ -168,7 +169,7 @@ module Peer : sig
   end
   (** Entrypoint for a peer wanting to write this peer's data. *)
 
-  class del : 
+  class del :
     < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
       set_keying_service : Cryptography.Keying.t -> unit;
       get_secret_key : Cstruct.t; get_silo_client : Silo.Client.t; .. > -> object
@@ -181,7 +182,7 @@ module Peer : sig
   end
   (** Entrypoint for a peer wanting to delete this peer's data. *)
 
-  class inv : 
+  class inv :
     < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
       set_keying_service : Cryptography.Keying.t -> unit;
       get_silo_client : Silo.Client.t; .. > -> object
@@ -194,7 +195,7 @@ module Peer : sig
   end
   (** Entrypoint for a peer wanting to invalidate its data cached at this peer. *)
 
-  class permit : 
+  class permit :
     < get_capability_service : Auth.CS.t; get_keying_service : Cryptography.Keying.t;
       set_keying_service : Cryptography.Keying.t -> unit;
       set_capability_service : Auth.CS.t -> 'a; .. > -> object
@@ -209,4 +210,3 @@ module Peer : sig
 end
 (** Entrypoint for all P2P communication. All data posted here is completely dependent on
 the osilo platform. *)
-
