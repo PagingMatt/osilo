@@ -355,7 +355,11 @@ module Client = struct
             (let body = attach_required_capabilities "D" peer' service' requests s in
             Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/del/%s" service') ~body
               ~auth:(Sig (Peer.host s#get_address, sign body s))
-            >>= fun (c,_) -> Wm.continue (c = 204) rd)
+            >>= fun (c,_) ->
+            (if c = 204 then
+               (delete_from_cache peer' service' requests s#get_silo_client)
+               >>= fun () -> Wm.continue true rd
+            else Wm.continue false rd))
           else
             Wm.continue false rd
       with
