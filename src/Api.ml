@@ -72,7 +72,8 @@ let write_to_cache peer service file_content requests s =
   let write_backs = Core.Std.List.filter requests ~f:(fun rf -> rf.write_back) in
   let files_to_write_back =
     Core.Std.List.filter file_content
-      ~f:(fun (p,c) -> Core.Std.List.exists write_backs (fun rf -> Auth.vpath_subsumes_request rf.path p)) in
+      ~f:(fun (p,c) -> Core.Std.List.exists write_backs
+             (fun rf -> Auth.vpath_subsumes_request rf.path p)) in
   Silo.write ~client:s#get_silo_client ~peer ~service ~contents:((`Assoc files_to_write_back) |> (encrypt_write s))
 
 let delete_from_cache peer service paths s =
@@ -556,6 +557,7 @@ module Client = struct
 
     method process_post rd =
       let open Http_client in
+      let open Coding      in
       try
         match peer with
         | None -> raise Malformed_data
@@ -570,10 +572,17 @@ module Client = struct
               then
                 (let body = attach_required_capabilities_and_content peer' service' paths targets s in
                 Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/set/%s" service') ~body
-                  ~auth:(Sig (Peer.host s#get_address, sign body s))
-                >>= fun (c,_) -> Wm.continue (c = 204) rd)
-              else
-                Wm.continue false rd
+                  ~auth:(Sig (Peer.host s#get_address, sign body s)))
+                >>= fun (c,_) -> (
+                  if c = 204 then
+                    (let requests = Core.Std.List.map paths
+                        ~f:(fun p -> {path=p; check_cache=false; write_back=true;}) in
+                    write_to_cache peer' service' j requests s
+                    >>= fun () -> Wm.continue true rd)
+                 else
+                   Wm.continue false rd)
+            else
+              Wm.continue false rd
       with
       | Malformed_data -> Wm.continue false rd
   end

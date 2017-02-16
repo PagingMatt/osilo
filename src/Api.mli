@@ -67,7 +67,8 @@ module Client : sig
 
   class set_remote :
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
-      get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv; .. > -> object
+      get_secret_key : Cstruct.t; get_silo_client : Silo.Client.t;
+      get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
 
