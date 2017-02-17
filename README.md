@@ -36,4 +36,5 @@ To run a peer using `Osilo_server.native`, it is necessary to start a [Datakit](
 
 ## Acknowledgements
 
-- `.travis.yml` file was [provided](https://github.com/avsm/ocaml-dockerfile/blob/master/.travis.yml) by Anil Madhavapeddy 
+- `.travis.yml` file was [provided](https://github.com/avsm/ocaml-dockerfile/blob/master/.travis.yml) by Anil Madhavapeddy
+- Setting up `coveralls.io` used instructions [from](https://github.com/simonjbeaumont/ocaml-travis-coveralls) Si Beaumont.
