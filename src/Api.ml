@@ -749,6 +749,9 @@ module Peer = struct
       try match Wm.Rd.lookup_path_info "service" rd with
       | None          -> Wm.continue true rd
       | Some service' ->
+        match source with
+        | None          -> Wm.continue true rd
+        | Some source' ->
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >>= (fun message ->
             raw <- Some message;
@@ -756,7 +759,7 @@ module Peer = struct
             let authorised_files =
               Auth.authorise files' capabilities
                 (Auth.Token.token_of_string "R")
-                s#get_secret_key s#get_address service' in
+                s#get_secret_key s#get_address service' source' in
             (service <- Some service'); (files <- authorised_files); Wm.continue false rd)
       with
       | Coding.Decoding_failed s ->
@@ -820,6 +823,9 @@ module Peer = struct
       try match Wm.Rd.lookup_path_info "service" rd with
       | None          -> Wm.continue true rd
       | Some service' ->
+        match source with
+        | None          -> Wm.continue true rd
+        | Some source' ->
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >>= (fun message ->
             raw <- Some message;
@@ -828,7 +834,7 @@ module Peer = struct
             let authorised_files =
               Auth.authorise paths capabilities
                 (Auth.Token.token_of_string "W")
-                s#get_secret_key s#get_address service' in
+                s#get_secret_key s#get_address service' source' in
             let authorised_file_content =
               Core.Std.List.filter file_contents
                 ~f:(fun (p,c) -> Core.Std.List.fold ~init:false
@@ -883,6 +889,9 @@ module Peer = struct
       try match Wm.Rd.lookup_path_info "service" rd with
       | None          -> Wm.continue true rd
       | Some service' ->
+        match source with
+        | None          -> Wm.continue true rd
+        | Some source' ->
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >>= (fun message ->
             raw <- Some message;
@@ -890,7 +899,7 @@ module Peer = struct
             let authorised_files =
               Auth.authorise files' capabilities
                 (Auth.Token.token_of_string "D")
-                s#get_secret_key s#get_address service' in
+                s#get_secret_key s#get_address service' source' in
             (service <- Some service'); (files <- authorised_files); Wm.continue false rd)
       with
       | Coding.Decoding_failed s ->

@@ -38,7 +38,8 @@ module M : sig
   val token : t -> Token.t
   val verify : t ->
     key:Cstruct.t    ->
-    required:Token.t -> bool
+    required:Token.t ->
+    requester:Peer.t -> bool
   exception Deserialisation_failed of string
   val string_of_t : t -> string
   val t_of_string : string -> t
@@ -70,8 +71,8 @@ module CS : sig
 end
 (** CS is the capability service, used to store capabilities given to this peer from other peers. *)
 
-val authorise : (string list) -> (M.t list) -> Token.t -> Cstruct.t -> Peer.t -> string -> (string list)
-(** [authorise paths capabilities token key target service] returns the subset of [paths] which is
+val authorise : (string list) -> (M.t list) -> Token.t -> Cstruct.t -> Peer.t -> string -> Peer.t -> (string list)
+(** [authorise paths capabilities token key target service requester] returns the subset of [paths] which is
 covered by [capabilities] for a request of level [token]. [key] is the key used to mint each
 element of capabilities, [target] is the server's data being read (always this server) and
 [service] is the service that the elements of [paths] are on. *)

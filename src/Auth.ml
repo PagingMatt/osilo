@@ -91,7 +91,8 @@ module M : sig
   val token : t -> Token.t
   val verify : t ->
     key:Cstruct.t    ->
-    required:Token.t -> bool
+    required:Token.t ->
+    requester:Peer.t -> bool
   exception Deserialisation_failed of string
   val string_of_t : t -> string
   val t_of_string : string -> t
@@ -151,12 +152,12 @@ end = struct
     Mac.identifier macaroon
     |> Token.token_of_string
 
-
-  let verify macaroon ~key ~required =
+  let verify macaroon ~key ~required ~requester =
     let open Cryptography.Serialisation in
     let open Token in
-    Mac.verify macaroon ~key:(serialise_cstruct key) ~check:(fun _ -> true) []
-    && (token_of_string (Mac.identifier macaroon)) >= required
+    Mac.verify macaroon ~key:(serialise_cstruct key) ~check:(fun _ -> true) [] (* Macaroon was minted with this secret key - not forged *)
+    && (token_of_string (Mac.identifier macaroon)) >= required (* Macaroon carries sufficient permission *)
+    && Peer.compare (delegate macaroon) (requester) = 0 (* Peer making request is peer macaroon was minted for *)
 
   let t_of_string s =
     Mac.deserialize s
@@ -266,10 +267,10 @@ let find_permissions capability_service requests peer service =
 let request_under_verified_path vpaths rpath =
   Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
 
-let authorise requests capabilities tok key target service =
+let authorise requests capabilities tok key target service requester =
   let open Cryptography.Serialisation in
   let key' = serialise_cstruct key in
-  let verified_capabilities = Core.Std.List.filter capabilities ~f:(M.verify ~required:tok ~key:(deserialise_cstruct key')) in
+  let verified_capabilities = Core.Std.List.filter capabilities ~f:(M.verify ~required:tok ~key:(deserialise_cstruct key') ~requester) in
   let authorised_locations  = Core.Std.List.map verified_capabilities ~f:(M.location) in
   let path_tree = Core.Std.List.fold ~init:File_tree.empty
         ~f:(fun tree -> fun element ->
