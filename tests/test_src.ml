@@ -134,6 +134,16 @@ module Auth_tests = struct
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
   let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" "example_key.pem" "test_cert"
   let delegate = Peer.create "127.0.0.1"
+  let delegate2 = Peer.create "foo"
+
+  let if_requester_isnt_delegate_authorise_fails () =
+    let ps = Auth.mint server#get_address server#get_secret_key "test" [(R,"test_file.json")] delegate in
+    match ps with
+    | (mac::[]) ->
+      Alcotest.(check bool) "Macaroon doesnt verify for different requester to delegate." (M.verify ~required:R ~key:(Coding.decode_cstruct key) ~requester:delegate2 mac) false;
+      Alcotest.(check bool) "Macaroon verifies for same requester as delegate." (M.verify ~required:R ~key:(Coding.decode_cstruct key) ~requester:delegate mac) true
+    | [] -> Alcotest.fail "Minted no macaroons"
+    | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
   let can_mint_read_macaroons_for_test () =
     let ps = Auth.mint server#get_address server#get_secret_key "test" [(R,"test_file.json")] delegate in
@@ -240,6 +250,7 @@ module Auth_tests = struct
     ("Invalid tokens throw on deserialisation.", `Quick, invalid_string_throws);
     ("Checks token 'greater than' infix holds.", `Quick, greater_than_token_tests);
     ("Checks token 'greater than or equal to' infix holds.", `Quick, greater_than_equal_token_tests);
+    ("Checks requester has to be delegate.", `Quick, if_requester_isnt_delegate_authorise_fails);
     ("Checks location and caveat in minted read macaroon", `Quick, can_mint_read_macaroons_for_test);
     ("Checks location and caveat in minted write macaroon", `Quick, can_mint_write_macaroons_for_test);
     ("Write macaroon can be used for read request", `Quick, write_macaroons_verifies_read_request);
