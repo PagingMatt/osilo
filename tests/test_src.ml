@@ -133,34 +133,35 @@ module Auth_tests = struct
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
   let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" "example_key.pem" "test_cert"
+  let delegate = Peer.create "127.0.0.1"
 
   let can_mint_read_macaroons_for_test () =
-    let ps = Auth.mint server#get_address server#get_secret_key "test" [(R,"test_file.json")] in
+    let ps = Auth.mint server#get_address server#get_secret_key "test" [(R,"test_file.json")] delegate in
     match ps with
     | (mac::[]) ->
-        Alcotest.(check string) "Passed back read token with macaroon" "R" (M.identifier mac);
+        Alcotest.(check string) "Passed back read token with macaroon" "R" (M.token mac |> Auth.Token.string_of_token);
         Alcotest.(check string) "Macaroon has desired location" "localhost/test/test_file.json" (M.location mac);
-        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (verify R key mac) true
+        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (M.verify ~required:R ~key:(Coding.decode_cstruct key) mac) true
     | [] -> Alcotest.fail "Minted no macaroons"
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
   let can_mint_write_macaroons_for_test () =
-    let ps = Auth.mint server#get_address server#get_secret_key "test" [(W,"test_file.json")] in
+    let ps = Auth.mint server#get_address server#get_secret_key "test" [(W,"test_file.json")] delegate in
     match ps with
     | (mac::[]) ->
-        Alcotest.(check string) "Passed back write token with macaroon" "W" (M.identifier mac);
+        Alcotest.(check string) "Passed back write token with macaroon" "W" (M.token mac |> Auth.Token.string_of_token);
         Alcotest.(check string) "Macaroon has desired location" "localhost/test/test_file.json" (M.location mac);
-        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (verify W key mac) true
+        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (M.verify ~required:R ~key:(Coding.decode_cstruct key) mac) true
     | [] -> Alcotest.fail "Minted no macaroons"
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
   let write_macaroons_verifies_read_request () =
-    let ps = Auth.mint server#get_address server#get_secret_key "test" [(W,"test_file.json")] in
+    let ps = Auth.mint server#get_address server#get_secret_key "test" [(W,"test_file.json")] delegate in
     match ps with
     | (mac::[]) ->
-        Alcotest.(check string) "Passed back write token with macaroon" "W" (M.identifier mac);
+        Alcotest.(check string) "Passed back write token with macaroon" "W" (M.token mac |> Auth.Token.string_of_token);
         Alcotest.(check string) "Macaroon has desired location" "localhost/test/test_file.json" (M.location mac);
-        Alcotest.(check bool)   "Verify that can read with this write token." (verify R key mac) true
+        Alcotest.(check bool)   "Verify that can read with this write token." (M.verify ~required:R ~key:(Coding.decode_cstruct key) mac) true
     | [] -> Alcotest.fail "Minted no macaroons"
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
@@ -168,7 +169,7 @@ module Auth_tests = struct
     let token = R in
     let caps = mint server#get_address server#get_secret_key "test"
       [(token,"foo/bar");
-       (token,"foo/bar/FOO/BAR")] in
+       (token,"foo/bar/FOO/BAR")] delegate in
     let paths = [(R,"localhost/test/foo/bar");(R,"localhost/test/foo/bar/FOO/BAR")] in
     let service0 = Auth.CS.empty in
     let service1 = Auth.record_permissions service0 caps in
@@ -191,7 +192,7 @@ module Auth_tests = struct
   let selection_args =
     Core.Std.List.map paths ~f:(fun p -> (t,Printf.sprintf "127.0.0.1/foo/%s" p))
 
-  let bc_capability = Auth.mint peer (key |> Coding.decode_cstruct) "foo" [(R,"a")]
+  let bc_capability = Auth.mint peer (key |> Coding.decode_cstruct) "foo" [(R,"a")] delegate
   let cap =
     match bc_capability with
     | c::_ -> c
@@ -203,7 +204,7 @@ module Auth_tests = struct
     Core.Std.List.map paths ~f:(fun p -> (t,p))
 
   let capabilities =
-    Auth.mint peer (key |> Coding.decode_cstruct) "foo" tokpaths
+    Auth.mint peer (key |> Coding.decode_cstruct) "foo" tokpaths delegate
 
   let tree =
     Core.Std.List.fold ~init:Auth.CS.empty capabilities
@@ -293,6 +294,7 @@ module File_tree_tests = struct
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
   let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" "example_key.pem" "test_cert"
+  let delegate = Peer.create "127.0.0.1"
 
   let location = fun (_,m) -> (M.location m |> Core.Std.String.split ~on:'/')
 
@@ -307,34 +309,34 @@ module File_tree_tests = struct
 
   let read_macaroon_inserted_into_service_can_be_retrieved () =
     let token = R in
-    match mint server#get_address server#get_secret_key "test" [(token,"foo/bar")] with
+    match mint server#get_address server#get_secret_key "test" [(token,"foo/bar")] delegate with
     | mac::[] ->
         Alcotest.(check string) "Checks the token is minted correctly"
-        (Auth.M.identifier mac) "R";
+          (Auth.M.token mac |> Auth.Token.string_of_token) "R";
         Alcotest.(check string) "Checks the minted macaroon has correct location"
         (M.location mac) "localhost/test/foo/bar";
         (let service = File_tree.insert ~element:(token,mac) ~tree:(File_tree.empty) ~location ~select ~terminate in
         match File_tree.shortest_path_match ~tree:service ~location:(["localhost"; "test"; "foo"; "bar"]) ~satisfies:(satisfies token) with
         | Some (_,mac') ->
             Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
-            (M.identifier mac') (M.identifier mac);
+              (Auth.M.token mac' |> Auth.Token.string_of_token) (Auth.M.token mac |> Auth.Token.string_of_token);
             Alcotest.(check bool) "Checks that the stored macaroon is valid"
-            (verify token key mac') true
+              (Auth.M.verify ~required:token ~key:(Coding.decode_cstruct key) mac') true
         | None -> Alcotest.fail "Could not get Macaroon back out of capability service")
     | _ -> Alcotest.fail "Minting failed" (* Caught in more detail in separate test *)
 
   let short_circuit_on_find () =
     let token = R in
-    match mint server#get_address server#get_secret_key "test" [(token,"foo/bar"); (token,"foo/bar/FOO/BAR")] with
+    match mint server#get_address server#get_secret_key "test" [(token,"foo/bar"); (token,"foo/bar/FOO/BAR")] delegate with
     | mac1::mac2::[] ->
-        (let service = File_tree.insert ~element:(((Auth.M.identifier mac1) |> token_of_string), mac1) ~tree:(File_tree.empty) ~location ~select ~terminate in
-        let service' = File_tree.insert ~element:(((Auth.M.identifier mac2) |> token_of_string), mac2) ~tree:(service) ~location ~select ~terminate in
+        (let service = File_tree.insert ~element:((Auth.M.token mac1), mac1) ~tree:(File_tree.empty) ~location ~select ~terminate in
+        let service' = File_tree.insert ~element:((Auth.M.token mac2), mac2) ~tree:(service) ~location ~select ~terminate in
         match File_tree.shortest_path_match ~tree:service' ~location:(Core.Std.String.split "localhost/test/foo/bar/FOO/BAR" ~on:'/') ~satisfies:(satisfies token) with
         | Some (_,mac') ->
             Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
-            (M.identifier mac') (M.identifier mac1);
+              (Auth.M.token mac' |> Auth.Token.string_of_token) (Auth.M.token mac1 |> Auth.Token.string_of_token);
             Alcotest.(check bool) "Checks that the stored macaroon is valid"
-            (verify token key mac') true
+              (Auth.M.verify ~required:token ~key:(Coding.decode_cstruct key) mac') true
         | None -> Alcotest.fail "Could not get short circuiting Macaroon back out of capability service")
     | _ -> Alcotest.fail "Minting failed"
 
