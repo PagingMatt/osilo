@@ -4,8 +4,7 @@ services:
   - docker
 install:
   - wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-docker.sh
-  - wget https://raw.githubusercontent.com/simonjbeaumont/ocaml-travis-coveralls/master/travis-coveralls.sh
-script: bash ./.travis-docker.sh && bash ./travis-coveralls.sh
+script: bash ./.travis-docker.sh
 env:
  global:
    - PACKAGE="osilo"
