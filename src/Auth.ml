@@ -92,6 +92,7 @@ module M : sig
   val verify : t ->
     key:Cstruct.t    ->
     required:Token.t -> bool
+  exception Deserialisation_failed of string
   val string_of_t : t -> string
   val t_of_string : string -> t
 end = struct
@@ -99,33 +100,57 @@ end = struct
 
   type t = Mac.t
 
+  exception Deserialisation_failed of string
+
+  let string_member s j =
+    match Yojson.Basic.Util.member s j with
+    | `String m -> m
+    | _         -> raise (Deserialisation_failed s)
+
+  let encode_location ~source ~service ~path ~target =
+      `Assoc [
+        ("source" , `String (Peer.host source));
+        ("service", `String (service));
+        ("path"   , `String (path));
+        ("target" , `String (Peer.host target))]
+      |> Yojson.Basic.to_string
+
+  let decode_location location =
+    let j = Yojson.Basic.from_string location in
+    let source  = string_member "source"  j |> Peer.create in
+    let service = string_member "service" j   in
+    let path    = string_member "path"    j   in
+    let target  = string_member "target"  j |> Peer.create in
+    source,service,path,target
+
   let create ~source ~service ~path ~target ~token ~key =
     let open Cryptography.Serialisation in
-    let location = Coding.encode_location source service path target in
+    let location = encode_location source service path target in
     Mac.create
       ~location
       ~key:(key |> serialise_cstruct)
       ~id:(Token.string_of_token token)
 
   let source macaroon =
-    let s,_,_,_ = Mac.location macaroon |> Coding.decode_location in s
+    let s,_,_,_ = Mac.location macaroon |> decode_location in s
 
   let service macaroon =
-    let _,s,_,_ = Mac.location macaroon |> Coding.decode_location in s
+    let _,s,_,_ = Mac.location macaroon |> decode_location in s
 
   let path macaroon =
-    let _,_,p,_ = Mac.location macaroon |> Coding.decode_location in p
+    let _,_,p,_ = Mac.location macaroon |> decode_location in p
 
   let target macaroon =
-    let _,_,_,t = Mac.location macaroon |> Coding.decode_location in t
+    let _,_,_,t = Mac.location macaroon |> decode_location in t
 
   let location macaroon =
-    let source,service,path,_ = Mac.location macaroon |> Coding.decode_location in
+    let source,service,path,_ = Mac.location macaroon |> decode_location in
     Printf.sprintf "%s/%s/%s" (source |> Peer.host) service path
 
   let token macaroon =
     Mac.identifier macaroon
     |> Token.token_of_string
+
 
   let verify macaroon ~key ~required =
     let open Cryptography.Serialisation in
@@ -137,7 +162,7 @@ end = struct
     Mac.deserialize s
     |> begin function
       | `Ok m    -> m
-      | `Error (e,_) -> raise (Coding.Decoding_failed
+      | `Error (e,_) -> raise (Deserialisation_failed
           (Printf.sprintf "Deserialising Macaroon failed with %d" e))
     end
 

@@ -48,24 +48,8 @@ let decode_json_requested_file j =
     write_back  = bool_member    "write_back"  j;
   }
 
-let encode_location ~source ~service ~path ~target =
-    `Assoc [
-      ("source" , `String (Peer.host source));
-      ("service", `String (service));
-      ("path"   , `String (path));
-      ("target" , `String (Peer.host target))]
-    |> Yojson.Basic.to_string
-
-let decode_location location =
-  let j = Yojson.Basic.from_string location in
-  let source  = string_member "source"  j |> Peer.create in
-  let service = string_member "service" j   in
-  let path    = string_member "path"    j   in
-  let target  = string_member "target"  j |> Peer.create in
-  source,service,path,target
-
 let encode_capabilities capabilities =
-  let serialised = Core.Std.List.map capabilities ~f:Auth.M.serialize in
+  let serialised = Core.Std.List.map capabilities ~f:Auth.M.string_of_t in
   `List (Core.Std.List.map serialised ~f:(fun s -> `String s))
 
 let decode_capabilities capabilities =
@@ -73,12 +57,7 @@ let decode_capabilities capabilities =
   | `List j ->
       Core.Std.List.map j
         ~f:(begin function
-            | `String s ->
-                (Auth.M.deserialize s |>
-                 begin function
-                 | `Ok c    -> c
-                 | `Error _ -> raise (Decoding_failed "Error on deserialisation")
-                 end)
+            | `String s -> Auth.M.t_of_string s
             | _ -> raise (Decoding_failed "Wasn't a string")
             end)
   | _ -> raise (Decoding_failed "Wasn't a list")

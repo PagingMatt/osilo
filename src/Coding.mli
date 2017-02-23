@@ -57,10 +57,6 @@ val decode_permission_list_message : string -> (Auth.Token.t * string) list
 (** [decode_permission_list_message msg] decodes [msg] into a [list] of pairs of permission tokens and
 file paths to then mint into capabilities. *)
 
-val encode_location : source:Peer.t -> service:string -> path:string -> target:Peer.t -> string
-
-val decode_location : string -> Peer.t * string * string * Peer.t
-
 val encode_capabilities : Auth.M.t list -> Yojson.Basic.json
 (** Serialises a list of capabilities to accompany a request. This is [Yojson.Basic.json] as it
 will then be composed with other JSON. *)
