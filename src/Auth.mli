@@ -24,16 +24,16 @@ end
 module M : sig
   type t
   val create :
-    source:Peer.t  ->
-    service:string ->
-    path:string    ->
-    target:Peer.t  ->
-    token:Token.t  ->
-    key:Cstruct.t  -> t
-  val target : t -> Peer.t
-  val source : t -> Peer.t
-  val service : t -> string
-  val path : t -> string
+    source:Peer.t   ->
+    service:string  ->
+    path:string     ->
+    delegate:Peer.t ->
+    token:Token.t   ->
+    key:Cstruct.t   -> t
+  val delegate : t -> Peer.t
+  val source   : t -> Peer.t
+  val service  : t -> string
+  val path     : t -> string
   val location : t -> string
   val token : t -> Token.t
   val verify : t ->

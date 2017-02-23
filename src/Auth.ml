@@ -80,10 +80,10 @@ module M : sig
     source:Peer.t  ->
     service:string ->
     path:string    ->
-    target:Peer.t  ->
+    delegate:Peer.t  ->
     token:Token.t  ->
     key:Cstruct.t  -> t
-  val target : t -> Peer.t
+  val delegate : t -> Peer.t
   val source : t -> Peer.t
   val service : t -> string
   val path : t -> string
@@ -123,9 +123,9 @@ end = struct
     let target  = string_member "target"  j |> Peer.create in
     source,service,path,target
 
-  let create ~source ~service ~path ~target ~token ~key =
+  let create ~source ~service ~path ~delegate ~token ~key =
     let open Cryptography.Serialisation in
-    let location = encode_location source service path target in
+    let location = encode_location source service path delegate in
     Mac.create
       ~location
       ~key:(key |> serialise_cstruct)
@@ -140,7 +140,7 @@ end = struct
   let path macaroon =
     let _,_,p,_ = Mac.location macaroon |> decode_location in p
 
-  let target macaroon =
+  let delegate macaroon =
     let _,_,_,t = Mac.location macaroon |> decode_location in t
 
   let location macaroon =
@@ -226,7 +226,7 @@ let record_permissions capability_service permissions =
 
 let mint host key service permissions delegate =
   Core.Std.List.map permissions ~f:(fun (token,path) ->
-      M.create ~source:host ~service ~path ~target:delegate ~token ~key)
+      M.create ~source:host ~service ~path ~delegate:delegate ~token ~key)
 
 let verify_location target service l =
   match Core.Std.String.split l ~on:'/' with
