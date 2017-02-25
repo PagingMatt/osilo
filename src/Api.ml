@@ -145,15 +145,15 @@ end
 let authorise rd service s =
   let open Cryptography in
   let headers = rd.Wm.Rd.req_headers in
-  let api_key  =
+  let message =
     Printf.sprintf "%s/%s" (s#get_address |> Peer.host) service
-    |> Cstruct.of_string
-    |> Signing.sign ~key:s#get_private_key
-    |> Serialisation.serialise_cstruct in
+    |> Cstruct.of_string in
+  let key = s#get_public_key in
   Wm.continue
   (match Cohttp.Header.get_authorization headers with
-    | Some (`Other key) ->
-      if api_key = key
+    | Some (`Other api_key) ->
+      if Signing.verify ~key
+          ~signature:(api_key |> Serialisation.deserialise_cstruct) message
       then `Authorized else `Basic "Wrong key"
     | _ -> `Basic "No key")
   rd
