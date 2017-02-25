@@ -29,7 +29,7 @@ val sign : string -> <get_private_key : Nocrypto.Rsa.priv; ..> -> string
 
 module Client : sig
   class get_local :
-    < get_address : Peer.t; get_secret_key : Cstruct.t;
+    < get_address : Peer.t; get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv;
       get_silo_client : Silo.Client.t; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -55,6 +55,7 @@ module Client : sig
 
   class set_local :
     < get_address : Peer.t; get_secret_key : Cstruct.t;
+      get_private_key : Nocrypto.Rsa.priv;
       get_silo_client : Silo.Client.t; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -80,6 +81,7 @@ module Client : sig
 
   class del_local :
     < get_address : Peer.t; get_secret_key : Cstruct.t;
+      get_private_key : Nocrypto.Rsa.priv;
       get_silo_client : Silo.Client.t; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
