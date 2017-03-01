@@ -9,6 +9,8 @@ module Client : sig
   exception Failed_to_make_silo_client of Uri.t
   val create : server:string -> t
   val server : t -> string
+  val lookup : path:string -> client:t -> (Yojson.Basic.json * t) option
+  val set    : path:string -> file:Yojson.Basic.json -> client:t -> t
   module Silo_9p_client : sig
     include (module type of Client9p_unix.Make(Log))
   end
@@ -25,8 +27,21 @@ end = struct
 
   type t = {
     server : string ;
-    cache  : L1_C.t    ;
+    cache  : L1_C.t ;
   }
+
+  let lookup ~path ~client =
+    match L1_C.find path client.cache with
+    | None       -> None
+    | Some (r,c) -> Some (r,{client with cache=c})
+
+  let set ~path ~file ~client =
+    let c = L1_C.add path file client.cache in
+    {client with cache = c}
+
+  let remove ~path ~client =
+    let c = L1_C.remove path client.cache in
+    {client with cache = c}
 
   exception Failed_to_make_silo_client of Uri.t
 
@@ -96,8 +111,7 @@ let write ~client ~peer ~service ~contents =
   let content =
     match contents with
     | `Assoc l -> l
-    | _        -> raise (Write_failed "Invalid file content.")
-  in
+    | _        -> raise (Write_failed "Invalid file content.") in
   if content = [] then Lwt.return () else
     connect client
     >>= fun (c9p,cdk) ->
@@ -142,20 +156,26 @@ let rec read_path tree acc path =
      Lwt.return acc)
 
 let read ~client ~peer ~service ~paths =
-  if paths = [] then Lwt.return (`Assoc []) else
-    connect client
+  let hit,miss,client' = Core.Std.List.fold ~init:([],[],client)
+    ~f:(fun (h,m,c) -> fun p ->
+         match Client.lookup (Printf.sprintf "%s/%s/%s" (Peer.host peer) service p) c with
+         | None         -> h,p::m,c
+         | Some (j, c') -> (p,j)::h,m,c') paths in
+  if miss = [] then Lwt.return (`Assoc []) else
+    connect client'
     >>= fun (c9p,cdk) ->
     (checkout (build_branch ~peer ~service) cdk
      >>= fun branch -> Client.Silo_datakit_client.Branch.head branch
      >>>= fun ptr -> Lwt.return ptr
      >>= begin function
-       | None      -> Lwt.return (`Assoc (Core.Std.List.map paths ~f:(fun file -> (file,`Null))))
+       | None      -> Lwt.return (Core.Std.List.map paths ~f:(fun file -> (file,`Null)))
        | Some head ->
          (let tree = Client.Silo_datakit_client.Commit.tree head in
-          (Lwt_list.fold_left_s (read_path tree) [] paths)
-          >|= (fun l -> (`Assoc l)))
+          Lwt_list.fold_left_s (read_path tree) [] paths)
      end
-     >>= fun r -> (disconnect c9p cdk >|= fun () -> r))
+     >>= fun r -> (disconnect c9p cdk >|= fun () ->
+                   (let client'' = Core.Std.List.fold ~init:client'
+                        ~f:(fun c -> fun (p,j) -> Client.set p j c) r in `Assoc (r @ hit))))
 
 let delete ~client ~peer ~service ~paths =
   if paths = [] then Lwt.return () else
