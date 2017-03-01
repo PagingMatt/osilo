@@ -113,7 +113,7 @@ let write ~client ~peer ~service ~contents =
     match contents with
     | `Assoc l -> l
     | _        -> raise (Write_failed "Invalid file content.") in
-  if content = [] then Lwt.return () else
+  if content = [] then Lwt.return client else
     connect client
     >>= fun (c9p,cdk) ->
     Log.debug (fun m -> m "Connected to Datakit server.");
@@ -145,8 +145,9 @@ let write ~client ~peer ~service ~contents =
             let client' = Core.Std.List.fold ~init:client ~f:(fun c -> fun (p,j) ->
                 let path = Printf.sprintf "%s/%s/%s" (Peer.host peer) service p in
                 Client.set ~path ~file:j ~client:c) content in
-            Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))))
-    with _ -> disconnect c9p cdk
+            Log.debug (fun m -> m "Disconnected from %s" (Client.server client));
+           client')))
+    with _ -> disconnect c9p cdk; Lwt.return client
 
 let rec read_path tree acc path =
   Client.Silo_datakit_client.Tree.read tree (Datakit_path.of_string_exn path)
@@ -167,7 +168,7 @@ let read ~client ~peer ~service ~paths =
         match Client.lookup ~path ~client:c with
         | None         -> h,p::m,c
         | Some (j, c') -> (p,j)::h,m,c') paths in
-  if miss = [] then Lwt.return (`Assoc []) else
+  if miss = [] then Lwt.return (`Assoc hit, client') else
     connect client'
     >>= fun (c9p,cdk) ->
     (checkout (build_branch ~peer ~service) cdk
@@ -181,10 +182,10 @@ let read ~client ~peer ~service ~paths =
      end
      >>= fun r -> (disconnect c9p cdk >|= fun () ->
                    (let client'' = Core.Std.List.fold ~init:client'
-                        ~f:(fun c -> fun (p,j) -> Client.set p j c) r in `Assoc (r @ hit))))
+                        ~f:(fun c -> fun (p,j) -> Client.set p j c) r in `Assoc (r @ hit),client'')))
 
 let delete ~client ~peer ~service ~paths =
-  if paths = [] then Lwt.return () else
+  if paths = [] then Lwt.return client else
     connect client
     >>= fun (c9p,cdk) ->
     try
@@ -217,6 +218,7 @@ let delete ~client ~peer ~service ~paths =
             let client' = Core.Std.List.fold ~init:client ~f:(fun c -> fun p ->
                 let path = Printf.sprintf "%s/%s/%s" (Peer.host peer) service p in
                 Client.remove ~path ~client:c) paths in
-            Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))))
+            Log.debug (fun m -> m "Disconnected from %s" (Client.server client));
+           client')))
     with _ -> (Log.err (fun m -> m "Aborted transaction.");
                disconnect c9p cdk >|= fun () -> raise (Delete_failed))
