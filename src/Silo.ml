@@ -11,6 +11,7 @@ module Client : sig
   val server : t -> string
   val lookup : path:string -> client:t -> (Yojson.Basic.json * t) option
   val set    : path:string -> file:Yojson.Basic.json -> client:t -> t
+  val remove : path:string -> client:t -> t
   module Silo_9p_client : sig
     include (module type of Client9p_unix.Make(Log))
   end
@@ -207,6 +208,10 @@ let delete ~client ~peer ~service ~paths =
            >>>= fun () ->
            (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client));
             disconnect c9p cdk
-            >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))))
+            >|= fun () ->
+            let client' = Core.Std.List.fold ~init:client ~f:(fun c -> fun p ->
+                let path = Printf.sprintf "%s/%s/%s" (Peer.host peer) service p in
+                Client.remove ~path ~client:c) paths in
+            Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))))
     with _ -> (Log.err (fun m -> m "Aborted transaction.");
                disconnect c9p cdk >|= fun () -> raise (Delete_failed))
