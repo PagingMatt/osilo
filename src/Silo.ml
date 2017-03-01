@@ -16,15 +16,23 @@ module Client : sig
     include (module type of Datakit_client_9p.Make(Silo_9p_client))
   end
 end = struct
+  module V = struct
+    type t = Yojson.Basic.json
+    let weight j = Yojson.Basic.to_string j |> String.length
+  end
+
+  module L1_C = Lru.F.Make(Core.Std.String)(V)
+
   type t = {
-    server : string
+    server : string ;
+    cache  : L1_C.t    ;
   }
 
   exception Failed_to_make_silo_client of Uri.t
 
   let create ~server =
     let address = Printf.sprintf "%s:5640" server in
-    { server = address }
+    { server = address ; cache = L1_C.empty 1000}
 
   let server c = c.server
 
