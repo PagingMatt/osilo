@@ -142,13 +142,20 @@ class ping = object(self)
     Wm.continue (`String (Printf.sprintf "%s" text)) rd
 end
 
-let authorise rd s =
+let authorise rd service s =
+  let open Cryptography in
   let headers = rd.Wm.Rd.req_headers in
-  let secret  = s#get_secret_key |> Cryptography.Serialisation.serialise_cstruct in
+  let message =
+    Printf.sprintf "%s/%s" (s#get_address |> Peer.host) service
+    |> Cstruct.of_string in
+  let key = s#get_public_key in
   Wm.continue
   (match Cohttp.Header.get_authorization headers with
-  | Some (`Other key) -> if secret = key then `Authorized else `Basic "Wrong key"
-  | _                 -> `Basic "No key")
+    | Some (`Other api_key) ->
+      if Signing.verify ~key
+          ~signature:(api_key |> Serialisation.deserialise_cstruct) message
+      then `Authorized else `Basic "Wrong key"
+    | _ -> `Basic "No key")
   rd
 
 let authorise_p2p rd message s =
@@ -197,7 +204,10 @@ module Client = struct
 
     method allowed_methods rd = Wm.continue [`POST] rd
 
-    method is_authorized rd = authorise rd s
+    method is_authorized rd =
+      match service with
+      | Some service' -> authorise rd service' s
+      | None          -> assert false
 
     method malformed_request rd =
       try
@@ -246,7 +256,10 @@ module Client = struct
 
     method allowed_methods rd = Wm.continue [`POST] rd
 
-    method is_authorized rd = authorise rd s
+    method is_authorized rd =
+      match service with
+      | Some service' -> authorise rd service' s
+      | None          -> assert false
 
     method malformed_request rd =
       try
@@ -319,7 +332,10 @@ module Client = struct
 
     method allowed_methods rd = Wm.continue [`POST] rd
 
-    method is_authorized rd = authorise rd s
+    method is_authorized rd =
+      match service with
+      | Some service' -> authorise rd service' s
+      | None          -> assert false
 
     method malformed_request rd =
       try
@@ -382,7 +398,10 @@ module Client = struct
 
     method allowed_methods rd = Wm.continue [`POST] rd
 
-    method is_authorized rd = authorise rd s
+    method is_authorized rd =
+      match service with
+      | Some service' -> authorise rd service' s
+      | None          -> assert false
 
     method malformed_request rd =
       try
@@ -429,7 +448,10 @@ module Client = struct
 
     method allowed_methods rd = Wm.continue [`POST] rd
 
-    method is_authorized rd = authorise rd s
+    method is_authorized rd =
+      match service with
+      | Some service' -> authorise rd service' s
+      | None          -> assert false
 
     method malformed_request rd =
       try
@@ -485,7 +507,10 @@ module Client = struct
 
     method allowed_methods rd = Wm.continue [`POST] rd
 
-    method is_authorized rd = authorise rd s
+    method is_authorized rd =
+      match service with
+      | Some service' -> authorise rd service' s
+      | None          -> assert false
 
     method malformed_request rd =
       try
@@ -533,7 +558,10 @@ module Client = struct
 
     method allowed_methods rd = Wm.continue [`POST] rd
 
-    method is_authorized rd = authorise rd s
+    method is_authorized rd =
+      match service with
+      | Some service' -> authorise rd service' s
+      | None          -> assert false
 
     method malformed_request rd =
       try
@@ -602,7 +630,10 @@ module Client = struct
 
     method allowed_methods rd = Wm.continue [`POST] rd
 
-    method is_authorized rd = authorise rd s
+    method is_authorized rd =
+      match service with
+      | Some service' -> authorise rd service' s
+      | None          -> assert false
 
     method malformed_request rd =
       try

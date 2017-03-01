@@ -30,7 +30,8 @@ val sign : string -> <get_private_key : Nocrypto.Rsa.priv; ..> -> string
 module Client : sig
   class get_local :
     < get_address : Peer.t; get_secret_key : Cstruct.t; set_silo_client: Silo.Client.t -> unit;
-      get_silo_client : Silo.Client.t; .. > -> object
+      get_silo_client : Silo.Client.t; get_private_key : Nocrypto.Rsa.priv; 
+      get_public_key : Nocrypto.Rsa.pub; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -43,6 +44,7 @@ module Client : sig
   class get_remote :
     < get_address : Peer.t; get_capability_service : Auth.CS.t; set_silo_client: Silo.Client.t -> unit;
       get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv;
+      get_public_key : Nocrypto.Rsa.pub;
       get_silo_client : Silo.Client.t; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -55,6 +57,7 @@ module Client : sig
 
   class set_local :
     < get_address : Peer.t; get_secret_key : Cstruct.t; set_silo_client: Silo.Client.t -> unit;
+      get_private_key : Nocrypto.Rsa.priv; get_public_key : Nocrypto.Rsa.pub;
       get_silo_client : Silo.Client.t; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -67,7 +70,7 @@ module Client : sig
 
   class set_remote :
     < get_address : Peer.t; get_capability_service : Auth.CS.t; set_silo_client: Silo.Client.t -> unit;
-      get_secret_key : Cstruct.t; get_silo_client : Silo.Client.t;
+      get_secret_key : Cstruct.t; get_silo_client : Silo.Client.t; get_public_key : Nocrypto.Rsa.pub;
       get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -80,6 +83,7 @@ module Client : sig
 
   class del_local :
     < get_address : Peer.t; get_secret_key : Cstruct.t; set_silo_client: Silo.Client.t -> unit;
+      get_private_key : Nocrypto.Rsa.priv; get_public_key : Nocrypto.Rsa.pub;
       get_silo_client : Silo.Client.t; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -92,6 +96,7 @@ module Client : sig
 
   class del_remote :
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
+      get_public_key : Nocrypto.Rsa.pub;
       get_silo_client : Silo.Client.t; get_secret_key : Cstruct.t;
       get_private_key : Nocrypto.Rsa.priv; set_silo_client: Silo.Client.t -> unit; .. > -> object
 
@@ -104,7 +109,7 @@ module Client : sig
   (** Entrypoint for client to get peer to delete another peer's data. *)
 
   class permit :
-    < get_address : Peer.t; set_silo_client: Silo.Client.t -> unit;
+    < get_address : Peer.t; set_silo_client: Silo.Client.t -> unit; get_public_key : Nocrypto.Rsa.pub;
       get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -116,7 +121,7 @@ module Client : sig
   (** Entrypoint for client to get its peer to mint and send capabilities to another peer. *)
 
   class inv :
-    < get_address : Peer.t;
+    < get_address : Peer.t; get_public_key : Nocrypto.Rsa.pub;
       get_peer_access_log : Peer_access_log.t; get_secret_key : Cstruct.t;
       set_peer_access_log : Peer_access_log.t -> unit; set_silo_client: Silo.Client.t -> unit;
       get_private_key : Nocrypto.Rsa.priv; .. > -> object
