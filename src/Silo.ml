@@ -141,7 +141,11 @@ let write ~client ~peer ~service ~contents =
            >>>= fun () ->
            (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client));
             disconnect c9p cdk
-            >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))))
+            >|= fun () ->
+            let client' = Core.Std.List.fold ~init:client ~f:(fun c -> fun (p,j) ->
+                let path = Printf.sprintf "%s/%s/%s" (Peer.host peer) service p in
+                Client.set ~path ~file:j ~client:c) content in
+            Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))))
     with _ -> disconnect c9p cdk
 
 let rec read_path tree acc path =
@@ -158,10 +162,11 @@ let rec read_path tree acc path =
 
 let read ~client ~peer ~service ~paths =
   let hit,miss,client' = Core.Std.List.fold ~init:([],[],client)
-    ~f:(fun (h,m,c) -> fun p ->
-         match Client.lookup (Printf.sprintf "%s/%s/%s" (Peer.host peer) service p) c with
-         | None         -> h,p::m,c
-         | Some (j, c') -> (p,j)::h,m,c') paths in
+      ~f:(fun (h,m,c) -> fun p ->
+        let path = Printf.sprintf "%s/%s/%s" (Peer.host peer) service p in
+        match Client.lookup ~path ~client:c with
+        | None         -> h,p::m,c
+        | Some (j, c') -> (p,j)::h,m,c') paths in
   if miss = [] then Lwt.return (`Assoc []) else
     connect client'
     >>= fun (c9p,cdk) ->
