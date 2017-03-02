@@ -79,13 +79,16 @@ let delete_from_data_cache peer service files s =
   in s#set_data_cache cache
 
 let read_from_cache peer service files s =
-  Silo.read ~client:s#get_silo_client ~peer ~service ~paths:files
+  let hit,miss = read_from_data_cache peer service files s in
+  Silo.read ~client:s#get_silo_client ~peer ~service ~paths:miss
   >|= (fun j -> decrypt_read s j)
   >|= begin function
       | `Assoc l -> Core.Std.List.partition_tf l ~f:(fun (n,j) -> not(j = `Null))
       | _        -> raise Malformed_data
       end
-  >|= fun (cached,not_cached) -> (cached, (Core.Std.List.map not_cached ~f:(fun (n,j) -> n)))
+  >|= fun (cached,not_cached) ->
+        write_to_data_cache peer service cached s;
+        (hit @ cached, (Core.Std.List.map not_cached ~f:(fun (n,j) -> n)))
 
 let write_to_cache peer service file_content requests s =
   let open Coding in
@@ -94,19 +97,31 @@ let write_to_cache peer service file_content requests s =
     Core.Std.List.filter file_content
       ~f:(fun (p,c) -> Core.Std.List.exists write_backs
              (fun rf -> Auth.vpath_subsumes_request rf.path p)) in
+  write_to_data_cache peer service files_to_write_back s;
   Silo.write ~client:s#get_silo_client ~peer ~service ~contents:((`Assoc files_to_write_back) |> (encrypt_write s))
 
 let delete_from_cache peer service paths s =
+  delete_from_data_cache peer service paths s;
   Silo.delete ~client:s#get_silo_client ~peer ~service ~paths
 
 let read_from_silo service paths s =
-  Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service ~paths
-  >|= (fun j -> decrypt_read s j)
+  let peer = s#get_address in
+  let hit,miss = read_from_data_cache peer service paths s in
+  Silo.read ~client:s#get_silo_client ~peer ~service ~paths:miss
+  >|= (fun j ->
+      let `Assoc pt = decrypt_read s j in
+      write_to_data_cache peer service pt s; `Assoc (hit @ pt))
 
 let write_to_silo service content s =
-  Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service ~contents:(content |> (encrypt_write s))
+  let peer = s#get_address      in
+  match content with
+  | `Assoc c ->
+      write_to_data_cache peer service c s;
+      Silo.write ~client:s#get_silo_client ~peer ~service ~contents:(content |> (encrypt_write s))
+  | _ -> assert false
 
-let delete_from_silo service paths s = delete_from_cache s#get_address service paths s
+let delete_from_silo service paths s =
+  delete_from_cache s#get_address service paths s
 
 let sign message s =
   Cstruct.of_string message
