@@ -60,7 +60,7 @@ let encrypt_write s file_content =
 
 let read_from_cache peer service files s =
   Silo.read ~client:s#get_silo_client ~peer ~service ~paths:files
-  >|= (fun (j,c) -> s#set_silo_client c; decrypt_read s j)
+  >|= (fun j -> decrypt_read s j)
   >|= begin function
       | `Assoc l -> Core.Std.List.partition_tf l ~f:(fun (n,j) -> not(j = `Null))
       | _        -> raise Malformed_data
@@ -81,7 +81,7 @@ let delete_from_cache peer service paths s =
 
 let read_from_silo service paths s =
   Silo.read ~client:s#get_silo_client ~peer:s#get_address ~service ~paths
-  >|= (fun (j,c) -> s#set_silo_client c; decrypt_read s j)
+  >|= (fun j -> decrypt_read s j)
 
 let write_to_silo service content s =
   Silo.write ~client:s#get_silo_client ~peer:s#get_address ~service ~contents:(content |> (encrypt_write s))
@@ -306,7 +306,7 @@ module Client = struct
               let results = Core.Std.List.append fetched cached in
               let results' = (`Assoc results) |> Yojson.Basic.to_string in
               write_to_cache peer' service' fetched requests s
-              >|= fun c -> s#set_silo_client c; results'))
+              >|= fun () -> results'))
           else
             Lwt.return ((`Assoc cached) |> Yojson.Basic.to_string))
         >>= fun response ->
@@ -375,7 +375,7 @@ module Client = struct
             >>= fun (c,_) ->
             (if c = 204 then
                (delete_from_cache peer' service' requests s)
-               >>= fun c -> s#set_silo_client c; Wm.continue true rd
+               >>= fun () -> Wm.continue true rd
             else Wm.continue false rd))
           else
             Wm.continue false rd
@@ -536,7 +536,7 @@ module Client = struct
         match file_content_to_set with
         | `Assoc j as contents ->
             (write_to_silo service' contents s
-            >>= fun c -> s#set_silo_client c; Wm.continue true rd)
+            >>= fun () -> Wm.continue true rd)
       with
       | Malformed_data -> Wm.continue false rd
   end
@@ -606,7 +606,7 @@ module Client = struct
                     (let requests = Core.Std.List.map paths
                         ~f:(fun p -> {path=p; check_cache=false; write_back=true;}) in
                     write_to_cache peer' service' j requests s
-                    >>= fun c -> s#set_silo_client c; Wm.continue true rd)
+                    >>= fun () -> Wm.continue true rd)
                  else
                    Wm.continue false rd)
             else
@@ -655,7 +655,7 @@ module Client = struct
         | None          -> Wm.continue false rd
         | Some service' ->
         delete_from_silo service' files s
-        >>= fun c -> s#set_silo_client c; Wm.continue true rd
+        >>= fun () -> Wm.continue true rd
       with
       | _  -> Wm.continue false rd
   end
@@ -806,7 +806,7 @@ module Peer = struct
         | None -> Wm.continue false rd
         | Some service' ->
             write_to_silo service' file_content s
-            >>= fun c -> s#set_silo_client c; Wm.continue true rd
+            >>= fun () -> Wm.continue true rd
       with
       | Malformed_data  -> Wm.continue false rd
   end
@@ -867,7 +867,7 @@ module Peer = struct
         | None -> Wm.continue false rd
         | Some service' ->
             delete_from_silo service' files s
-            >>= fun c -> s#set_silo_client c; Wm.continue true rd
+            >>= fun () -> Wm.continue true rd
       with
       | Malformed_data  -> Wm.continue false rd
   end
@@ -928,7 +928,7 @@ module Peer = struct
         | None          -> Wm.continue false rd
         | Some service' ->
         delete_from_cache peer service' files s
-        >>= fun c -> s#set_silo_client c; Wm.continue true rd
+        >>= fun () -> Wm.continue true rd
       with
       | _  -> Wm.continue false rd
   end
