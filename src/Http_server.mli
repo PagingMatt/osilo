@@ -37,8 +37,6 @@ class type server = object
   (** [get_silo_client] returns the [Silo.Client.t] representing the client to this server's
       Datakit instance. *)
 
-  method set_silo_client : Silo.Client.t -> unit
-
   method get_data_cache : Data_cache.t
 
   method set_data_cache : Data_cache.t -> unit

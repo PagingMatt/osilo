@@ -30,7 +30,7 @@ val sign : string -> <get_private_key : Nocrypto.Rsa.priv; ..> -> string
 module Client : sig
   class get_local :
     < get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit;
-      get_address : Peer.t; get_secret_key : Cstruct.t; set_silo_client: Silo.Client.t -> unit;
+      get_address : Peer.t; get_secret_key : Cstruct.t; 
       get_silo_client : Silo.Client.t; get_private_key : Nocrypto.Rsa.priv;
       get_public_key : Nocrypto.Rsa.pub; .. > -> object
 
@@ -43,7 +43,7 @@ module Client : sig
   (** Entrypoint for client to read its own data. *)
 
   class get_remote :
-    < get_address : Peer.t; get_capability_service : Auth.CS.t; set_silo_client: Silo.Client.t -> unit;
+    < get_address : Peer.t; get_capability_service : Auth.CS.t;
       get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv;
       get_public_key : Nocrypto.Rsa.pub; get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit;
       get_silo_client : Silo.Client.t; .. > -> object
@@ -57,7 +57,7 @@ module Client : sig
   (** Entrypoint for client to get peer to read another peer's data. *)
 
   class set_local :
-    < get_address : Peer.t; get_secret_key : Cstruct.t; set_silo_client: Silo.Client.t -> unit;
+    < get_address : Peer.t; get_secret_key : Cstruct.t;
       get_private_key : Nocrypto.Rsa.priv; get_public_key : Nocrypto.Rsa.pub;
       get_silo_client : Silo.Client.t; get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit; .. > -> object
 
@@ -71,7 +71,7 @@ module Client : sig
 
   class set_remote :
     < get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit;
-      get_address : Peer.t; get_capability_service : Auth.CS.t; set_silo_client: Silo.Client.t -> unit;
+      get_address : Peer.t; get_capability_service : Auth.CS.t;
       get_secret_key : Cstruct.t; get_silo_client : Silo.Client.t; get_public_key : Nocrypto.Rsa.pub;
       get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
@@ -84,7 +84,7 @@ module Client : sig
   (** Entrypoint for client to get peer to write another peer's data. *)
 
   class del_local :
-    < get_address : Peer.t; get_secret_key : Cstruct.t; set_silo_client: Silo.Client.t -> unit;
+    < get_address : Peer.t; get_secret_key : Cstruct.t;
       get_private_key : Nocrypto.Rsa.priv; get_public_key : Nocrypto.Rsa.pub; get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit;
       get_silo_client : Silo.Client.t; .. > -> object
 
@@ -100,7 +100,7 @@ module Client : sig
     < get_address : Peer.t; get_capability_service : Auth.CS.t;
       get_public_key : Nocrypto.Rsa.pub; get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit;
       get_silo_client : Silo.Client.t; get_secret_key : Cstruct.t;
-      get_private_key : Nocrypto.Rsa.priv; set_silo_client: Silo.Client.t -> unit; .. > -> object
+      get_private_key : Nocrypto.Rsa.priv;  .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -111,7 +111,7 @@ module Client : sig
   (** Entrypoint for client to get peer to delete another peer's data. *)
 
   class permit :
-    < get_address : Peer.t; set_silo_client: Silo.Client.t -> unit; get_public_key : Nocrypto.Rsa.pub; get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit;
+    < get_address : Peer.t;  get_public_key : Nocrypto.Rsa.pub; get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit;
       get_secret_key : Cstruct.t; get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -125,7 +125,7 @@ module Client : sig
   class inv :
     < get_address : Peer.t; get_public_key : Nocrypto.Rsa.pub; get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit;
       get_peer_access_log : Peer_access_log.t; get_secret_key : Cstruct.t;
-      set_peer_access_log : Peer_access_log.t -> unit; set_silo_client: Silo.Client.t -> unit;
+      set_peer_access_log : Peer_access_log.t -> unit;
       get_private_key : Nocrypto.Rsa.priv; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -153,7 +153,7 @@ module Peer : sig
     < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
       set_keying_service : Cryptography.Keying.t -> unit; get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit;
       get_peer_access_log : Peer_access_log.t; get_secret_key : Cstruct.t;
-      get_silo_client : Silo.Client.t; set_silo_client: Silo.Client.t -> unit;
+      get_silo_client : Silo.Client.t;
       set_peer_access_log : Peer_access_log.t -> 'b; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -166,7 +166,7 @@ module Peer : sig
 
   class set :
     < get_address : Peer.t; get_keying_service : Cryptography.Keying.t; get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit;
-      set_keying_service : Cryptography.Keying.t -> unit; set_silo_client: Silo.Client.t -> unit;
+      set_keying_service : Cryptography.Keying.t -> unit;
       get_secret_key : Cstruct.t; get_silo_client : Silo.Client.t; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -179,7 +179,7 @@ module Peer : sig
 
   class del :
     < get_address : Peer.t; get_keying_service : Cryptography.Keying.t; get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit;
-      set_keying_service : Cryptography.Keying.t -> unit; set_silo_client: Silo.Client.t -> unit;
+      set_keying_service : Cryptography.Keying.t -> unit;
       get_secret_key : Cstruct.t; get_silo_client : Silo.Client.t; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -193,7 +193,7 @@ module Peer : sig
   class inv :
     < get_address : Peer.t; get_keying_service : Cryptography.Keying.t;
       set_keying_service : Cryptography.Keying.t -> unit; get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit;
-      get_silo_client : Silo.Client.t; set_silo_client: Silo.Client.t -> unit; .. > -> object
+      get_silo_client : Silo.Client.t;  .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -205,7 +205,7 @@ module Peer : sig
 
   class permit :
     < get_capability_service : Auth.CS.t; get_keying_service : Cryptography.Keying.t; get_data_cache : Data_cache.t; set_data_cache : Data_cache.t -> unit;
-      set_keying_service : Cryptography.Keying.t -> unit; set_silo_client: Silo.Client.t -> unit;
+      set_keying_service : Cryptography.Keying.t -> unit;
       set_capability_service : Auth.CS.t -> 'a; .. > -> object
 
     inherit [Cohttp_lwt_body.t] Wm.resource
