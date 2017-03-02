@@ -9,9 +9,6 @@ module Client : sig
   exception Failed_to_make_silo_client of Uri.t
   val create : server:string -> t
   val server : t -> string
-  val lookup : path:string -> client:t -> (Yojson.Basic.json * t) option
-  val set    : path:string -> file:Yojson.Basic.json -> client:t -> t
-  val remove : path:string -> client:t -> t
   module Silo_9p_client : sig
     include (module type of Client9p_unix.Make(Log))
   end
@@ -19,36 +16,16 @@ module Client : sig
     include (module type of Datakit_client_9p.Make(Silo_9p_client))
   end
 end = struct
-  module V = struct
-    type t = Yojson.Basic.json
-    let weight j = Yojson.Basic.to_string j |> String.length
-  end
-
-  module L1_C = Lru.F.Make(Core.Std.String)(V)
 
   type t = {
     server : string ;
-    cache  : L1_C.t ;
   }
-
-  let lookup ~path ~client =
-    match L1_C.find path client.cache with
-    | None       -> None
-    | Some (r,c) -> Some (r,{client with cache=c})
-
-  let set ~path ~file ~client =
-    let c = L1_C.add path file client.cache in
-    {client with cache = c}
-
-  let remove ~path ~client =
-    let c = L1_C.remove path client.cache in
-    {client with cache = c}
 
   exception Failed_to_make_silo_client of Uri.t
 
   let create ~server =
     let address = Printf.sprintf "%s:5640" server in
-    { server = address ; cache = L1_C.empty 1000}
+    { server = address }
 
   let server c = c.server
 
