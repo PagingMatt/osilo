@@ -8,7 +8,7 @@ module Client : sig
   type t
   exception Failed_to_make_silo_client of Uri.t
   (** [Failed_to_make_silo_client s] is thrown when the [Uri.t] [s] has either no port or no host
-  meaning that a [t] cannot be built of it *)
+      meaning that a [t] cannot be built of it *)
   val create : server:string -> t
   (** [make ~server] gives a [t] for [server]*)
   module Silo_9p_client : sig
@@ -32,29 +32,29 @@ val write :
   peer:Peer.t                ->
   service:string             ->
   contents:Yojson.Basic.json ->
-  Client.t Lwt.t
+  unit Lwt.t
 (** [write ~client ~peer ~service ~contents] will take the JSON [contents], it expects this to be
-[`Assoc of (string * Yojson.Basic.t) list], the [string]s are file paths and the [Yojson.Basic.json]
-is the file contents to write to these file paths. [client] is the client pointing to the correct
-Datakit instance, [peer] is the peer that owns the data that is about to be written and the
-[service] is the service this data is for. *)
+    [`Assoc of (string * Yojson.Basic.t) list], the [string]s are file paths and the [Yojson.Basic.json]
+    is the file contents to write to these file paths. [client] is the client pointing to the correct
+    Datakit instance, [peer] is the peer that owns the data that is about to be written and the
+    [service] is the service this data is for. *)
 
 val read :
   client:Client.t   ->
   peer:Peer.t       ->
   service:string    ->
   paths:string list ->
-  (Yojson.Basic.json * Client.t) Lwt.t
+  (Yojson.Basic.json) Lwt.t
 (** [read ~client ~peer ~service ~paths] will read each file below or at the list of [paths] recursively from the
-[service] on the Datakit server pointed to by [client], for [peer]. [peer] is the [Peer.t] for this
-server. *)
+    [service] on the Datakit server pointed to by [client], for [peer]. [peer] is the [Peer.t] for this
+    server. *)
 
 val delete :
   client:Client.t   ->
   peer:Peer.t       ->
   service:string    ->
   paths:string list ->
-  Client.t Lwt.t
+  unit Lwt.t
 (** [delete ~client ~peer ~service ~paths] will delete each file (if it exists) from the list of
-[paths] from the [service] on the Datakit server pointed to by [client], for [peer]. [peer] is the
-[Peer.t] for this server. *)
+    [paths] from the [service] on the Datakit server pointed to by [client], for [peer]. [peer] is the
+    [Peer.t] for this server. *)

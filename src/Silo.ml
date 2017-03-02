@@ -16,9 +16,8 @@ module Client : sig
     include (module type of Datakit_client_9p.Make(Silo_9p_client))
   end
 end = struct
-
   type t = {
-    server : string ;
+    server : string
   }
 
   exception Failed_to_make_silo_client of Uri.t
@@ -89,8 +88,9 @@ let write ~client ~peer ~service ~contents =
   let content =
     match contents with
     | `Assoc l -> l
-    | _        -> raise (Write_failed "Invalid file content.") in
-  if content = [] then Lwt.return client else
+    | _        -> raise (Write_failed "Invalid file content.")
+  in
+  if content = [] then Lwt.return () else
     connect client
     >>= fun (c9p,cdk) ->
     Log.debug (fun m -> m "Connected to Datakit server.");
@@ -118,13 +118,8 @@ let write ~client ~peer ~service ~contents =
            >>>= fun () ->
            (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client));
             disconnect c9p cdk
-            >|= fun () ->
-            let client' = Core.Std.List.fold ~init:client ~f:(fun c -> fun (p,j) ->
-                let path = Printf.sprintf "%s/%s/%s" (Peer.host peer) service p in
-                Client.set ~path ~file:j ~client:c) content in
-            Log.debug (fun m -> m "Disconnected from %s" (Client.server client));
-           client')))
-    with _ -> disconnect c9p cdk; Lwt.return client
+            >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))))
+    with _ -> disconnect c9p cdk
 
 let rec read_path tree acc path =
   Client.Silo_datakit_client.Tree.read tree (Datakit_path.of_string_exn path)
@@ -139,30 +134,23 @@ let rec read_path tree acc path =
      Lwt.return acc)
 
 let read ~client ~peer ~service ~paths =
-  let hit,miss,client' = Core.Std.List.fold ~init:([],[],client)
-      ~f:(fun (h,m,c) -> fun p ->
-        let path = Printf.sprintf "%s/%s/%s" (Peer.host peer) service p in
-        match Client.lookup ~path ~client:c with
-        | None         -> h,p::m,c
-        | Some (j, c') -> (p,j)::h,m,c') paths in
-  if miss = [] then Lwt.return (`Assoc hit, client') else
-    connect client'
+  if paths = [] then Lwt.return (`Assoc []) else
+    connect client
     >>= fun (c9p,cdk) ->
     (checkout (build_branch ~peer ~service) cdk
      >>= fun branch -> Client.Silo_datakit_client.Branch.head branch
      >>>= fun ptr -> Lwt.return ptr
      >>= begin function
-       | None      -> Lwt.return (Core.Std.List.map paths ~f:(fun file -> (file,`Null)))
+       | None      -> Lwt.return (`Assoc (Core.Std.List.map paths ~f:(fun file -> (file,`Null))))
        | Some head ->
          (let tree = Client.Silo_datakit_client.Commit.tree head in
-          Lwt_list.fold_left_s (read_path tree) [] paths)
+          (Lwt_list.fold_left_s (read_path tree) [] paths)
+          >|= (fun l -> (`Assoc l)))
      end
-     >>= fun r -> (disconnect c9p cdk >|= fun () ->
-                   (let client'' = Core.Std.List.fold ~init:client'
-                        ~f:(fun c -> fun (p,j) -> Client.set p j c) r in `Assoc (r @ hit),client'')))
+     >>= fun r -> (disconnect c9p cdk >|= fun () -> r))
 
 let delete ~client ~peer ~service ~paths =
-  if paths = [] then Lwt.return client else
+  if paths = [] then Lwt.return () else
     connect client
     >>= fun (c9p,cdk) ->
     try
@@ -191,11 +179,6 @@ let delete ~client ~peer ~service ~paths =
            >>>= fun () ->
            (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client));
             disconnect c9p cdk
-            >|= fun () ->
-            let client' = Core.Std.List.fold ~init:client ~f:(fun c -> fun p ->
-                let path = Printf.sprintf "%s/%s/%s" (Peer.host peer) service p in
-                Client.remove ~path ~client:c) paths in
-            Log.debug (fun m -> m "Disconnected from %s" (Client.server client));
-           client')))
+            >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))))
     with _ -> (Log.err (fun m -> m "Aborted transaction.");
                disconnect c9p cdk >|= fun () -> raise (Delete_failed))
