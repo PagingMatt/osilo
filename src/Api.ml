@@ -58,6 +58,26 @@ let encrypt_write s file_content =
           f,`String e))
   | _ -> raise Malformed_data
 
+let read_from_data_cache peer service files s =
+  let hit,miss,cache = Core.Std.List.fold ~init:([],[],s#get_data_cache)
+    ~f:(fun (h,m,dc) -> fun file ->
+      match Data_cache.read ~peer:(Peer.host peer) ~service ~file dc with
+      | None          -> h,file::m,dc
+      | Some (j, dc') -> (file,j)::h,m,dc') files in
+  s#set_data_cache cache; hit,miss
+
+let write_to_data_cache peer service contents s =
+  let cache = Core.Std.List.fold ~init:s#get_data_cache
+      ~f:(fun dc -> fun (p,j) ->
+          Data_cache.write ~peer:(Peer.host peer) ~service ~file:p ~content:j dc) contents
+  in s#set_data_cache cache
+
+let delete_from_data_cache peer service files s =
+  let cache = Core.Std.List.fold ~init:s#get_data_cache
+      ~f:(fun dc -> fun p ->
+          Data_cache.invalidate ~peer:(Peer.host peer) ~service ~file:p dc) files
+  in s#set_data_cache cache
+
 let read_from_cache peer service files s =
   Silo.read ~client:s#get_silo_client ~peer ~service ~paths:files
   >|= (fun j -> decrypt_read s j)
