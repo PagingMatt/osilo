@@ -33,7 +33,9 @@ class type server = object
 
   method get_silo_client : Silo.Client.t
 
-  method set_silo_client : Silo.Client.t -> unit
+  method get_data_cache : Data_cache.t
+
+  method set_data_cache : Data_cache.t -> unit
 
   method start : unit Lwt.t
 end
@@ -87,7 +89,10 @@ class server' hostname secret_key silo key cert = object(self)
     Log.info (fun m -> m "Creating data silo client for datakit server at %s." silo);
     Client.create ~server:silo
   method get_silo_client   = silo_client
-  method set_silo_client c = silo_client <- c
+
+  val mutable data_cache : Data_cache.t = Data_cache.create
+  method get_data_cache    = data_cache
+  method set_data_cache dc = data_cache <- dc
 
   method private callback _ request body =
     let api = [
