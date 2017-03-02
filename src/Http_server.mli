@@ -39,6 +39,10 @@ class type server = object
 
   method set_silo_client : Silo.Client.t -> unit
 
+  method get_data_cache : Data_cache.t
+
+  method set_data_cache : Data_cache.t -> unit
+
   method start : unit Lwt.t
   (** [start] is the non-terminating operation to start this REST server. *)
 end
