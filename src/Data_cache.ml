@@ -1,13 +1,15 @@
 module V = struct
   type t = Yojson.Basic.json
-  let weight _ = 1
+  let weight j =
+    Yojson.Basic.to_string j
+    |> String.length
 end
 
 module C = Lru.F.Make(Core.Std.String)(V)
 
 type t = C.t
 
-let create = C.empty 500
+let create = C.empty 1000000 (* 1MB cache assuming 1 byte characters *)
 
 let build_path ~peer ~service ~file =
   Printf.sprintf "%s/%s/%s" peer service file
