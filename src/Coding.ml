@@ -48,13 +48,13 @@ let decode_json_requested_file j =
   }
 
 let encode_capabilities capabilities =
-  let serialised = Core.Std.List.map capabilities ~f:Auth.M.serialize in
-  `List (Core.Std.List.map serialised ~f:(fun s -> `String s))
+  let serialised = Base.List.map capabilities ~f:Auth.M.serialize in
+  `List (Base.List.map serialised ~f:(fun s -> `String s))
 
 let decode_capabilities capabilities =
   match capabilities with
   | `List j ->
-      Core.Std.List.map j
+      Base.List.map j
         ~f:(begin function
             | `String s ->
                 (Auth.M.deserialize s |>
@@ -82,13 +82,13 @@ let decode_file_list_message message =
   |> pull_out_strings
 
 let encode_file_list_message lst =
-  `List (Core.Std.List.map lst ~f:(fun s -> `String s))
+  `List (Base.List.map lst ~f:(fun s -> `String s))
 
 let decode_remote_file_list_message message =
   message
   |> Yojson.Basic.from_string
   |> begin function
-  | `List rfs -> Core.Std.List.map rfs ~f:decode_json_requested_file
+  | `List rfs -> Base.List.map rfs ~f:decode_json_requested_file
   | _         -> raise (Decoding_failed message)
   end
 

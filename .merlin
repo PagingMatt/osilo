@@ -8,7 +8,6 @@ B +threads
 
 PKG alcotest
 PKG base
-PKG core
 PKG core_bench
 PKG cstruct
 PKG cohttp.lwt
