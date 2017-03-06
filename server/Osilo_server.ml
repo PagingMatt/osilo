@@ -1,7 +1,7 @@
-open Core.Std
+open Base
 open Logs
 
-module Terminal = struct 
+module Terminal = struct
   let start =
     Command.basic
       ~summary:"Starts an osilo server."
@@ -20,13 +20,13 @@ module Terminal = struct
       )
       (fun h k d key cert () -> Lwt_main.run (new Http_server.server' h (Coding.decode_cstruct k) d key cert)#start)
 
-  let commands = 
-    Command.group 
+  let commands =
+    Command.group
       ~summary:"Terminal entry point for osilo server."
       [("start", start)]
 end
 
-let () = 
+let () =
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level (Some Logs.Info);
   Command.run Terminal.commands
