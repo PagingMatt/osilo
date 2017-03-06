@@ -17,8 +17,8 @@ remove: ["ocamlfind" "remove" "osilo"]
 depends: [
   "alcotest"
   "base"
+  "cmdliner"
   "cohttp"
-  "core_bench"
   "cstruct"
   "datakit-client"
   "lru"
@@ -34,4 +34,4 @@ depends: [
   "webmachine"
   "yojson"
 ]
-available: [ocaml-version >= "4.02.3"]
+available: [ocaml-version >= "4.04.0"]

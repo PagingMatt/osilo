@@ -16,7 +16,7 @@ module Api_tests = struct
   let pull_out_strings l =
     match l with
     | `List j ->
-        Core.Std.List.map j
+        Base.List.map j
         ~f:(begin function
             | `String s -> s
             | _         -> raise Malformed_data
@@ -36,7 +36,7 @@ module Api_tests = struct
     let fl = get_file_list file_list in
     Alcotest.(check int)
       "Checks lists are the same length"
-      2 (Core.Std.List.length fl);
+      2 (Base.List.length fl);
     match fl with
     | a::b::[] ->
         Alcotest.(check string)
@@ -174,22 +174,22 @@ module Auth_tests = struct
     let service1 = Auth.record_permissions service0 caps in
     let caps2,_ = Auth.find_permissions service1 paths in
     Alcotest.(check int) "Two Macaroons should be minted"
-    2 (Core.Std.List.length caps);
+    2 (Base.List.length caps);
     Alcotest.(check int) "One Macaroon should be found"
-    1 (Core.Std.List.length caps2)
+    1 (Base.List.length caps2)
 
   let number_paths = 200
   let paths =
     Nocrypto_entropy_unix.initialize ();
-    Core.Std.List.init number_paths
+    Base.List.init number_paths
       ~f:(fun _ ->
         Printf.sprintf "a/%s" (Nocrypto.Rng.generate 32
-        |> Coding.encode_cstruct |> Core.Std.String.filter ~f:(fun c -> not(c='/')))
+        |> Coding.encode_cstruct |> Base.String.filter ~f:(fun c -> not(c='/')))
       )
   let s = "R"
   let t =  R
   let selection_args =
-    Core.Std.List.map paths ~f:(fun p -> (t,Printf.sprintf "127.0.0.1/foo/%s" p))
+    Base.List.map paths ~f:(fun p -> (t,Printf.sprintf "127.0.0.1/foo/%s" p))
 
   let bc_capability = Auth.mint peer (key |> Coding.decode_cstruct) "foo" [(R,"a")]
   let cap =
@@ -200,37 +200,37 @@ module Auth_tests = struct
   let tree' = Auth.CS.record_if_most_general ~service:(Auth.CS.empty) ~macaroon:cap
 
   let tokpaths =
-    Core.Std.List.map paths ~f:(fun p -> (t,p))
+    Base.List.map paths ~f:(fun p -> (t,p))
 
   let capabilities =
     Auth.mint peer (key |> Coding.decode_cstruct) "foo" tokpaths
 
   let tree =
-    Core.Std.List.fold ~init:Auth.CS.empty capabilities
+    Base.List.fold ~init:Auth.CS.empty capabilities
       ~f:(fun s' -> fun c' -> Auth.CS.record_if_most_general ~service:s' ~macaroon:c')
 
   let find_is_deduped () =
     let caps,notf = Auth.find_permissions tree' selection_args in
       Alcotest.(check int) "Checks that best case miminal set is selected"
-      (Core.Std.List.length caps) 1;
+      (Base.List.length caps) 1;
       Alcotest.(check int) "Checks that best case not found set is empty"
-      (Core.Std.List.length notf) 0;
+      (Base.List.length notf) 0;
     let caps',notf' = Auth.find_permissions tree selection_args in
       Alcotest.(check int) "Checks that worst case miminal set is selected"
-      (Core.Std.List.length caps') number_paths;
+      (Base.List.length caps') number_paths;
       Alcotest.(check int) "Checks that worst case not found set is empty"
-      (Core.Std.List.length notf') 0
+      (Base.List.length notf') 0
 
 
   let covered_tests () =
     let caps1,_ = Auth.find_permissions tree' selection_args in
     Alcotest.(check bool) "Checks all best case covered"
-      (Core.Std.List.fold ~init:true selection_args
+      (Base.List.fold ~init:true selection_args
         ~f:(fun b -> fun a -> b && Auth.covered caps1 a))
       true;
     let caps2,_ = Auth.find_permissions tree selection_args in
     Alcotest.(check bool) "Checks all worst case covered"
-      (Core.Std.List.fold ~init:true selection_args
+      (Base.List.fold ~init:true selection_args
         ~f:(fun b -> fun a -> b && Auth.covered caps2 a))
       true
 
@@ -294,7 +294,7 @@ module File_tree_tests = struct
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
   let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" "example_key.pem" "test_cert"
 
-  let location = fun (_,m) -> (M.location m |> Core.Std.String.split ~on:'/')
+  let location = fun (_,m) -> (M.location m |> Base.String.split ~on:'/')
 
   let select = fun (p1,m1) -> (fun (p2,m2) -> (if p2 >> p1 then (p2,m2) else (p1,m1)))
 
@@ -329,7 +329,7 @@ module File_tree_tests = struct
     | mac1::mac2::[] ->
         (let service = File_tree.insert ~element:(((Auth.M.identifier mac1) |> token_of_string), mac1) ~tree:(File_tree.empty) ~location ~select ~terminate in
         let service' = File_tree.insert ~element:(((Auth.M.identifier mac2) |> token_of_string), mac2) ~tree:(service) ~location ~select ~terminate in
-        match File_tree.shortest_path_match ~tree:service' ~location:(Core.Std.String.split "localhost/test/foo/bar/FOO/BAR" ~on:'/') ~satisfies:(satisfies token) with
+        match File_tree.shortest_path_match ~tree:service' ~location:(Base.String.split "localhost/test/foo/bar/FOO/BAR" ~on:'/') ~satisfies:(satisfies token) with
         | Some (_,mac') ->
             Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
             (M.identifier mac') (M.identifier mac1);
@@ -344,21 +344,21 @@ module File_tree_tests = struct
     let paths = ["bar2";"bar1";"bar3"] in
     let peer = Peer.create "p1" in
     let pal' =
-      Core.Std.List.fold paths ~init:pal
+      Base.List.fold paths ~init:pal
         ~f:(fun p -> fun path -> Peer_access_log.log p ~host ~service ~peer ~path) in
     Alcotest.(check int) "Checks can get peer back out for path we delete"
-    (Core.Std.List.length (Peer_access_log.delog pal' ~host ~service ~path:"bar2" |> fun (ps,log') -> ps)) 1;
+    (Base.List.length (Peer_access_log.delog pal' ~host ~service ~path:"bar2" |> fun (ps,log') -> ps)) 1;
     Alcotest.(check int) "Checks can get peer back out for left path"
-    (Core.Std.List.length (Peer_access_log.delog pal' ~host ~service ~path:"bar1" |> fun (ps,log') -> ps)) 1;
+    (Base.List.length (Peer_access_log.delog pal' ~host ~service ~path:"bar1" |> fun (ps,log') -> ps)) 1;
     Alcotest.(check int) "Checks can get peer back out for right path"
-    (Core.Std.List.length (Peer_access_log.delog pal' ~host ~service ~path:"bar3" |> fun (ps,log') -> ps)) 1;
+    (Base.List.length (Peer_access_log.delog pal' ~host ~service ~path:"bar3" |> fun (ps,log') -> ps)) 1;
     let _,pal'' = Peer_access_log.delog pal' ~host ~service ~path:"bar2" in
     Alcotest.(check int) "Checks cannot get peer back out for path we deleted"
-    (Core.Std.List.length (Peer_access_log.delog pal'' ~host ~service ~path:"bar2" |> fun (ps,log') -> ps)) 0;
+    (Base.List.length (Peer_access_log.delog pal'' ~host ~service ~path:"bar2" |> fun (ps,log') -> ps)) 0;
     Alcotest.(check int) "Checks can get peer back out for what is still left path"
-    (Core.Std.List.length (Peer_access_log.delog pal'' ~host ~service ~path:"bar1" |> fun (ps,log') -> ps)) 1;
+    (Base.List.length (Peer_access_log.delog pal'' ~host ~service ~path:"bar1" |> fun (ps,log') -> ps)) 1;
     Alcotest.(check int) "Checks can get peer back out for what is now root"
-    (Core.Std.List.length (Peer_access_log.delog pal'' ~host ~service ~path:"bar3" |> fun (ps,log') -> ps)) 1
+    (Base.List.length (Peer_access_log.delog pal'' ~host ~service ~path:"bar3" |> fun (ps,log') -> ps)) 1
 
   let tests = [
     ("Can add Macaroon to Capabilities Service and get it out again", `Quick, read_macaroon_inserted_into_service_can_be_retrieved);

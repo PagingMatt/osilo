@@ -18,21 +18,14 @@ Library osilo
   Modules:      Api,         Auth,            Coding,       Cryptography,
                 File_tree,   Http_client,     Http_server,    Peer,
                 Silo,        Peer_access_log, Wm
-  BuildDepends: base,        cstruct,         cohttp.lwt,   datakit-client,
+  BuildDepends: base,        cmdliner, cstruct,         cohttp.lwt,   datakit-client,
                 lwt,         nocrypto.unix,   lru,          protocol-9p.unix,
                 sexplib,     uri,             webmachine,   yojson,
                 threads,     logs.fmt,        macaroons,    tls
 
-Executable server
+Executable peer
   Path: server
   MainIs: Osilo_server.ml
-  CompiledObject: best
-  BuildDepends: osilo
-  Install: false
-
-Executable client
-  Path: client
-  MainIs: Osilo_client.ml
   CompiledObject: best
   BuildDepends: osilo
   Install: false
@@ -56,7 +49,7 @@ Executable performance_tests
   Build$: flag(tests)
   CompiledObject: best
   Install: false
-  BuildDepends: core_bench,osilo
+  BuildDepends: bench,osilo
 
 AlphaFeatures: ocamlbuild_more_args
 Document "Osilo_Library"
