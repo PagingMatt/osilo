@@ -1,4 +1,3 @@
-open Core.Std
 open Cohttp_lwt
 open Cohttp_lwt_unix
 open Cohttp_lwt_unix_io
@@ -52,11 +51,11 @@ class server' hostname secret_key silo key cert = object(self)
   method get_secret_key = secret_key
 
   val private_key : Nocrypto.Rsa.priv =
-    let open Core.Std.Unix in
+    let open Unix in
     let buf  = String.make 65536 'x' in
-    let file = Unix.openfile ~mode:[O_RDONLY] (Printf.sprintf "%s" key) in file
-    |> Unix.read ~buf
-    |> (fun l -> (Unix.close file); String.prefix buf l)
+    let file = openfile (Printf.sprintf "%s" key) [O_RDONLY] 0777 in file
+    |> fun f -> read f buf 0 65536
+    |> (fun l -> (Unix.close file); Base.String.prefix buf l)
     |> Cstruct.of_string
     |> X509.Encoding.Pem.Private_key.of_pem_cstruct1
     |> begin function

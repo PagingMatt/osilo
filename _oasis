@@ -16,10 +16,10 @@ Library osilo
   Findlibname:  osilo
   Pack:         true
   Modules:      Api,         Auth,            Coding,       Cryptography,
-                File_tree,   Http_client,     Http_server,    Peer,         
+                File_tree,   Http_client,     Http_server,    Peer,
                 Silo,        Peer_access_log, Wm
-  BuildDepends: core,        cstruct,         cohttp.lwt,   datakit-client,
-                lwt,         nocrypto.unix,   lru,          protocol-9p.unix, 
+  BuildDepends: base, core,        cstruct,         cohttp.lwt,   datakit-client,
+                lwt,         nocrypto.unix,   lru,          protocol-9p.unix,
                 sexplib,     uri,             webmachine,   yojson,
                 threads,     logs.fmt,        macaroons,    tls
 
@@ -58,11 +58,11 @@ Executable performance_tests
   Install: false
   BuildDepends: core_bench,osilo
 
-AlphaFeatures: ocamlbuild_more_args 
-Document "Osilo_Library" 
-  Type: ocamlbuild (0.4) 
+AlphaFeatures: ocamlbuild_more_args
+Document "Osilo_Library"
+  Type: ocamlbuild (0.4)
   BuildTools: ocamldoc
-  Title: API reference for osilo library stack 
-  XOCamlbuildPath: . 
-  XOCamlbuildExtraArgs: "-docflags '-colorize-code -short-functors -charset utf-8'" 
+  Title: API reference for osilo library stack
+  XOCamlbuildPath: .
+  XOCamlbuildExtraArgs: "-docflags '-colorize-code -short-functors -charset utf-8'"
   XOCamlbuildLibraries: osilo

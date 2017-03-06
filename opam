@@ -16,6 +16,7 @@ build-test: [
 remove: ["ocamlfind" "remove" "osilo"]
 depends: [
   "alcotest"
+  "base"
   "cohttp"
   "core"
   "core_bench"
