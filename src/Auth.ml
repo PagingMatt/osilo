@@ -96,7 +96,7 @@ end = struct
 
   let empty = File_tree.empty
 
-  let location m = (M.location m |> Core.Std.String.split ~on:'/')
+  let location m = (M.location m |> Base.String.split ~on:'/')
 
   let select m1 m2 =
     if (M.identifier m2 |> Token.token_of_string) >> (M.identifier m1 |> Token.token_of_string)
@@ -117,14 +117,14 @@ end = struct
   let find_most_general_capability ~service ~path ~permission =
     File_tree.shortest_path_match
       ~tree:service
-      ~location:(Core.Std.String.split path ~on:'/')
+      ~location:(Base.String.split path ~on:'/')
       ~satisfies:(satisfies permission)
 end
 
 open Token
 
 let record_permissions capability_service permissions =
-  Core.Std.List.fold
+  Base.List.fold
     permissions
     ~init:capability_service
     ~f:(fun service -> fun m -> CS.record_if_most_general ~macaroon:m ~service)
@@ -138,20 +138,20 @@ let create_service_capability host key service (perm,path) =
     ~id:(Token.string_of_token perm)
 
 let mint host key service permissions =
-  Core.Std.List.map permissions ~f:(create_service_capability host key service)
+  Base.List.map permissions ~f:(create_service_capability host key service)
 
 let verify tok key mac = (* Verify that I minted this macaroon and it is sufficient for the required operation *)
   M.verify mac ~key ~check:(fun _ -> true) [] (* not forged *)
   && (token_of_string (M.identifier mac)) >= tok (* powerful enough *)
 
 let verify_location target service l =
-  match Core.Std.String.split l ~on:'/' with
-  | x::y::zs -> if (x=Peer.host target) && (y=service) then Core.Std.String.concat ~sep:"/" zs else ""
+  match Base.String.split l ~on:'/' with
+  | x::y::zs -> if (x=Peer.host target) && (y=service) then Base.String.concat ~sep:"/" zs else ""
   | _        -> ""
 
 let vpath_subsumes_request vpath rpath =
-  let vpath' = Core.Std.String.split vpath ~on:'/' in
-  let rpath' = Core.Std.String.split rpath ~on:'/' in
+  let vpath' = Base.String.split vpath ~on:'/' in
+  let rpath' = Base.String.split rpath ~on:'/' in
   let rec walker v r =
     match v with
     | []    -> true
@@ -169,7 +169,7 @@ let rec covered caps (perm,path) =
       || covered cs (perm,path)
 
 let find_permissions capability_service requests =
-  Core.Std.List.fold requests ~init:([],[])
+  Base.List.fold requests ~init:([],[])
   ~f:(fun (c,n) -> fun (permission,path) ->
     if covered c (permission,path) then (c,n) else
       CS.find_most_general_capability
@@ -180,22 +180,22 @@ let find_permissions capability_service requests =
        end)
 
 let request_under_verified_path vpaths rpath =
-  Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
+  Base.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
 
 let authorise requests capabilities tok key target service =
   let open Cryptography.Serialisation in
   let key' = serialise_cstruct key in
-  let verified_capabilities = Core.Std.List.filter capabilities ~f:(verify tok key') in
-  let authorised_locations  = Core.Std.List.map verified_capabilities ~f:(M.location) in
-  let path_tree = Core.Std.List.fold ~init:File_tree.empty
+  let verified_capabilities = Base.List.filter capabilities ~f:(verify tok key') in
+  let authorised_locations  = Base.List.map verified_capabilities ~f:(M.location) in
+  let path_tree = Base.List.fold ~init:File_tree.empty
         ~f:(fun tree -> fun element ->
           File_tree.insert ~element ~tree
-          ~location:(fun path -> Core.Std.String.split
+          ~location:(fun path -> Base.String.split
             (Printf.sprintf "%s/%s/%s" (Peer.host target) service path) ~on:'/')
           ~select:(fun p -> fun _ -> p)
           ~terminate:(fun o -> fun _ -> match o with | Some e -> true | None -> false)) requests in
   let (authorised_paths,_) =
-    Core.Std.List.fold ~init:([],path_tree) ~f:(fun (paths,tree) -> fun loc ->
-      let content,tree' = File_tree.trim ~tree ~location:(Core.Std.String.split loc ~on:'/')
-      in (Core.Std.List.unordered_append content paths),tree') authorised_locations in
+    Base.List.fold ~init:([],path_tree) ~f:(fun (paths,tree) -> fun loc ->
+      let content,tree' = File_tree.trim ~tree ~location:(Base.String.split loc ~on:'/')
+      in (Base.List.unordered_append content paths),tree') authorised_locations in
   authorised_paths

@@ -7,8 +7,9 @@ B _build/src
 B +threads
 
 PKG alcotest
-PKG core
+PKG base
 PKG core_bench
+PKG cmdliner
 PKG cstruct
 PKG cohttp.lwt
 PKG datakit-client

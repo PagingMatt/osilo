@@ -1,5 +1,5 @@
-open Core.Std
 open Lwt.Infix
+open Sexplib
 open Wm.Rd
 
 exception Malformed_data
@@ -18,7 +18,7 @@ let get_path_info_exn rd wildcard =
   | None   -> raise (Path_info_exn wildcard)
 
 let attach_required_capabilities tok target service files s =
-  let requests          = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
+  let requests          = Base.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
   let caps, not_covered = Auth.find_permissions s#get_capability_service requests in
   let caps'             = Coding.encode_capabilities caps in
   `Assoc [
@@ -27,7 +27,7 @@ let attach_required_capabilities tok target service files s =
   ] |> Yojson.Basic.to_string
 
 let attach_required_capabilities_and_content target service paths contents s =
-  let requests          = Core.Std.List.map paths ~f:(fun c -> Log.info (fun m -> m "Attaching W to %s" c); (Auth.Token.token_of_string "W"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
+  let requests          = Base.List.map paths ~f:(fun c -> Log.info (fun m -> m "Attaching W to %s" c); (Auth.Token.token_of_string "W"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
   let caps, not_covered = Auth.find_permissions s#get_capability_service requests in
   let caps'             = Coding.encode_capabilities caps in
   `Assoc [
@@ -38,7 +38,7 @@ let attach_required_capabilities_and_content target service paths contents s =
 let decrypt_read s file_content =
   match file_content with
   | `Assoc l ->
-      `Assoc (List.map l ~f:(fun (f,c) ->
+      `Assoc (Base.List.map l ~f:(fun (f,c) ->
         match c with
         | `String message ->
             let ciphertext,nonce = Cryptography.Serialisation.deserialise_encrypted ~message   in
@@ -51,7 +51,7 @@ let decrypt_read s file_content =
 let encrypt_write s file_content =
   match file_content with
   | `Assoc l ->
-      `Assoc (List.map l ~f:(fun (f,c) ->
+      `Assoc (Base.List.map l ~f:(fun (f,c) ->
           let plaintext     = c |> Yojson.Basic.to_string |> Cstruct.of_string         in
           let ciphertext,nonce = Cryptography.encrypt ~key:s#get_secret_key ~plaintext in
           let e = Cryptography.Serialisation.serialise_encrypted ~ciphertext ~nonce    in
@@ -59,7 +59,7 @@ let encrypt_write s file_content =
   | _ -> raise Malformed_data
 
 let read_from_data_cache peer service files s =
-  let hit,miss,cache = Core.Std.List.fold ~init:([],[],s#get_data_cache)
+  let hit,miss,cache = Base.List.fold ~init:([],[],s#get_data_cache)
     ~f:(fun (h,m,dc) -> fun file ->
       match Data_cache.read ~peer:(Peer.host peer) ~service ~file dc with
       | None          -> h,file::m,dc
@@ -67,13 +67,13 @@ let read_from_data_cache peer service files s =
   s#set_data_cache cache; hit,miss
 
 let write_to_data_cache peer service contents s =
-  let cache = Core.Std.List.fold ~init:s#get_data_cache
+  let cache = Base.List.fold ~init:s#get_data_cache
       ~f:(fun dc -> fun (p,j) ->
           Data_cache.write ~peer:(Peer.host peer) ~service ~file:p ~content:j dc) contents
   in s#set_data_cache cache
 
 let delete_from_data_cache peer service files s =
-  let cache = Core.Std.List.fold ~init:s#get_data_cache
+  let cache = Base.List.fold ~init:s#get_data_cache
       ~f:(fun dc -> fun p ->
           Data_cache.invalidate ~peer:(Peer.host peer) ~service ~file:p dc) files
   in s#set_data_cache cache
@@ -83,19 +83,19 @@ let read_from_cache peer service files s =
   Silo.read ~client:s#get_silo_client ~peer ~service ~paths:miss
   >|= (fun j -> decrypt_read s j)
   >|= begin function
-      | `Assoc l -> Core.Std.List.partition_tf l ~f:(fun (n,j) -> not(j = `Null))
+      | `Assoc l -> Base.List.partition_tf l ~f:(fun (n,j) -> not(j = `Null))
       | _        -> raise Malformed_data
       end
   >|= fun (cached,not_cached) ->
         write_to_data_cache peer service cached s;
-        (hit @ cached, (Core.Std.List.map not_cached ~f:(fun (n,j) -> n)))
+        (hit @ cached, (Base.List.map not_cached ~f:(fun (n,j) -> n)))
 
 let write_to_cache peer service file_content requests s =
   let open Coding in
-  let write_backs = Core.Std.List.filter requests ~f:(fun rf -> rf.write_back) in
+  let write_backs = Base.List.filter requests ~f:(fun rf -> rf.write_back) in
   let files_to_write_back =
-    Core.Std.List.filter file_content
-      ~f:(fun (p,c) -> Core.Std.List.exists write_backs
+    Base.List.filter file_content
+      ~f:(fun (p,c) -> Base.List.exists write_backs
              (fun rf -> Auth.vpath_subsumes_request rf.path p)) in
   write_to_data_cache peer service files_to_write_back s;
   Silo.write ~client:s#get_silo_client ~peer ~service ~contents:((`Assoc files_to_write_back) |> (encrypt_write s))
@@ -135,7 +135,7 @@ let verify message sign peer s =
     Cryptography.Signing.verify ~key:pub ~signature:(Cstruct.of_string sign) (Cstruct.of_string message)
 
 let relog_paths_for_peer peer paths service s =
-  s#set_peer_access_log (Core.Std.List.fold
+  s#set_peer_access_log (Base.List.fold
     ~init:s#get_peer_access_log paths
     ~f:(fun pal -> fun path -> Peer_access_log.log pal ~host:s#get_address ~peer ~service ~path))
 
@@ -146,19 +146,19 @@ let invalidate_paths_at_peer peer paths service s =
     ~auth:(Sig (Peer.host s#get_address, sign body s))
 
 let invalidate_paths_at_peers paths access_log service s =
-  let path_peers,pal = Core.Std.List.fold ~init:([],s#get_peer_access_log) paths
+  let path_peers,pal = Base.List.fold ~init:([],s#get_peer_access_log) paths
     ~f:(fun (pp,pal') -> fun path ->
       let peers,pal'' = (Peer_access_log.delog pal' ~host:s#get_address ~service ~path)
       in (path,peers)::pp,pal'') in
   s#set_peer_access_log pal;
   let peers =
     path_peers
-    |> Core.Std.List.fold ~init:[] ~f:(fun acc -> fun (_,ps) -> Core.Std.List.append acc ps)
-    |> Core.Std.List.dedup ~compare:Peer.compare in
-  let peer_paths = Core.Std.List.map peers
+    |> Base.List.fold ~init:[] ~f:(fun acc -> fun (_,ps) -> Base.List.append acc ps)
+    |> Base.List.dedup ~compare:Peer.compare in
+  let peer_paths = Base.List.map peers
     ~f:(fun peer -> peer,
-      (Core.Std.List.fold path_peers ~init:[] ~f:(fun acc -> fun (path,ps) ->
-        Core.Std.List.append (if List.exists ps (fun p -> Peer.compare p peer = 0) then [path] else []) acc))) in
+      (Base.List.fold path_peers ~init:[] ~f:(fun acc -> fun (path,ps) ->
+        Base.List.append (if Base.List.exists ps (fun p -> Peer.compare p peer = 0) then [path] else []) acc))) in
   Lwt_list.iter_s (fun (peer,paths) -> invalidate_paths_at_peer peer paths service s
     >|= fun (c,_) -> if c=204 then () else relog_paths_for_peer peer paths service s) peer_paths
 
@@ -326,10 +326,10 @@ module Client = struct
         | None            -> Wm.continue false rd
         | Some plaintext' ->
         let requests = Coding.decode_remote_file_list_message plaintext' in
-        let to_check,to_fetch = Core.Std.List.partition_tf requests ~f:(fun rf -> rf.check_cache) in
-        read_from_cache peer' service' (Core.Std.List.map to_check ~f:(fun rf -> rf.path)) s (* Note, if a file is just `Null it is assumed to be not cached *)
+        let to_check,to_fetch = Base.List.partition_tf requests ~f:(fun rf -> rf.check_cache) in
+        read_from_cache peer' service' (Base.List.map to_check ~f:(fun rf -> rf.path)) s (* Note, if a file is just `Null it is assumed to be not cached *)
         >>= fun (cached,to_fetch') ->
-          (let to_fetch'' = List.append (Core.Std.List.map to_fetch ~f:(fun rf -> rf.path)) to_fetch' in
+          (let to_fetch'' = Base.List.append (Base.List.map to_fetch ~f:(fun rf -> rf.path)) to_fetch' in
           if not(to_fetch'' = [])
           then
             (let body = attach_required_capabilities "R" peer' service' to_fetch'' s in
@@ -338,7 +338,7 @@ module Client = struct
               ~auth:(Sig (Peer.host s#get_address, sign body s))
             >>= (fun (c,b) ->
               let `Assoc fetched = Coding.decode_file_content_list_message b in
-              let results = Core.Std.List.append fetched cached in
+              let results = Base.List.append fetched cached in
               let results' = (`Assoc results) |> Yojson.Basic.to_string in
               write_to_cache peer' service' fetched requests s
               >|= fun () -> results'))
@@ -630,7 +630,7 @@ module Client = struct
         | Some service' ->
         match file_content_to_set with
         | `Assoc j as targets ->
-            let paths,contents = Core.Std.List.unzip j in
+            let paths,contents = Base.List.unzip j in
             if not(paths = [])
               then
                 (let body = attach_required_capabilities_and_content peer' service' paths targets s in
@@ -638,7 +638,7 @@ module Client = struct
                   ~auth:(Sig (Peer.host s#get_address, sign body s)))
                 >>= fun (c,_) -> (
                   if c = 204 then
-                    (let requests = Core.Std.List.map paths
+                    (let requests = Base.List.map paths
                         ~f:(fun p -> {path=p; check_cache=false; write_back=true;}) in
                     write_to_cache peer' service' j requests s
                     >>= fun () -> Wm.continue true rd)
@@ -772,7 +772,7 @@ module Peer = struct
               (match j with
               | `Assoc l  ->
                   s#set_peer_access_log
-                    (List.fold l ~init:s#get_peer_access_log
+                    (Base.List.fold l ~init:s#get_peer_access_log
                     ~f:(fun log -> fun (f,_) ->
                     Peer_access_log.log log ~host:s#get_address ~peer:source' ~service:service' ~path:f));
                   Lwt.return (Yojson.Basic.to_string j)
@@ -820,14 +820,14 @@ module Peer = struct
           >>= (fun message ->
             raw <- Some message;
             let file_contents,capabilities = Coding.decode_file_content_and_capability_list_message message in
-            let paths,contents = Core.Std.List.unzip file_contents in
+            let paths,contents = Base.List.unzip file_contents in
             let authorised_files =
               Auth.authorise paths capabilities
                 (Auth.Token.token_of_string "W")
                 s#get_secret_key s#get_address service' in
             let authorised_file_content =
-              Core.Std.List.filter file_contents
-                ~f:(fun (p,c) -> Core.Std.List.fold ~init:false
+              Base.List.filter file_contents
+                ~f:(fun (p,c) -> Base.List.fold ~init:false
                   ~f:(fun acc -> fun auth -> acc || auth=p) authorised_files) in
             (service <- Some service'); (file_content <- `Assoc authorised_file_content); Wm.continue false rd)
       with

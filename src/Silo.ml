@@ -71,11 +71,11 @@ let checkout service conn_dk =
 
 let walk_path_exn p tr =
   let path = Datakit_path.of_string_exn p in
-  match Core.Std.String.split ~on:'/' p with
+  match Base.String.split ~on:'/' p with
   | []    -> Lwt.return path
   | x::[] -> Lwt.return path
   | path' ->
-    Core.Std.List.take path' ((List.length path') - 1)
+    Base.List.take path' ((List.length path') - 1)
     |> String.concat "/"
     |> Datakit_path.of_string_exn
     |> Transaction.make_dirs tr
@@ -129,7 +129,7 @@ let rec read_path tree acc path =
      Lwt.return ((path,(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string))::acc)
    | `Dir paths ->
      (Lwt_list.fold_left_s (read_path tree) acc
-        (Core.Std.List.map ~f:(fun p -> (Printf.sprintf "%s/%s" path p)) paths))
+        (Base.List.map ~f:(fun p -> (Printf.sprintf "%s/%s" path p)) paths))
    | _ -> (* Symlinks are not handled as violate the recursive permission model *)
      Lwt.return acc)
 
@@ -141,7 +141,7 @@ let read ~client ~peer ~service ~paths =
      >>= fun branch -> Client.Silo_datakit_client.Branch.head branch
      >>>= fun ptr -> Lwt.return ptr
      >>= begin function
-       | None      -> Lwt.return (`Assoc (Core.Std.List.map paths ~f:(fun file -> (file,`Null))))
+       | None      -> Lwt.return (`Assoc (Base.List.map paths ~f:(fun file -> (file,`Null))))
        | Some head ->
          (let tree = Client.Silo_datakit_client.Commit.tree head in
           (Lwt_list.fold_left_s (read_path tree) [] paths)

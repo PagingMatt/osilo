@@ -5,7 +5,7 @@ module V = struct
     |> String.length
 end
 
-module C = Lru.F.Make(Core.Std.String)(V)
+module C = Lru.F.Make(Base.String)(V)
 
 type t = C.t
 
