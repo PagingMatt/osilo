@@ -17,6 +17,7 @@ remove: ["ocamlfind" "remove" "osilo"]
 depends: [
   "alcotest"
   "cohttp"
+  "bench"
   "core"
   "core_bench"
   "cstruct"
