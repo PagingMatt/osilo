@@ -19,7 +19,6 @@ depends: [
   "cohttp"
   "bench"
   "core"
-  "core_bench"
   "cstruct"
   "datakit-client"
   "lru"

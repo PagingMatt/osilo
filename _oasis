@@ -56,7 +56,7 @@ Executable performance_tests
   Build$: flag(tests)
   CompiledObject: best
   Install: false
-  BuildDepends: bench,core_bench,osilo
+  BuildDepends: bench,osilo
 
 AlphaFeatures: ocamlbuild_more_args
 Document "Osilo_Library"
