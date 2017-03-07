@@ -1,4 +1,5 @@
 open Bench
+open Bench.Bootstrap
 open Core.Std
 
 let peer = "localhost" |> Peer.create
@@ -39,6 +40,11 @@ let tree =
 
 let tree' = Auth.CS.record_if_most_general (Auth.CS.empty) cap
 
+let print_result r =
+  Printf.printf "%s,%f,%f\n" r.desc r.mean.point r.stdev.point
+
+let print_results = List.iter ~f:print_result
+
 let () =
   let args = (List.range ~stride:250 ~start:`inclusive ~stop:`inclusive 1 number_paths) in
   let best_sel = bench_throughput (* Best case capability selection *)
@@ -51,4 +57,8 @@ let () =
       (fun num -> ignore (Auth.authorise (List.take paths num) bc_capability R key peer service)) args in
   let worst_auth = bench_throughput (* Worst case capability verification *)
       (fun num -> ignore (Auth.authorise (List.take paths num) (List.take capabilities num) R key peer service)) args in
-  ()
+  Printf.printf "Best case capability selection.\n\n"; print_results best_sel; Printf.printf "\n";
+  Printf.printf "Worst case capability selection.\n\n"; print_results worst_sel; Printf.printf "\n";
+  Printf.printf "Verification.\n\n"; print_results ver; Printf.printf "\n";
+  Printf.printf "Best case authorisation.\n\n"; print_results best_auth; Printf.printf "\n";
+  Printf.printf "Worst case authorisation.\n\n"; print_results worst_auth; Printf.printf "\n"
