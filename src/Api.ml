@@ -128,11 +128,15 @@ let sign message s =
   |> Cryptography.Signing.sign ~key:s#get_private_key
   |> Cstruct.to_string
 
-let verify message sign peer s =
-  Cryptography.Keying.lookup ~ks:(s#get_keying_service) ~peer:(Peer.create peer)
-  >|= fun (ks,pub) ->
-    s#set_keying_service ks;
-    Cryptography.Signing.verify ~key:pub ~signature:(Cstruct.of_string sign) (Cstruct.of_string message)
+let rec verify message sign peer s is_retry =
+  let open Cryptography in
+  Keying.lookup ~ks:(s#get_keying_service) ~peer:(Peer.create peer)
+  >>= fun (ks,pub) ->
+    (s#set_keying_service ks;
+     Signing.verify ~key:pub ~signature:(Cstruct.of_string sign) (Cstruct.of_string message))
+    |> fun b -> if is_retry || b then Lwt.return b else
+      (s#set_keying_service (Keying.invalidate ~ks ~peer:(Peer.create peer));
+       verify message sign peer s true)
 
 let relog_paths_for_peer peer paths service s =
   s#set_peer_access_log (Core.Std.List.fold
@@ -203,7 +207,7 @@ let authorise_p2p rd message s =
       | Some p' -> p' = src
       | None    -> true)
     then
-      verify message sign src s >|=
+      verify message sign src s false >|=
         (begin function
          | true  -> Some src
          | false -> None
