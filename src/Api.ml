@@ -19,7 +19,7 @@ let get_path_info_exn rd wildcard =
 
 let attach_required_capabilities tok target service files s =
   let requests          = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
-  let caps, not_covered = Auth.find_permissions s#get_capability_service requests in
+  let caps, not_covered = Auth.find_permissions s#get_capability_service requests target service in
   let caps'             = Coding.encode_capabilities caps in
   `Assoc [
     ("files"       , (Coding.encode_file_list_message files));
@@ -28,7 +28,7 @@ let attach_required_capabilities tok target service files s =
 
 let attach_required_capabilities_and_content target service paths contents s =
   let requests          = Core.Std.List.map paths ~f:(fun c -> Log.info (fun m -> m "Attaching W to %s" c); (Auth.Token.token_of_string "W"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
-  let caps, not_covered = Auth.find_permissions s#get_capability_service requests in
+  let caps, not_covered = Auth.find_permissions s#get_capability_service requests target service in
   let caps'             = Coding.encode_capabilities caps in
   `Assoc [
     ("contents"    , contents);

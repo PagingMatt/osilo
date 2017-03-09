@@ -23,53 +23,58 @@ module Token : sig
   val (>=) : t -> t -> bool
   (** Expresses greater than or equal to relation over two inputs.*)
 end
-(** Permissions tokens. These are used to express the difference between being able to read and 
+(** Permissions tokens. These are used to express the difference between being able to read and
 write on remote peers, although currently only remote reading is implemented. *)
 
-module CS : sig 
+module CS : sig
   type t
   (** [File_tree.t] used to store permissions and Macaroons for nodes in a file tree. *)
 
   val empty : t
   (** Gives an empty capability service. *)
 
-  val record_if_most_general : 
+  val record_if_most_general :
     service:t          ->
     macaroon:M.t       -> t
-  (** [record_if_most_general ~service ~macaroon] walks down [service] and if 
-  [macaroon] is more general and powerful than any other Macaroon along the path it gives the 
+  (** [record_if_most_general ~service ~macaroon] walks down [service] and if
+  [macaroon] is more general and powerful than any other Macaroon along the path it gives the
   capability service with [macaroon] inserted, otherwise it just gives [service]. *)
 
   val find_most_general_capability :
     service:t          ->
     path:string        ->
     permission:Token.t -> M.t option
-  (** [find_most_general_capability ~service ~path ~permission] finds the option of the most 
+  (** [find_most_general_capability ~service ~path ~permission] finds the option of the most
   general capability along [path] in [service] which satisfies [permission], otherwise, None. *)
+
+  val all_capabilities_for_peers_service :
+    t              ->
+    peer:Peer.t    ->
+    service:string -> M.t list
 end
 (** CS is the capability service, used to store capabilities given to this peer from other peers. *)
 
 val authorise : (string list) -> (M.t list) -> Token.t -> Cstruct.t -> Peer.t -> string -> (string list)
 (** [authorise paths capabilities token key target service] returns the subset of [paths] which is
-covered by [capabilities] for a request of level [token]. [key] is the key used to mint each 
-element of capabilities, [target] is the server's data being read (always this server) and 
+covered by [capabilities] for a request of level [token]. [key] is the key used to mint each
+element of capabilities, [target] is the server's data being read (always this server) and
 [service] is the service that the elements of [paths] are on. *)
 
 val verify : Token.t -> string -> M.t -> bool
-(** [verify token key capability] verifies that [capability] was minted with [key] and that it 
+(** [verify token key capability] verifies that [capability] was minted with [key] and that it
 holds a permission token of at least [token] as a first party caveat. *)
 
-val covered : M.t list -> Token.t * string -> bool
+val covered : CS.t -> Token.t * string -> bool
 
 val mint : Peer.t -> Cstruct.t -> string -> (Token.t * string) list -> M.t list
 (** [mint source key service permissions] takes each element of [permissions] and builds a list of
-string tokens and Macaroons tuples. Each Macaroon's identifier is of the token it is in 
+string tokens and Macaroons tuples. Each Macaroon's identifier is of the token it is in
 the tuple with and had a location of [source]/[service]/[path] where [path] is from an element of
 [permissions]. Each Macaroon is signed with [key], this servers secret key. *)
 
-val find_permissions : CS.t -> (Token.t * string) list -> M.t list * (Token.t * string) list
-(** [find_permissions capabilities_service targets] builds up a list of Macaroons which cover the 
-path of each element of [targets] which are at least as powerful as the [Token.t] paired with the 
+val find_permissions : CS.t -> (Token.t * string) list -> Peer.t -> string -> M.t list * (Token.t * string) list
+(** [find_permissions capabilities_service targets] builds up a list of Macaroons which cover the
+path of each element of [targets] which are at least as powerful as the [Token.t] paired with the
 target path. This uses a greedy approach to build a minimal covering set. It returns this in a pair
 with the permission path pairs that couldn't be covered. *)
 
