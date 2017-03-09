@@ -173,10 +173,13 @@ module Auth_tests = struct
     let service0 = Auth.CS.empty in
     let service1 = Auth.record_permissions service0 caps in
     let caps2,_ = Auth.find_permissions service1 paths in
+    let caps2',_ = Auth.find_permissions' service1 paths server#get_address "test" in
     Alcotest.(check int) "Two Macaroons should be minted"
     2 (Core.Std.List.length caps);
     Alcotest.(check int) "One Macaroon should be found"
-    1 (Core.Std.List.length caps2)
+      1 (Core.Std.List.length caps2);
+    Alcotest.(check int) "One Macaroon should be found"
+      1 (Core.Std.List.length caps2')
 
   let number_paths = 200
   let paths =
@@ -211,28 +214,48 @@ module Auth_tests = struct
 
   let find_is_deduped () =
     let caps,notf = Auth.find_permissions tree' selection_args in
+    let capsl,notfl = Auth.find_permissions' tree' selection_args (Peer.create "127.0.0.1") "foo" in
       Alcotest.(check int) "Checks that best case miminal set is selected"
-      (Core.Std.List.length caps) 1;
+        (Core.Std.List.length caps) 1;
       Alcotest.(check int) "Checks that best case not found set is empty"
-      (Core.Std.List.length notf) 0;
-    let caps',notf' = Auth.find_permissions tree selection_args in
+        (Core.Std.List.length notfl) 0;
+      Alcotest.(check int) "Checks that best case miminal set is selected"
+        (Core.Std.List.length capsl) 1;
+      Alcotest.(check int) "Checks that best case not found set is empty"
+        (Core.Std.List.length notf) 0;
+      let caps',notf' = Auth.find_permissions tree selection_args in
+      let capsl',notfl' = Auth.find_permissions' tree selection_args (Peer.create "127.0.0.1") "foo" in
       Alcotest.(check int) "Checks that worst case miminal set is selected"
-      (Core.Std.List.length caps') number_paths;
+        (Core.Std.List.length caps') number_paths;
       Alcotest.(check int) "Checks that worst case not found set is empty"
-      (Core.Std.List.length notf') 0
+        (Core.Std.List.length notf') 0;
+      Alcotest.(check int) "Checks that worst case miminal set is selected"
+        (Core.Std.List.length capsl') number_paths;
+      Alcotest.(check int) "Checks that worst case not found set is empty"
+        (Core.Std.List.length notfl') 0
 
 
   let covered_tests () =
     let caps1,_ = Auth.find_permissions tree' selection_args in
+    let caps1',_ = Auth.find_permissions' tree' selection_args (Peer.create "127.0.0.1") "foo" in
     Alcotest.(check bool) "Checks all best case covered"
       (Core.Std.List.fold ~init:true selection_args
         ~f:(fun b -> fun a -> b && Auth.covered caps1 a))
       true;
+      Alcotest.(check bool) "Checks all best case covered"
+        (Core.Std.List.fold ~init:true selection_args
+          ~f:(fun b -> fun a -> b && Auth.covered caps1' a))
+        true;
     let caps2,_ = Auth.find_permissions tree selection_args in
+    let caps2',_ = Auth.find_permissions' tree selection_args (Peer.create "127.0.0.1") "foo" in
     Alcotest.(check bool) "Checks all worst case covered"
       (Core.Std.List.fold ~init:true selection_args
         ~f:(fun b -> fun a -> b && Auth.covered caps2 a))
-      true
+      true;
+      Alcotest.(check bool) "Checks all worst case covered"
+        (Core.Std.List.fold ~init:true selection_args
+          ~f:(fun b -> fun a -> b && Auth.covered caps2' a))
+        true
 
   let tests = [
     ("Valid tokens can be symmetrically serialised/deserailised.", `Quick, symm_token_serialisation);
