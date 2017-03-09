@@ -24,6 +24,14 @@
 (* Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA              *)
 (******************************************************************************)
 
+let () =
+  try
+    Topdirs.dir_directory (Sys.getenv "OCAML_TOPLEVEL_PATH")
+  with Not_found -> ()
+;;
+#use "topfind";;
+#require "oasis.dynrun";;
+open OASISDynRun;;
 
 (* OASIS_STOP *)
 let () = setup ();;
