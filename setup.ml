@@ -1,4 +1,4 @@
-(* setup.ml generated for the first time by OASIS v0.4.8 *)
+(* setup.ml generated for the first time by OASIS v0.4.6 *)
 
 (* OASIS_START *)
 (* DO NOT EDIT (digest: 9852805d5c19ca1cb6abefde2dcea323) *)
@@ -24,14 +24,6 @@
 (* Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA              *)
 (******************************************************************************)
 
-let () =
-  try
-    Topdirs.dir_directory (Sys.getenv "OCAML_TOPLEVEL_PATH")
-  with Not_found -> ()
-;;
-#use "topfind";;
-#require "oasis.dynrun";;
-open OASISDynRun;;
 
 (* OASIS_STOP *)
 let () = setup ();;
