@@ -94,7 +94,7 @@ module CS : sig
     t               ->
     peer:Peer.t    ->
     service:string -> M.t list
-end = struct 
+end = struct
   type t = M.t File_tree.t
 
   open Token
@@ -170,40 +170,22 @@ let vpath_subsumes_request vpath rpath =
       | y::ys -> x=y && (walker xs ys)
   in walker vpath' rpath'
 
-let rec covered caps (perm,path) =
-  match caps with
-  | []        -> false
-  | m::cs ->
-      (((M.identifier m |> Token.token_of_string) >= perm) && (vpath_subsumes_request (M.location m) path))
-      || covered cs (perm,path)
+let covered caps (permission,path) =
+  match CS.find_most_general_capability ~service:caps ~path ~permission with
+  | Some _ -> true
+  | None   -> false
 
-let find_permissions capability_service requests =
-  Core.Std.List.fold requests ~init:([],[])
+let find_permissions capability_service requests peer service =
+  Core.Std.List.fold requests ~init:(CS.empty,[])
   ~f:(fun (c,n) -> fun (permission,path) ->
     if covered c (permission,path) then (c,n) else
       CS.find_most_general_capability
       ~service:capability_service ~path ~permission
     |> begin function
-       | None       -> c,((permission,path)::n)
-       | Some m -> (m::c),n
-       end)
-
-let covered' caps (permission,path) =
-  match CS.find_most_general_capability ~service:caps ~path ~permission with
-  | Some _ -> true
-  | None   -> false
-
-let find_permissions' capability_service requests peer service =
-  Core.Std.List.fold requests ~init:(CS.empty,[])
-  ~f:(fun (c,n) -> fun (permission,path) -> 
-    if covered' c (permission,path) then (c,n) else
-      CS.find_most_general_capability 
-      ~service:capability_service ~path ~permission
-    |> begin function 
        | None   -> c,((permission,path)::n)
        | Some m -> (CS.record_if_most_general ~service:c ~macaroon:m),n
        end)
-    |> fun (covered,not_covered) -> 
+    |> fun (covered,not_covered) ->
          (CS.all_capabilities_for_peers_service covered ~peer ~service),not_covered
 
 let request_under_verified_path vpaths rpath =
