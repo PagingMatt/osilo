@@ -47,10 +47,7 @@ module CS : sig
   (** [find_most_general_capability ~service ~path ~permission] finds the option of the most
   general capability along [path] in [service] which satisfies [permission], otherwise, None. *)
 
-  val all_capabilities_for_peers_service :
-    t              ->
-    peer:Peer.t    ->
-    service:string -> M.t list
+  val all_capabilities : t -> M.t list
 end
 (** CS is the capability service, used to store capabilities given to this peer from other peers. *)
 
