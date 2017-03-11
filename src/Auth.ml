@@ -90,10 +90,7 @@ module CS : sig
     path:string             ->
     permission:Token.t      -> M.t option
 
-  val all_capabilities_for_peers_service :
-    t               ->
-    peer:Peer.t    ->
-    service:string -> M.t list
+  val all_capabilities : t -> M.t list
 end = struct
   type t = M.t File_tree.t
 
@@ -125,9 +122,7 @@ end = struct
       ~location:(Core.Std.String.split path ~on:'/')
       ~satisfies:(satisfies permission)
 
-  let all_capabilities_for_peers_service cs ~peer ~service =
-    File_tree.trim ~tree:cs ~location:[(Peer.host peer);service]
-    |> fun (ms,_) -> ms
+  let all_capabilities cs = File_tree.flatten ~tree:cs
 end
 
 open Token
@@ -186,7 +181,7 @@ let find_permissions capability_service requests peer service =
        | Some m -> (CS.record_if_most_general ~service:c ~macaroon:m),n
        end)
     |> fun (covered,not_covered) ->
-         (CS.all_capabilities_for_peers_service covered ~peer ~service),not_covered
+         (CS.all_capabilities covered),not_covered
 
 let request_under_verified_path vpaths rpath =
   Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
@@ -203,8 +198,8 @@ let authorise requests capabilities tok key target service =
             (Printf.sprintf "%s/%s/%s" (Peer.host target) service path) ~on:'/')
           ~select:(fun p -> fun _ -> p)
           ~terminate:(fun o -> fun _ -> match o with | Some e -> true | None -> false)) requests in
-  let (authorised_paths,_) =
-    Core.Std.List.fold ~init:([],path_tree) ~f:(fun (paths,tree) -> fun loc ->
-      let content,tree' = File_tree.trim ~tree ~location:(Core.Std.String.split loc ~on:'/')
-      in (Core.Std.List.unordered_append content paths),tree') authorised_locations in
+  let authorised_paths =
+    Core.Std.List.fold ~init:[] ~f:(fun (paths) -> fun loc ->
+      let content = File_tree.flatten_below ~tree:path_tree ~location:(Core.Std.String.split loc ~on:'/')
+      in (Core.Std.List.unordered_append content paths)) authorised_locations in
   authorised_paths
