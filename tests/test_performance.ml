@@ -8,7 +8,7 @@ let service = "foo"
 
 open Auth.Token
 
-let number_paths = 20000
+let number_paths = 4000
 let paths =
   Nocrypto_entropy_unix.initialize ();
   List.init number_paths
@@ -41,24 +41,31 @@ let tree =
 let tree' = Auth.CS.record_if_most_general (Auth.CS.empty) cap
 
 let print_result r =
-  Printf.printf "%s,%f,%f\n" r.desc r.mean.point r.stdev.point
+  Printf.printf "%s,%.16f,%.16f\n" r.desc r.mean.point r.stdev.point
 
 let print_results = List.iter ~f:print_result
 
+let best_sel args = bench_args (* Best case capability selection *)
+  (fun num -> Auth.find_permissions tree' (List.take selection_args num))
+  (List.map args ~f:(fun a -> Printf.sprintf "%d" a, a))
+
+let worst_sel args = bench_args (* Worst case capability selection *)
+  (fun num -> Auth.find_permissions tree (List.take selection_args num))
+  (List.map args ~f:(fun a -> Printf.sprintf "%d" a, a))
+
+let ver args = bench_args (* Verifying capabilities *)
+  (fun num  -> List.map (List.take capabilities num) ~f:(Auth.verify R (key |> Coding.encode_cstruct)))
+  (List.map args ~f:(fun a -> Printf.sprintf "%d" a, a))
+
+let best_auth args = bench_args (* Best case capability verification *)
+  (fun num -> ignore (Auth.authorise (List.take paths num) bc_capability R key peer service))
+  (List.map args ~f:(fun a -> Printf.sprintf "%d" a, a))
+
+let worst_auth args = bench_args (* Worst case capability verification *)
+  (fun num -> ignore (Auth.authorise (List.take paths num) (List.take capabilities num) R key peer service))
+  (List.map args ~f:(fun a -> Printf.sprintf "%d" a, a))
+
 let () =
-  let args = (List.range ~stride:250 ~start:`inclusive ~stop:`inclusive 1 number_paths) in
-  let best_sel = bench_throughput (* Best case capability selection *)
-    (fun num -> Auth.find_permissions tree' (List.take selection_args num)) args in
-  let worst_sel = bench_throughput (* Worst case capability selection *)
-    (fun num -> Auth.find_permissions tree (List.take selection_args num)) args in
-  let ver = bench_throughput (* Verifying capabilities *)
-    (fun num  -> List.map (List.take capabilities num) ~f:(Auth.verify R (key |> Coding.encode_cstruct))) args in
-  let best_auth = bench_throughput (* Best case capability verification *)
-      (fun num -> ignore (Auth.authorise (List.take paths num) bc_capability R key peer service)) args in
-  let worst_auth = bench_throughput (* Worst case capability verification *)
-      (fun num -> ignore (Auth.authorise (List.take paths num) (List.take capabilities num) R key peer service)) args in
-  Printf.printf "Best case capability selection.\n\n"; print_results best_sel; Printf.printf "\n";
-  Printf.printf "Worst case capability selection.\n\n"; print_results worst_sel; Printf.printf "\n";
-  Printf.printf "Verification.\n\n"; print_results ver; Printf.printf "\n";
-  Printf.printf "Best case authorisation.\n\n"; print_results best_auth; Printf.printf "\n";
-  Printf.printf "Worst case authorisation.\n\n"; print_results worst_auth; Printf.printf "\n"
+  Bench.config.Bench.samples <- 5000;
+  let args = (List.range ~stride:50 ~start:`inclusive ~stop:`inclusive 1 number_paths) in
+  print_results (best_sel args)
