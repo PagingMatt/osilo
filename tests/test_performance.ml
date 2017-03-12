@@ -46,11 +46,11 @@ let print_result r =
 let print_results = List.iter ~f:print_result
 
 let best_sel args = bench_args (* Best case capability selection *)
-  (fun num -> Auth.find_permissions tree' (List.take selection_args num))
+  (fun num -> Auth.find_permissions tree' (List.take selection_args num) peer service)
   (List.map args ~f:(fun a -> Printf.sprintf "%d" a, a))
 
 let worst_sel args = bench_args (* Worst case capability selection *)
-  (fun num -> Auth.find_permissions tree (List.take selection_args num))
+  (fun num -> Auth.find_permissions tree (List.take selection_args num) peer service)
   (List.map args ~f:(fun a -> Printf.sprintf "%d" a, a))
 
 let ver args = bench_args (* Verifying capabilities *)
