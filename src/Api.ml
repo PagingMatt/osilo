@@ -747,13 +747,10 @@ module Peer = struct
       try match Wm.Rd.lookup_path_info "service" rd with
       | None          -> Wm.continue true rd
       | Some service' ->
-        match source with
-        | None          -> Wm.continue true rd
-        | Some source' ->
-          (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
-          >>= (fun message ->
-            raw <- Some message;
-            service <- Some service'; Wm.continue false rd)
+        (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
+        >>= (fun message ->
+          raw <- Some message;
+          service <- Some service'; Wm.continue false rd)
       with
       | Coding.Decoding_failed s ->
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s);
@@ -862,8 +859,6 @@ module Peer = struct
     inherit [Cohttp_lwt_body.t] Wm.resource
 
     val mutable service : string option = None
-
-    val mutable files : string list = []
 
     val mutable source : Peer.t option = None
 
