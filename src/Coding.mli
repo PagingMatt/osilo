@@ -12,15 +12,15 @@ val encode_json_requested_file : requested_file -> Yojson.Basic.json
 (** [encode_json_requested_file file] takes a value of [requested_file] an encodes it into JSON. *)
 
 val decode_json_requested_file : Yojson.Basic.json -> requested_file
-(** [decode_json_requested_file json] takes a JSON value [json] and if it can be recoded into a [requested_file] 
+(** [decode_json_requested_file json] takes a JSON value [json] and if it can be recoded into a [requested_file]
 value this is returned. Otherwise [Decoding_failed] is raised with the [string] representation of [json]
 as its parameter. *)
 
 exception Decoding_failed of string
 (** Raised if cannot decode a string. *)
 
-val encode_cstruct : Cstruct.t -> string 
-(** [encode_cstruct m] takes the [Cstruct.t] [m] and encodes it to a base 64 [string] for 
+val encode_cstruct : Cstruct.t -> string
+(** [encode_cstruct m] takes the [Cstruct.t] [m] and encodes it to a base 64 [string] for
 transmission. *)
 
 val decode_cstruct : string -> Cstruct.t
@@ -44,13 +44,13 @@ list of file paths paired with a list of capabilities. If it fails to decode it,
 with [msg] as the parameter. *)
 
 val decode_file_content_and_capability_list_message : string -> (string * Yojson.Basic.json) list * (Auth.M.t list)
-(** [decode_file_content_and_capability_list_message msg] takes [msg] and tries to decode it into a [list] 
-of [string] file path, [json] content pairs, paired with a [list] of capabilities. If it fails, then 
+(** [decode_file_content_and_capability_list_message msg] takes [msg] and tries to decode it into a [list]
+of [string] file path, [json] content pairs, paired with a [list] of capabilities. If it fails, then
 [Decoding_failed] is raised with [msg] as its parameter. *)
 
 val decode_file_content_list_message : string -> [`Assoc of (string * Yojson.Basic.json) list]
 (** [decode_file_content_list_message msg] takes a [string] value [msg] and tries to decode this into
-a JSON association list, mapping [string] file paths to [json] content. If it fails to do this, 
+a JSON association list, mapping [string] file paths to [json] content. If it fails to do this,
 then [Decoding_failed] is raised with [msg] as the parameter. *)
 
 val decode_permission_list_message : string -> (Auth.Token.t * string) list

@@ -520,7 +520,7 @@ module Client = struct
       match service with
       | None -> Wm.continue false rd
       | Some service' ->
-      let capabilities = Auth.mint s#get_address s#get_secret_key service' permission_list in
+      let capabilities = Auth.mint s#get_address s#get_secret_key service' permission_list target' in
       let p_body       = Coding.encode_capabilities capabilities |> Yojson.Basic.to_string in
       let path         =
         (Printf.sprintf "/peer/permit/%s/%s"
@@ -721,8 +721,6 @@ module Peer = struct
 
     val mutable service : string option = None
 
-    val mutable files : string list = []
-
     val mutable raw : string option = None
 
     val mutable source : Peer.t option = None
@@ -749,15 +747,10 @@ module Peer = struct
       try match Wm.Rd.lookup_path_info "service" rd with
       | None          -> Wm.continue true rd
       | Some service' ->
-          (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
-          >>= (fun message ->
-            raw <- Some message;
-            let files',capabilities = Coding.decode_file_and_capability_list_message message in
-            let authorised_files =
-              Auth.authorise files' capabilities
-                (Auth.Token.token_of_string "R")
-                s#get_secret_key s#get_address service' in
-            (service <- Some service'); (files <- authorised_files); Wm.continue false rd)
+        (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
+        >>= (fun message ->
+          raw <- Some message;
+          service <- Some service'; Wm.continue false rd)
       with
       | Coding.Decoding_failed s ->
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s);
@@ -771,7 +764,15 @@ module Peer = struct
         match source with
         | None -> Wm.continue false rd
         | Some source' ->
-            read_from_silo service' files s
+        match raw with
+        | None -> Wm.continue false rd
+        | Some message ->
+          let files',capabilities = Coding.decode_file_and_capability_list_message message in
+          let authorised_files =
+            Auth.authorise files' capabilities
+            (Auth.Token.token_of_string "R")
+            s#get_secret_key s#get_address service' source' in
+            read_from_silo service' authorised_files s
             >>= fun j ->
               (match j with
               | `Assoc l  ->
@@ -792,8 +793,6 @@ module Peer = struct
 
     val mutable service : string option = None
 
-    val mutable file_content : Yojson.Basic.json = `Null
-
     val mutable raw : string option = None
 
     val mutable source : Peer.t option = None
@@ -820,20 +819,10 @@ module Peer = struct
       try match Wm.Rd.lookup_path_info "service" rd with
       | None          -> Wm.continue true rd
       | Some service' ->
-          (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
-          >>= (fun message ->
-            raw <- Some message;
-            let file_contents,capabilities = Coding.decode_file_content_and_capability_list_message message in
-            let paths,contents = Core.Std.List.unzip file_contents in
-            let authorised_files =
-              Auth.authorise paths capabilities
-                (Auth.Token.token_of_string "W")
-                s#get_secret_key s#get_address service' in
-            let authorised_file_content =
-              Core.Std.List.filter file_contents
-                ~f:(fun (p,c) -> Core.Std.List.fold ~init:false
-                  ~f:(fun acc -> fun auth -> acc || auth=p) authorised_files) in
-            (service <- Some service'); (file_content <- `Assoc authorised_file_content); Wm.continue false rd)
+        (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
+        >>= (fun message ->
+          raw <- Some message;
+          service <- Some service'; Wm.continue false rd)
       with
       | Coding.Decoding_failed s ->
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s);
@@ -844,7 +833,23 @@ module Peer = struct
         match service with
         | None -> Wm.continue false rd
         | Some service' ->
-            write_to_silo service' file_content s
+        match source with
+        | None -> Wm.continue false rd
+        | Some source' ->
+        match raw with
+        | None -> Wm.continue false rd
+        | Some message ->
+          let file_contents,capabilities = Coding.decode_file_content_and_capability_list_message message in
+          let paths,contents = Core.Std.List.unzip file_contents in
+          let authorised_files =
+            Auth.authorise paths capabilities
+              (Auth.Token.token_of_string "W")
+              s#get_secret_key s#get_address service' source' in
+          let authorised_file_content =
+            Core.Std.List.filter file_contents
+              ~f:(fun (p,c) -> Core.Std.List.fold ~init:false
+                ~f:(fun acc -> fun auth -> acc || auth=p) authorised_files) in
+          write_to_silo service' (`Assoc authorised_file_content) s
             >>= fun () -> Wm.continue true rd
       with
       | Malformed_data  -> Wm.continue false rd
@@ -854,8 +859,6 @@ module Peer = struct
     inherit [Cohttp_lwt_body.t] Wm.resource
 
     val mutable service : string option = None
-
-    val mutable files : string list = []
 
     val mutable source : Peer.t option = None
 
@@ -886,12 +889,7 @@ module Peer = struct
           (Cohttp_lwt_body.to_string rd.Wm.Rd.req_body)
           >>= (fun message ->
             raw <- Some message;
-            let files',capabilities = Coding.decode_file_and_capability_list_message message in
-            let authorised_files =
-              Auth.authorise files' capabilities
-                (Auth.Token.token_of_string "D")
-                s#get_secret_key s#get_address service' in
-            (service <- Some service'); (files <- authorised_files); Wm.continue false rd)
+            (service <- Some service'); Wm.continue false rd)
       with
       | Coding.Decoding_failed s ->
           (Log.debug (fun m -> m "Failed to decode message at /peer/get/:service: \n%s" s);
@@ -905,7 +903,15 @@ module Peer = struct
         match service with
         | None -> Wm.continue false rd
         | Some service' ->
-            delete_from_silo service' files s
+        match raw with
+        | None -> Wm.continue false rd
+        | Some message ->
+          let files',capabilities = Coding.decode_file_and_capability_list_message message in
+          let authorised_files =
+            Auth.authorise files' capabilities
+            (Auth.Token.token_of_string "D")
+            s#get_secret_key s#get_address service' source' in
+            delete_from_silo service' authorised_files s
             >>= fun () -> Wm.continue true rd
       with
       | Malformed_data  -> Wm.continue false rd

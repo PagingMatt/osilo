@@ -36,8 +36,6 @@ module Crypto : Macaroons.CRYPTO = struct
   let () = Nocrypto_entropy_unix.initialize ()
 end
 
-module M = Macaroons.Make(Crypto)
-
 module Token : sig
   type t = R | W | D
   exception Invalid_token of string
@@ -76,6 +74,102 @@ end = struct
     | R -> (t2 = R)
 end
 
+module M : sig
+  type t
+  val create :
+    source:Peer.t  ->
+    service:string ->
+    path:string    ->
+    delegate:Peer.t  ->
+    token:Token.t  ->
+    key:Cstruct.t  -> t
+  val delegate : t -> Peer.t
+  val source : t -> Peer.t
+  val service : t -> string
+  val path : t -> string
+  val location : t -> string
+  val token : t -> Token.t
+  val verify : t ->
+    key:Cstruct.t    ->
+    required:Token.t ->
+    requester:Peer.t -> bool
+  exception Deserialisation_failed of string
+  val string_of_t : t -> string
+  val t_of_string : string -> t
+end = struct
+  module Mac = Macaroons.Make(Crypto)
+
+  type t = Mac.t
+
+  exception Deserialisation_failed of string
+
+  let string_member s j =
+    match Yojson.Basic.Util.member s j with
+    | `String m -> m
+    | _         -> raise (Deserialisation_failed s)
+
+  let encode_location ~source ~service ~path ~target =
+      `Assoc [
+        ("source" , `String (Peer.host source));
+        ("service", `String (service));
+        ("path"   , `String (path));
+        ("target" , `String (Peer.host target))]
+      |> Yojson.Basic.to_string
+
+  let decode_location location =
+    let j = Yojson.Basic.from_string location in
+    let source  = string_member "source"  j |> Peer.create in
+    let service = string_member "service" j   in
+    let path    = string_member "path"    j   in
+    let target  = string_member "target"  j |> Peer.create in
+    source,service,path,target
+
+  let create ~source ~service ~path ~delegate ~token ~key =
+    let open Cryptography.Serialisation in
+    let location = encode_location source service path delegate in
+    Mac.create
+      ~location
+      ~key:(key |> serialise_cstruct)
+      ~id:(Token.string_of_token token)
+
+  let source macaroon =
+    let s,_,_,_ = Mac.location macaroon |> decode_location in s
+
+  let service macaroon =
+    let _,s,_,_ = Mac.location macaroon |> decode_location in s
+
+  let path macaroon =
+    let _,_,p,_ = Mac.location macaroon |> decode_location in p
+
+  let delegate macaroon =
+    let _,_,_,t = Mac.location macaroon |> decode_location in t
+
+  let location macaroon =
+    let source,service,path,_ = Mac.location macaroon |> decode_location in
+    Printf.sprintf "%s/%s/%s" (source |> Peer.host) service path
+
+  let token macaroon =
+    Mac.identifier macaroon
+    |> Token.token_of_string
+
+  let verify macaroon ~key ~required ~requester =
+    let open Cryptography.Serialisation in
+    let open Token in
+    Mac.verify macaroon ~key:(serialise_cstruct key) ~check:(fun _ -> true) [] (* Macaroon was minted with this secret key - not forged *)
+    && (token_of_string (Mac.identifier macaroon)) >= required (* Macaroon carries sufficient permission *)
+    && Peer.compare (delegate macaroon) (requester) = 0 (* Peer making request is peer macaroon was minted for *)
+
+  let t_of_string s =
+    Mac.deserialize s
+    |> begin function
+      | `Ok m    -> m
+      | `Error (e,_) -> raise (Deserialisation_failed
+          (Printf.sprintf "Deserialising Macaroon failed with %d" e))
+    end
+
+  let string_of_t = Mac.serialize
+end
+
 module CS : sig
   type t
 
@@ -98,20 +192,18 @@ end = struct
 
   let empty = File_tree.empty
 
-  let location m = (M.location m |> Core.Std.String.split ~on:'/')
+  let location m = (Peer.host (M.source m))::(M.service m)::(M.path m |> Core.Std.String.split ~on:'/')
 
   let select m1 m2 =
-    if (M.identifier m2 |> Token.token_of_string) >> (M.identifier m1 |> Token.token_of_string)
+    if (M.token m2) >> (M.token m1)
     then m2 else m1
 
-  let satisfies permission m = (M.identifier m |> Token.token_of_string) >= permission
+  let satisfies permission m = (M.token m) >= permission
 
   let terminate elopt el =
     match elopt with
     | None     -> false
-    | Some el' ->
-        (M.identifier el' |> Token.token_of_string)
-        >= (M.identifier el |> Token.token_of_string)
+    | Some el' -> (M.token el') >= (M.token el)
 
   let record_if_most_general ~service ~macaroon =
     File_tree.insert ~element:macaroon ~tree:service ~location ~select ~terminate
@@ -133,20 +225,9 @@ let record_permissions capability_service permissions =
     ~init:capability_service
     ~f:(fun service -> fun m -> CS.record_if_most_general ~macaroon:m ~service)
 
-let create_service_capability host key service (perm,path) =
-  let open Cryptography.Serialisation in
-  let location = Printf.sprintf "%s/%s/%s" (host |> Peer.host) service path in
-  M.create
-    ~location
-    ~key:(key |> serialise_cstruct)
-    ~id:(Token.string_of_token perm)
-
-let mint host key service permissions =
-  Core.Std.List.map permissions ~f:(create_service_capability host key service)
-
-let verify tok key mac = (* Verify that I minted this macaroon and it is sufficient for the required operation *)
-  M.verify mac ~key ~check:(fun _ -> true) [] (* not forged *)
-  && (token_of_string (M.identifier mac)) >= tok (* powerful enough *)
+let mint host key service permissions delegate =
+  Core.Std.List.map permissions ~f:(fun (token,path) ->
+      M.create ~source:host ~service ~path ~delegate:delegate ~token ~key)
 
 let verify_location target service l =
   match Core.Std.String.split l ~on:'/' with
@@ -186,10 +267,10 @@ let find_permissions capability_service requests peer service =
 let request_under_verified_path vpaths rpath =
   Core.Std.List.fold vpaths ~init:false ~f:(fun acc -> fun vpath -> acc || (vpath_subsumes_request vpath rpath))
 
-let authorise requests capabilities tok key target service =
+let authorise requests capabilities tok key target service requester =
   let open Cryptography.Serialisation in
   let key' = serialise_cstruct key in
-  let verified_capabilities = Core.Std.List.filter capabilities ~f:(verify tok key') in
+  let verified_capabilities = Core.Std.List.filter capabilities ~f:(M.verify ~required:tok ~key:(deserialise_cstruct key') ~requester) in
   let authorised_locations  = Core.Std.List.map verified_capabilities ~f:(M.location) in
   let path_tree = Core.Std.List.fold ~init:File_tree.empty
         ~f:(fun tree -> fun element ->

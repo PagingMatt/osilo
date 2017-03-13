@@ -19,7 +19,7 @@ let paths =
 let s = "R"
 let t =  R
 
-let bc_capability = Auth.mint peer key service [(R,"a")]
+let bc_capability = Auth.mint peer key service [(R,"a")] peer
 let cap =
   match bc_capability with
   | c::_ -> c
@@ -32,7 +32,7 @@ let selection_args =
   List.map paths ~f:(fun p -> (t,Printf.sprintf "%s/%s/%s" (Peer.host peer) service p))
 
 let capabilities =
-  Auth.mint peer key service tokpaths
+  Auth.mint peer key service tokpaths peer
 
 let tree =
   List.fold ~init:Auth.CS.empty capabilities
@@ -54,15 +54,15 @@ let worst_sel args = bench_args (* Worst case capability selection *)
   (List.map args ~f:(fun a -> Printf.sprintf "%d" a, a))
 
 let ver args = bench_args (* Verifying capabilities *)
-  (fun num  -> List.map (List.take capabilities num) ~f:(Auth.verify R (key |> Coding.encode_cstruct)))
+  (fun num  -> List.map (List.take capabilities num) ~f:(Auth.M.verify ~required:R ~key ~requester:peer))
   (List.map args ~f:(fun a -> Printf.sprintf "%d" a, a))
 
 let best_auth args = bench_args (* Best case capability verification *)
-  (fun num -> ignore (Auth.authorise (List.take paths num) bc_capability R key peer service))
+  (fun num -> ignore (Auth.authorise (List.take paths num) bc_capability R key peer service peer))
   (List.map args ~f:(fun a -> Printf.sprintf "%d" a, a))
 
 let worst_auth args = bench_args (* Worst case capability verification *)
-  (fun num -> ignore (Auth.authorise (List.take paths num) (List.take capabilities num) R key peer service))
+  (fun num -> ignore (Auth.authorise (List.take paths num) (List.take capabilities num) R key peer service peer))
   (List.map args ~f:(fun a -> Printf.sprintf "%d" a, a))
 
 let () =

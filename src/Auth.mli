@@ -1,8 +1,3 @@
-module M : sig
-    include Macaroons.S
-end
-(** Instantiates Macaroons functor with CRYPTO over Nocrypto. *)
-
 module Token : sig
   type t = R | W | D
   (** Tokens are either read [R], write [W] or delete [D]. Unlike UNIX write implies read etc. *)
@@ -24,7 +19,32 @@ module Token : sig
   (** Expresses greater than or equal to relation over two inputs.*)
 end
 (** Permissions tokens. These are used to express the difference between being able to read and
-write on remote peers, although currently only remote reading is implemented. *)
+    write on remote peers, although currently only remote reading is implemented. *)
+
+module M : sig
+  type t
+  val create :
+    source:Peer.t   ->
+    service:string  ->
+    path:string     ->
+    delegate:Peer.t ->
+    token:Token.t   ->
+    key:Cstruct.t   -> t
+  val delegate : t -> Peer.t
+  val source   : t -> Peer.t
+  val service  : t -> string
+  val path     : t -> string
+  val location : t -> string
+  val token : t -> Token.t
+  val verify : t ->
+    key:Cstruct.t    ->
+    required:Token.t ->
+    requester:Peer.t -> bool
+  exception Deserialisation_failed of string
+  val string_of_t : t -> string
+  val t_of_string : string -> t
+end
+(** Instantiates Macaroons functor with CRYPTO over Nocrypto. *)
 
 module CS : sig
   type t
@@ -51,20 +71,16 @@ module CS : sig
 end
 (** CS is the capability service, used to store capabilities given to this peer from other peers. *)
 
-val authorise : (string list) -> (M.t list) -> Token.t -> Cstruct.t -> Peer.t -> string -> (string list)
-(** [authorise paths capabilities token key target service] returns the subset of [paths] which is
+val authorise : (string list) -> (M.t list) -> Token.t -> Cstruct.t -> Peer.t -> string -> Peer.t -> (string list)
+(** [authorise paths capabilities token key target service requester] returns the subset of [paths] which is
 covered by [capabilities] for a request of level [token]. [key] is the key used to mint each
 element of capabilities, [target] is the server's data being read (always this server) and
 [service] is the service that the elements of [paths] are on. *)
 
-val verify : Token.t -> string -> M.t -> bool
-(** [verify token key capability] verifies that [capability] was minted with [key] and that it
-holds a permission token of at least [token] as a first party caveat. *)
-
 val covered : CS.t -> Token.t * string -> bool
 
-val mint : Peer.t -> Cstruct.t -> string -> (Token.t * string) list -> M.t list
-(** [mint source key service permissions] takes each element of [permissions] and builds a list of
+val mint : Peer.t -> Cstruct.t -> string -> (Token.t * string) list -> Peer.t -> M.t list
+(** [mint source key service permissions delegate] takes each element of [permissions] and builds a list of
 string tokens and Macaroons tuples. Each Macaroon's identifier is of the token it is in
 the tuple with and had a location of [source]/[service]/[path] where [path] is from an element of
 [permissions]. Each Macaroon is signed with [key], this servers secret key. *)
