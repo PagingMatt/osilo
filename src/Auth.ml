@@ -276,16 +276,13 @@ let authorise requests capabilities tok key target service requester =
   let key' = serialise_cstruct key in
   let verified_capabilities = Core.Std.List.filter capabilities
       ~f:(M.verify ~required_service:service ~required:tok ~key:(deserialise_cstruct key') ~this_peer:target ~requester) in
-  let authorised_locations  = Core.Std.List.map verified_capabilities ~f:(M.location) in
+  let authorised_locations  = Core.Std.List.map verified_capabilities ~f:(M.path) in
   let path_tree = Core.Std.List.fold ~init:File_tree.empty
         ~f:(fun tree -> fun element ->
           File_tree.insert ~element ~tree
-          ~location:(fun path -> Core.Std.String.split
-            (Printf.sprintf "%s/%s/%s" (Peer.host target) service path) ~on:'/')
+          ~location:(fun path -> Core.Std.String.split path ~on:'/')
           ~select:(fun p -> fun _ -> p)
           ~terminate:(fun o -> fun _ -> match o with | Some e -> true | None -> false)) requests in
-  let authorised_paths =
-    Core.Std.List.fold ~init:[] ~f:(fun (paths) -> fun loc ->
+  Core.Std.List.fold ~init:[] ~f:(fun (paths) -> fun loc ->
       let content = File_tree.flatten_below ~tree:path_tree ~location:(Core.Std.String.split loc ~on:'/')
-      in (Core.Std.List.unordered_append content paths)) authorised_locations in
-  authorised_paths
+      in (Core.Std.List.unordered_append content paths)) authorised_locations
