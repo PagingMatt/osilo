@@ -90,9 +90,11 @@ module M : sig
   val location : t -> string
   val token : t -> Token.t
   val verify : t ->
-    key:Cstruct.t    ->
-    required:Token.t ->
-    requester:Peer.t -> bool
+    required_service:string ->
+    key:Cstruct.t           ->
+    required:Token.t        ->
+    this_peer:Peer.t        ->
+    requester:Peer.t        -> bool
   exception Deserialisation_failed of string
   val string_of_t : t -> string
   val t_of_string : string -> t
@@ -152,12 +154,14 @@ end = struct
     Mac.identifier macaroon
     |> Token.token_of_string
 
-  let verify macaroon ~key ~required ~requester =
+  let verify macaroon ~required_service ~key ~required ~this_peer ~requester =
     let open Cryptography.Serialisation in
     let open Token in
-    Mac.verify macaroon ~key:(serialise_cstruct key) ~check:(fun _ -> true) [] (* Macaroon was minted with this secret key - not forged *)
-    && (token_of_string (Mac.identifier macaroon)) >= required (* Macaroon carries sufficient permission *)
-    && Peer.compare (delegate macaroon) (requester) = 0 (* Peer making request is peer macaroon was minted for *)
+    Mac.verify macaroon ~key:(serialise_cstruct key) ~check:(fun _ -> true) []
+    && (token_of_string (Mac.identifier macaroon)) >= required
+    && Peer.compare (delegate macaroon)  requester        = 0
+    && Peer.compare (source macaroon)    this_peer        = 0
+    && String.compare (service macaroon) required_service = 0
 
   let t_of_string s =
     Mac.deserialize s
@@ -270,17 +274,15 @@ let request_under_verified_path vpaths rpath =
 let authorise requests capabilities tok key target service requester =
   let open Cryptography.Serialisation in
   let key' = serialise_cstruct key in
-  let verified_capabilities = Core.Std.List.filter capabilities ~f:(M.verify ~required:tok ~key:(deserialise_cstruct key') ~requester) in
-  let authorised_locations  = Core.Std.List.map verified_capabilities ~f:(M.location) in
+  let verified_capabilities = Core.Std.List.filter capabilities
+      ~f:(M.verify ~required_service:service ~required:tok ~key:(deserialise_cstruct key') ~this_peer:target ~requester) in
+  let authorised_locations  = Core.Std.List.map verified_capabilities ~f:(M.path) in
   let path_tree = Core.Std.List.fold ~init:File_tree.empty
         ~f:(fun tree -> fun element ->
           File_tree.insert ~element ~tree
-          ~location:(fun path -> Core.Std.String.split
-            (Printf.sprintf "%s/%s/%s" (Peer.host target) service path) ~on:'/')
+          ~location:(fun path -> Core.Std.String.split path ~on:'/')
           ~select:(fun p -> fun _ -> p)
           ~terminate:(fun o -> fun _ -> match o with | Some e -> true | None -> false)) requests in
-  let authorised_paths =
-    Core.Std.List.fold ~init:[] ~f:(fun (paths) -> fun loc ->
+  Core.Std.List.fold ~init:[] ~f:(fun (paths) -> fun loc ->
       let content = File_tree.flatten_below ~tree:path_tree ~location:(Core.Std.String.split loc ~on:'/')
-      in (Core.Std.List.unordered_append content paths)) authorised_locations in
-  authorised_paths
+      in (Core.Std.List.unordered_append content paths)) authorised_locations

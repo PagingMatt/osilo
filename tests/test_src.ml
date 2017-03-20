@@ -140,8 +140,8 @@ module Auth_tests = struct
     let ps = Auth.mint server#get_address server#get_secret_key "test" [(R,"test_file.json")] delegate in
     match ps with
     | (mac::[]) ->
-      Alcotest.(check bool) "Macaroon doesnt verify for different requester to delegate." (M.verify ~required:R ~key:(Coding.decode_cstruct key) ~requester:delegate2 mac) false;
-      Alcotest.(check bool) "Macaroon verifies for same requester as delegate." (M.verify ~required:R ~key:(Coding.decode_cstruct key) ~requester:delegate mac) true
+      Alcotest.(check bool) "Macaroon doesnt verify for different requester to delegate." (M.verify ~required_service:"test" ~required:R ~key:(Coding.decode_cstruct key) ~this_peer:server#get_address ~requester:delegate2 mac) false;
+      Alcotest.(check bool) "Macaroon verifies for same requester as delegate." (M.verify ~required_service:"test" ~required:R ~key:(Coding.decode_cstruct key) ~this_peer:server#get_address ~requester:delegate mac) true
     | [] -> Alcotest.fail "Minted no macaroons"
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
@@ -151,7 +151,7 @@ module Auth_tests = struct
     | (mac::[]) ->
         Alcotest.(check string) "Passed back read token with macaroon" "R" (M.token mac |> Auth.Token.string_of_token);
         Alcotest.(check string) "Macaroon has desired location" "localhost/test/test_file.json" (M.location mac);
-        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (M.verify ~required:R ~key:(Coding.decode_cstruct key) ~requester:delegate mac) true
+        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (M.verify ~required_service:"test" ~required:R ~key:(Coding.decode_cstruct key) ~this_peer:server#get_address ~requester:delegate mac) true
     | [] -> Alcotest.fail "Minted no macaroons"
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
@@ -161,7 +161,7 @@ module Auth_tests = struct
     | (mac::[]) ->
         Alcotest.(check string) "Passed back write token with macaroon" "W" (M.token mac |> Auth.Token.string_of_token);
         Alcotest.(check string) "Macaroon has desired location" "localhost/test/test_file.json" (M.location mac);
-        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (M.verify ~required:R ~key:(Coding.decode_cstruct key) ~requester:delegate mac) true
+        Alcotest.(check bool)   "Macaroon holds correct first party caveat." (M.verify ~required_service:"test" ~required:R ~key:(Coding.decode_cstruct key) ~this_peer:server#get_address ~requester:delegate mac) true
     | [] -> Alcotest.fail "Minted no macaroons"
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
@@ -171,7 +171,7 @@ module Auth_tests = struct
     | (mac::[]) ->
         Alcotest.(check string) "Passed back write token with macaroon" "W" (M.token mac |> Auth.Token.string_of_token);
         Alcotest.(check string) "Macaroon has desired location" "localhost/test/test_file.json" (M.location mac);
-        Alcotest.(check bool)   "Verify that can read with this write token." (M.verify ~required:R ~key:(Coding.decode_cstruct key) ~requester:delegate mac) true
+        Alcotest.(check bool)   "Verify that can read with this write token." (M.verify ~required_service:"test" ~required:R ~key:(Coding.decode_cstruct key) ~this_peer:server#get_address ~requester:delegate mac) true
     | [] -> Alcotest.fail "Minted no macaroons"
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
@@ -332,7 +332,7 @@ module File_tree_tests = struct
             Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
               (Auth.M.token mac' |> Auth.Token.string_of_token) (Auth.M.token mac |> Auth.Token.string_of_token);
             Alcotest.(check bool) "Checks that the stored macaroon is valid"
-              (Auth.M.verify ~required:token ~key:(Coding.decode_cstruct key) ~requester:delegate mac') true
+              (Auth.M.verify ~required_service:"test" ~required:token ~key:(Coding.decode_cstruct key) ~this_peer:server#get_address ~requester:delegate mac') true
         | None -> Alcotest.fail "Could not get Macaroon back out of capability service")
     | _ -> Alcotest.fail "Minting failed" (* Caught in more detail in separate test *)
 
@@ -347,7 +347,7 @@ module File_tree_tests = struct
             Alcotest.(check string) "Checks the stored macaroon is same as the one minted"
               (Auth.M.token mac' |> Auth.Token.string_of_token) (Auth.M.token mac1 |> Auth.Token.string_of_token);
             Alcotest.(check bool) "Checks that the stored macaroon is valid"
-              (Auth.M.verify ~required:token ~key:(Coding.decode_cstruct key) ~requester:delegate mac') true
+              (Auth.M.verify ~required_service:"test" ~required:token ~key:(Coding.decode_cstruct key) ~this_peer:server#get_address ~requester:delegate mac') true
         | None -> Alcotest.fail "Could not get short circuiting Macaroon back out of capability service")
     | _ -> Alcotest.fail "Minting failed"
 

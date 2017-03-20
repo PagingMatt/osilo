@@ -37,8 +37,10 @@ module M : sig
   val location : t -> string
   val token : t -> Token.t
   val verify : t ->
+    required_service:string ->
     key:Cstruct.t    ->
     required:Token.t ->
+    this_peer:Peer.t        ->
     requester:Peer.t -> bool
   exception Deserialisation_failed of string
   val string_of_t : t -> string

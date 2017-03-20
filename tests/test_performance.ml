@@ -54,7 +54,7 @@ let worst_sel args = bench_args (* Worst case capability selection *)
   (List.map args ~f:(fun a -> Printf.sprintf "%d" a, a))
 
 let ver args = bench_args (* Verifying capabilities *)
-  (fun num  -> List.map (List.take capabilities num) ~f:(Auth.M.verify ~required:R ~key ~requester:peer))
+  (fun num  -> List.map (List.take capabilities num) ~f:(Auth.M.verify ~required_service:service ~required:R ~key ~this_peer:peer ~requester:peer))
   (List.map args ~f:(fun a -> Printf.sprintf "%d" a, a))
 
 let best_auth args = bench_args (* Best case capability verification *)
