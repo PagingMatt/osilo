@@ -229,7 +229,7 @@ let record_permissions capability_service permissions =
     ~init:capability_service
     ~f:(fun service -> fun m -> CS.record_if_most_general ~macaroon:m ~service)
 
-let mint host key service permissions delegate =
+let mint ~host ~key ~service ~permissions ~delegate =
   Core.Std.List.map permissions ~f:(fun (token,path) ->
       M.create ~source:host ~service ~path ~delegate:delegate ~token ~key)
 
