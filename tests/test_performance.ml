@@ -19,7 +19,7 @@ let paths =
 let s = "R"
 let t =  R
 
-let bc_capability = Auth.mint ~host:peer ~key ~service ~permissions:[(R,"a")] ~delegate:peer
+let bc_capability = Auth.mint ~minter:peer ~key ~service ~permissions:[(R,"a")] ~delegate:peer
 let cap =
   match bc_capability with
   | c::_ -> c
@@ -32,7 +32,7 @@ let selection_args =
   List.map paths ~f:(fun p -> (t,Printf.sprintf "%s/%s/%s" (Peer.host peer) service p))
 
 let capabilities =
-  Auth.mint ~host:peer ~key ~service ~permissions:tokpaths ~delegate:peer
+  Auth.mint ~minter:peer ~key ~service ~permissions:tokpaths ~delegate:peer
 
 let tree =
   List.fold ~init:Auth.CS.empty capabilities

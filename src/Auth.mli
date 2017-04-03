@@ -82,10 +82,11 @@ element of capabilities, [target] is the server's data being read (always this s
 val covered : CS.t -> Token.t * string -> bool
 
 val mint :
-  host:Peer.t ->
+  minter:Peer.t ->
   key:Cstruct.t ->
   service:string ->
-  permissions:(Token.t * string) list -> Peer.t -> M.t list
+  permissions:(Token.t * string) list ->
+  delegate:Peer.t -> M.t list
 (** [mint ~host ~key ~service ~permissions ~delegate] takes each element of [permissions] and builds a list of
 string tokens and Macaroons tuples. Each Macaroon's identifier is of the token it is in
 the tuple with and had a location of [host]/[service]/[path] where [path] is from an element of
