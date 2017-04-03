@@ -137,7 +137,7 @@ module Auth_tests = struct
   let delegate2 = Peer.create "foo"
 
   let if_requester_isnt_delegate_authorise_fails () =
-    let ps = Auth.mint server#get_address server#get_secret_key "test" [(R,"test_file.json")] delegate in
+    let ps = Auth.mint ~host:server#get_address ~key:server#get_secret_key ~service:"test" ~permissions:[(R,"test_file.json")] ~delegate in
     match ps with
     | (mac::[]) ->
       Alcotest.(check bool) "Macaroon doesnt verify for different requester to delegate." (M.verify ~required_service:"test" ~required:R ~key:(Coding.decode_cstruct key) ~this_peer:server#get_address ~requester:delegate2 mac) false;
@@ -146,7 +146,7 @@ module Auth_tests = struct
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
   let can_mint_read_macaroons_for_test () =
-    let ps = Auth.mint server#get_address server#get_secret_key "test" [(R,"test_file.json")] delegate in
+    let ps = Auth.mint ~host:server#get_address ~key:server#get_secret_key ~service:"test" ~permissions:[(R,"test_file.json")] ~delegate in
     match ps with
     | (mac::[]) ->
         Alcotest.(check string) "Passed back read token with macaroon" "R" (M.token mac |> Auth.Token.string_of_token);
@@ -156,7 +156,7 @@ module Auth_tests = struct
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
   let can_mint_write_macaroons_for_test () =
-    let ps = Auth.mint server#get_address server#get_secret_key "test" [(W,"test_file.json")] delegate in
+    let ps = Auth.mint ~host:server#get_address ~key:server#get_secret_key ~service"test" ~permissions:[(W,"test_file.json")] ~delegate in
     match ps with
     | (mac::[]) ->
         Alcotest.(check string) "Passed back write token with macaroon" "W" (M.token mac |> Auth.Token.string_of_token);
@@ -166,7 +166,7 @@ module Auth_tests = struct
     | _  -> Alcotest.fail "Minted too many/duplicate macaroons"
 
   let write_macaroons_verifies_read_request () =
-    let ps = Auth.mint server#get_address server#get_secret_key "test" [(W,"test_file.json")] delegate in
+    let ps = Auth.mint ~host:server#get_address ~key:server#get_secret_key ~service:"test" ~permissions:[(W,"test_file.json")] ~delegate in
     match ps with
     | (mac::[]) ->
         Alcotest.(check string) "Passed back write token with macaroon" "W" (M.token mac |> Auth.Token.string_of_token);
@@ -177,9 +177,9 @@ module Auth_tests = struct
 
   let minimal_covering_set_of_capabilities () =
     let token = R in
-    let caps = mint server#get_address server#get_secret_key "test"
-      [(token,"foo/bar");
-       (token,"foo/bar/FOO/BAR")] delegate in
+    let caps = mint ~host:server#get_address ~key:server#get_secret_key ~service:"test"
+      ~permissions:[(token,"foo/bar");
+       (token,"foo/bar/FOO/BAR")] ~delegate in
     let paths = [(R,"localhost/test/foo/bar");(R,"localhost/test/foo/bar/FOO/BAR")] in
     let service0 = Auth.CS.empty in
     let service1 = Auth.record_permissions service0 caps in
@@ -202,7 +202,7 @@ module Auth_tests = struct
   let selection_args =
     Core.Std.List.map paths ~f:(fun p -> (t,Printf.sprintf "127.0.0.1/foo/%s" p))
 
-  let bc_capability = Auth.mint peer (key |> Coding.decode_cstruct) "foo" [(R,"a")] delegate
+  let bc_capability = Auth.mint ~host:peer ~key:(key |> Coding.decode_cstruct) ~service:"foo" ~permissions:[(R,"a")] ~delegate
   let cap =
     match bc_capability with
     | c::_ -> c
@@ -214,7 +214,7 @@ module Auth_tests = struct
     Core.Std.List.map paths ~f:(fun p -> (t,p))
 
   let capabilities =
-    Auth.mint peer (key |> Coding.decode_cstruct) "foo" tokpaths delegate
+    Auth.mint ~host:peer ~key:(key |> Coding.decode_cstruct) ~service:"foo" ~permissions:tokpaths ~delegate
 
   let tree =
     Core.Std.List.fold ~init:Auth.CS.empty capabilities
@@ -320,7 +320,7 @@ module File_tree_tests = struct
 
   let read_macaroon_inserted_into_service_can_be_retrieved () =
     let token = R in
-    match mint server#get_address server#get_secret_key "test" [(token,"foo/bar")] delegate with
+    match mint ~host:server#get_address ~key:server#get_secret_key ~service:"test" ~permissions:[(token,"foo/bar")] ~delegate with
     | mac::[] ->
         Alcotest.(check string) "Checks the token is minted correctly"
           (Auth.M.token mac |> Auth.Token.string_of_token) "R";
@@ -338,7 +338,7 @@ module File_tree_tests = struct
 
   let short_circuit_on_find () =
     let token = R in
-    match mint server#get_address server#get_secret_key "test" [(token,"foo/bar"); (token,"foo/bar/FOO/BAR")] delegate with
+    match mint ~host:server#get_address ~key:server#get_secret_key ~service:"test" ~permissions:[(token,"foo/bar"); (token,"foo/bar/FOO/BAR")] ~delegate with
     | mac1::mac2::[] ->
         (let service = File_tree.insert ~element:((Auth.M.token mac1), mac1) ~tree:(File_tree.empty) ~location ~select ~terminate in
         let service' = File_tree.insert ~element:((Auth.M.token mac2), mac2) ~tree:(service) ~location ~select ~terminate in
