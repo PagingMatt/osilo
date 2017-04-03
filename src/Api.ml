@@ -520,7 +520,7 @@ module Client = struct
       match service with
       | None -> Wm.continue false rd
       | Some service' ->
-      let capabilities = Auth.mint s#get_address s#get_secret_key service' permission_list target' in
+      let capabilities = Auth.mint ~host:s#get_address ~key:s#get_secret_key ~service:service' ~permissions:permission_list ~delegate:target' in
       let p_body       = Coding.encode_capabilities capabilities |> Yojson.Basic.to_string in
       let path         =
         (Printf.sprintf "/peer/permit/%s/%s"
