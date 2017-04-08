@@ -251,7 +251,7 @@ let vpath_subsumes_request vpath rpath =
   in walker vpath' rpath'
 
 let covered caps (permission,path) =
-  match CS.find_most_general_capability ~service:caps ~path ~permission with
+  match CS.find_most_general ~service:caps ~path ~permission with
   | Some _ -> true
   | None   -> false
 
@@ -259,7 +259,7 @@ let find_permissions capability_service requests peer service =
   Core.Std.List.fold requests ~init:(CS.empty,[])
   ~f:(fun (c,n) -> fun (permission,path) ->
     if covered c (permission,path) then (c,n) else
-      CS.find_most_general_capability
+      CS.find_most_general
       ~service:capability_service ~path ~permission
     |> begin function
        | None   -> c,((permission,path)::n)
