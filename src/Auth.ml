@@ -183,7 +183,7 @@ module CS : sig
     service:t          ->
     macaroon:M.t       -> t
 
-  val find_most_general_capability :
+  val find_most_general :
     service:t               ->
     path:string             ->
     permission:Token.t      -> M.t option
@@ -212,7 +212,7 @@ end = struct
   let record_if_most_general ~service ~macaroon =
     File_tree.insert ~element:macaroon ~tree:service ~location ~select ~terminate
 
-  let find_most_general_capability ~service ~path ~permission =
+  let find_most_general ~service ~path ~permission =
     File_tree.shortest_path_match
       ~tree:service
       ~location:(Core.Std.String.split path ~on:'/')
