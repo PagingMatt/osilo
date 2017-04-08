@@ -1,5 +1,5 @@
 type 'a t =
-    | Node of string * ('a option) * ('a t) * ('a t) * ('a t)
+    | Node of string * 'a option * 'a t * 'a t * 'a t
     | Leaf
 
 exception Path_empty
