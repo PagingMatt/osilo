@@ -105,11 +105,11 @@ module CS : sig
       path it gives the capability service with [macaroon] inserted, otherwise
       it just gives [service]. *)
 
-  val find_most_general_capability :
+  val find_most_general :
     service:t          ->
     path:string        ->
     permission:Token.t -> M.t option
-  (** [find_most_general_capability ~service ~path ~permission] finds the option
+  (** [find_most_general ~service ~path ~permission] finds the option
       of the most general capability along [path] in [service] which satisfies
       [permission], otherwise, [None]. *)
 
