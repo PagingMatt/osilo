@@ -4,6 +4,22 @@ open Protocol_9p
 let src = Logs.Src.create ~doc:"logger for datakit entrypoint" "osilo.silo"
 module Log = (val Logs.src_log src : Logs.LOG)
 
+exception Connection_failed of string * string
+exception Datakit_error of string
+exception Write_failed of string
+exception Delete_failed
+
+let (>>>=) fst snd =
+  fst >>= function
+  | Ok x                -> snd x
+  | Error `Already_exists -> raise (Datakit_error "Target already exists.")
+  | Error `Does_not_exist -> raise (Datakit_error "Target does not exist.")
+  | Error `Is_dir         -> raise (Datakit_error "Attempting to use directory as a file.")
+  | Error `Not_dir        -> raise (Datakit_error "Using a non-directory as a directory.")
+  | Error `Not_file       -> raise (Datakit_error "Using a non-file as a file.")
+  | Error `Not_symlink    -> raise (Datakit_error "Using non-symlink as a symlink.")
+  | Error _ -> raise (Datakit_error "Unknown error.")
+
 module Client : sig
   type t
   exception Failed_to_make_silo_client of Uri.t
@@ -15,6 +31,14 @@ module Client : sig
   module Silo_datakit_client : sig
     include (module type of Datakit_client_9p.Make(Silo_9p_client))
   end
+  val connect :
+    t -> (Silo_9p_client.t * Silo_datakit_client.t) Lwt.t
+  val disconnect :
+    Silo_9p_client.t      ->
+    Silo_datakit_client.t -> unit Lwt.t
+  val checkout :
+    string                ->
+    Silo_datakit_client.t -> Silo_datakit_client.Branch.t Lwt.t
 end = struct
   type t = {
     server : string
@@ -31,43 +55,24 @@ end = struct
   module Silo_9p_client = Client9p_unix.Make(Log)
 
   module Silo_datakit_client = Datakit_client_9p.Make(Silo_9p_client)
+
+  let connect client =
+    Silo_9p_client.connect "tcp" (server client) ()
+    >|= begin function
+      | Ok conn_9p  -> (conn_9p,(conn_9p |> Silo_datakit_client.connect))
+      | Error (`Msg msg) -> raise (Connection_failed ((server client), msg))
+    end
+
+  let disconnect conn_9p conn_dk =
+    Silo_datakit_client.disconnect conn_dk
+    >>= fun () -> Silo_9p_client.disconnect conn_9p
+
+  let checkout service conn_dk =
+    Silo_datakit_client.branch conn_dk service
+    >>>= fun branch -> Lwt.return branch
 end
 
-exception Connection_failed of string * string
-
-exception Datakit_error of string
-
-exception Write_failed of string
-exception Delete_failed
-
 open Client.Silo_datakit_client
-
-let (>>>=) fst snd =
-  fst >>= function
-  | Ok x                -> snd x
-  | Error `Already_exists -> raise (Datakit_error "Target already exists.")
-  | Error `Does_not_exist -> raise (Datakit_error "Target does not exist.")
-  | Error `Is_dir         -> raise (Datakit_error "Attempting to use directory as a file.")
-  | Error `Not_dir        -> raise (Datakit_error "Using a non-directory as a directory.")
-  | Error `Not_file       -> raise (Datakit_error "Using a non-file as a file.")
-  | Error `Not_symlink    -> raise (Datakit_error "Using non-symlink as a symlink.")
-  | Error _ -> raise (Datakit_error "Unknown error.")
-
-
-let connect client =
-  Client.Silo_9p_client.connect "tcp" (Client.server client) ()
-  >|= begin function
-    | Ok conn_9p  -> (conn_9p,(conn_9p |> connect))
-    | Error (`Msg msg) -> raise (Connection_failed ((Client.server client), msg))
-  end
-
-let disconnect conn_9p conn_dk =
-  disconnect conn_dk
-  >>= fun () -> Client.Silo_9p_client.disconnect conn_9p
-
-let checkout service conn_dk =
-  branch conn_dk service
-  >>>= fun branch -> Lwt.return branch
 
 let walk_path_exn p tr =
   let path = Datakit_path.of_string_exn p in
@@ -91,11 +96,11 @@ let write ~client ~peer ~service ~contents =
     | _        -> raise (Write_failed "Invalid file content.")
   in
   if content = [] then Lwt.return () else
-    connect client
+    Client.connect client
     >>= fun (c9p,cdk) ->
     Log.debug (fun m -> m "Connected to Datakit server.");
     try
-      (checkout (build_branch ~peer ~service) cdk
+      (Client.checkout (build_branch ~peer ~service) cdk
        >>= (fun branch ->
            Log.debug (fun m -> m "Checked out branch %s" service);
            Branch.transaction branch
@@ -117,9 +122,9 @@ let write ~client ~peer ~service ~contents =
                Transaction.abort tr >|= fun () -> Ok ()))
            >>>= fun () ->
            (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client));
-            disconnect c9p cdk
+            Client.disconnect c9p cdk
             >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))))
-    with _ -> disconnect c9p cdk
+    with _ -> Client.disconnect c9p cdk
 
 let rec read_path tree acc path =
   Client.Silo_datakit_client.Tree.read tree (Datakit_path.of_string_exn path)
@@ -135,9 +140,9 @@ let rec read_path tree acc path =
 
 let read ~client ~peer ~service ~paths =
   if paths = [] then Lwt.return (`Assoc []) else
-    connect client
+    Client.connect client
     >>= fun (c9p,cdk) ->
-    (checkout (build_branch ~peer ~service) cdk
+    (Client.checkout (build_branch ~peer ~service) cdk
      >>= fun branch -> Client.Silo_datakit_client.Branch.head branch
      >>>= fun ptr -> Lwt.return ptr
      >>= begin function
@@ -147,14 +152,14 @@ let read ~client ~peer ~service ~paths =
           (Lwt_list.fold_left_s (read_path tree) [] paths)
           >|= (fun l -> (`Assoc l)))
      end
-     >>= fun r -> (disconnect c9p cdk >|= fun () -> r))
+     >>= fun r -> (Client.disconnect c9p cdk >|= fun () -> r))
 
 let delete ~client ~peer ~service ~paths =
   if paths = [] then Lwt.return () else
-    connect client
+    Client.connect client
     >>= fun (c9p,cdk) ->
     try
-      (checkout (build_branch ~peer ~service) cdk
+      (Client.checkout (build_branch ~peer ~service) cdk
        >>= (fun branch ->
            Log.debug (fun m -> m "Checked out branch %s" service);
            Branch.transaction branch
@@ -178,7 +183,7 @@ let delete ~client ~peer ~service ~paths =
                 Transaction.abort tr >|= fun () -> raise Delete_failed))
            >>>= fun () ->
            (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client));
-            disconnect c9p cdk
+            Client.disconnect c9p cdk
             >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))))
     with _ -> (Log.err (fun m -> m "Aborted transaction.");
-               disconnect c9p cdk >|= fun () -> raise (Delete_failed))
+               Client.disconnect c9p cdk >|= fun () -> raise (Delete_failed))
