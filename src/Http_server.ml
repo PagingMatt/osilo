@@ -113,11 +113,20 @@ class server' hostname secret_key silo key cert = object(self)
       ("/peer/permit/:peer/:service"  , fun () -> new Api.Peer.permit       self);
     ] in
     Wm.dispatch' api ~body ~request
-    >|= begin function
-        | Some r -> r
-        | None   -> (`Not_found, Cohttp.Header.init (), `String "Not found", [])
+    >>= begin function
+        | Some (status, headers, body, _) ->
+            Server.respond ~headers ~status ~body ()
+        | None ->
+            let open Cohttp.Request in
+            let r =
+              match Cohttp.Header.get_location request.headers with
+              | Some l -> Uri.to_string l
+              | None   -> ""
+            in Server.respond
+              ~headers:(Cohttp.Header.init ())
+              ~status:`Not_found
+              ~body:(`String (Printf.sprintf "Error: API entrypoint at '%s' does not exist." r)) ()
         end
-    >>= fun (status, headers, body, _) -> Server.respond ~headers ~status ~body ()
 
   method start =
     let server = Server.make ~callback:self#callback () in
