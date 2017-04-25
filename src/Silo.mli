@@ -15,19 +15,10 @@ module Client : sig
 
   val create : server:string -> t
   (** [make ~server] gives a [t] for [server]. *)
-
-  module Silo_9p_client : sig
-    include (module type of Client9p_unix.Make(Log))
-  end
-  (** A 9P UNIX client made by applying a source log to the functor. *)
-
-  module Silo_datakit_client : sig
-    include (module type of Datakit_client_9p.Make(Silo_9p_client))
-  end
-  (** Datakit client made by applying [Silo_9p_client] to the functor. *)
 end
 (** [Client] module abstracts some client-specific behaviour. It encapsulates
-    the two clients needed to interact with Datakit. *)
+    the two clients needed to interact with Datakit and operations on these,
+    however externally the only exposed function is to create a client. *)
 
 exception Connection_failed of string * string
 (** Raised when connecting to the Datakit server fails. *)
