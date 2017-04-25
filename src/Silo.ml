@@ -62,6 +62,16 @@ module Client : sig
   val delete_file_or_directory :
     Silo_datakit_client.Transaction.t ->
     Datakit_path.t -> unit Silo_datakit_client.or_error Lwt.t
+  val get_tree :
+    Silo_datakit_client.Commit.t -> Silo_datakit_client.Tree.t
+  val read_from_tree :
+    Silo_datakit_client.Tree.t ->
+    Datakit_path.t ->
+    [ `Dir of string list | `File of Cstruct.t | `Link of string ]
+      Silo_datakit_client.or_error Lwt.t
+  val get_head_pointer :
+    Silo_datakit_client.Branch.t ->
+    Silo_datakit_client.Commit.t option Silo_datakit_client.or_error Lwt.t
 end = struct
   type t = {
     server : string
@@ -101,6 +111,9 @@ end = struct
   let new_directory = Silo_datakit_client.Transaction.make_dirs
   let new_file      = Silo_datakit_client.Transaction.create_or_replace_file
   let delete_file_or_directory = Silo_datakit_client.Transaction.remove
+  let get_tree         = Silo_datakit_client.Commit.tree
+  let read_from_tree   = Silo_datakit_client.Tree.read
+  let get_head_pointer = Silo_datakit_client.Branch.head
 end
 
 let walk_path_exn p tr =
@@ -156,7 +169,7 @@ let write ~client ~peer ~service ~contents =
     with _ -> Client.disconnect c9p cdk
 
 let rec read_path tree acc path =
-  Client.Silo_datakit_client.Tree.read tree (Datakit_path.of_string_exn path)
+  Client.read_from_tree tree (Datakit_path.of_string_exn path)
   >>>= fun t ->
   (match t with
    | `File cstruct ->
@@ -172,12 +185,12 @@ let read ~client ~peer ~service ~paths =
     Client.connect client
     >>= fun (c9p,cdk) ->
     (Client.checkout (build_branch ~peer ~service) cdk
-     >>= fun branch -> Client.Silo_datakit_client.Branch.head branch
+     >>= fun branch -> Client.get_head_pointer branch
      >>>= fun ptr -> Lwt.return ptr
      >>= begin function
        | None      -> Lwt.return (`Assoc (Core.Std.List.map paths ~f:(fun file -> (file,`Null))))
        | Some head ->
-         (let tree = Client.Silo_datakit_client.Commit.tree head in
+         (let tree = Client.get_tree head in
           (Lwt_list.fold_left_s (read_path tree) [] paths)
           >|= (fun l -> (`Assoc l)))
      end
