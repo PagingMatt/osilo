@@ -22,15 +22,18 @@ let (>>>=) fst snd =
 
 module Client : sig
   type t
+
   exception Failed_to_make_silo_client of Uri.t
   val create : server:string -> t
   val server : t -> string
+
   module Silo_9p_client : sig
     include (module type of Client9p_unix.Make(Log))
   end
   module Silo_datakit_client : sig
     include (module type of Datakit_client_9p.Make(Silo_9p_client))
   end
+
   val connect :
     t -> (Silo_9p_client.t * Silo_datakit_client.t) Lwt.t
   val disconnect :
@@ -39,6 +42,15 @@ module Client : sig
   val checkout :
     string                ->
     Silo_datakit_client.t -> Silo_datakit_client.Branch.t Lwt.t
+
+  val new_transaction    :
+    Silo_datakit_client.Branch.t ->
+    Silo_datakit_client.Transaction.t Silo_datakit_client.or_error Lwt.t
+  val commit_transaction :
+    Silo_datakit_client.Transaction.t ->
+    message:string -> unit Silo_datakit_client.or_error Lwt.t
+  val abort_transaction  :
+    Silo_datakit_client.Transaction.t -> unit Lwt.t
 end = struct
   type t = {
     server : string
@@ -70,9 +82,11 @@ end = struct
   let checkout service conn_dk =
     Silo_datakit_client.branch conn_dk service
     >>>= fun branch -> Lwt.return branch
-end
 
-open Client.Silo_datakit_client
+  let new_transaction    = Silo_datakit_client.Branch.transaction
+  let commit_transaction = Silo_datakit_client.Transaction.commit
+  let abort_transaction  = Silo_datakit_client.Transaction.abort
+end
 
 let walk_path_exn p tr =
   let path = Datakit_path.of_string_exn p in
@@ -83,7 +97,7 @@ let walk_path_exn p tr =
     Core.Std.List.take path' ((List.length path') - 1)
     |> String.concat "/"
     |> Datakit_path.of_string_exn
-    |> Transaction.make_dirs tr
+    |> Client.Silo_datakit_client.Transaction.make_dirs tr
     >>>= fun () -> Lwt.return path
 
 let build_branch ~peer ~service =
@@ -103,23 +117,23 @@ let write ~client ~peer ~service ~contents =
       (Client.checkout (build_branch ~peer ~service) cdk
        >>= (fun branch ->
            Log.debug (fun m -> m "Checked out branch %s" service);
-           Branch.transaction branch
+           Client.new_transaction branch
            >>>= fun tr -> Log.debug (fun m -> m "Created transaction on branch %s." service);
            (let write_file (f,c) =
               let c' = Yojson.Basic.to_string c |> Cstruct.of_string in
               walk_path_exn f tr
-              >>= (fun p -> Transaction.create_or_replace_file tr p c')
+              >>= (fun p -> Client.Silo_datakit_client.Transaction.create_or_replace_file tr p c')
               >>>= Lwt.return
             in
             (try
                Lwt_list.iter_s write_file content
                >>= fun () ->
                Log.debug (fun m -> m "Committing transaction.");
-               (Transaction.commit tr ~message:"Write to silo")
+               (Client.commit_transaction tr ~message:"Write to silo")
              with
              | _ ->
                Log.info (fun m -> m "Aborting transaction.");
-               Transaction.abort tr >|= fun () -> Ok ()))
+               Client.abort_transaction tr >|= fun () -> Ok ()))
            >>>= fun () ->
            (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client));
             Client.disconnect c9p cdk
@@ -162,12 +176,12 @@ let delete ~client ~peer ~service ~paths =
       (Client.checkout (build_branch ~peer ~service) cdk
        >>= (fun branch ->
            Log.debug (fun m -> m "Checked out branch %s" service);
-           Branch.transaction branch
+           Client.new_transaction branch
            >>>= fun tr -> Log.debug (fun m -> m "Created transaction on branch %s." service);
            (
              let delete_file f =
                try
-                 Transaction.remove tr (Datakit_path.of_string_exn f)
+                 Client.Silo_datakit_client.Transaction.remove tr (Datakit_path.of_string_exn f)
                  >>>= fun () -> Lwt.return ()
                with
                | Datakit_error "Target does not exist." -> Lwt.return ()
@@ -176,11 +190,11 @@ let delete ~client ~peer ~service ~paths =
                 Lwt_list.iter_s delete_file paths
                 >>= fun () ->
                 Log.debug (fun m -> m "Committing transaction.");
-                (Transaction.commit tr ~message:"Delete paths from silo")
+                (Client.commit_transaction tr ~message:"Delete paths from silo")
               with
               | _ ->
                 Log.info (fun m -> m "Aborting transaction.\n");
-                Transaction.abort tr >|= fun () -> raise Delete_failed))
+                Client.abort_transaction tr >|= fun () -> raise Delete_failed))
            >>>= fun () ->
            (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client));
             Client.disconnect c9p cdk
