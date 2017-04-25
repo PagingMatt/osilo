@@ -51,6 +51,17 @@ module Client : sig
     message:string -> unit Silo_datakit_client.or_error Lwt.t
   val abort_transaction  :
     Silo_datakit_client.Transaction.t -> unit Lwt.t
+
+  val new_directory :
+    Silo_datakit_client.Transaction.t ->
+    Datakit_path.t -> unit Silo_datakit_client.or_error Lwt.t
+  val new_file :
+    Silo_datakit_client.Transaction.t ->
+    Datakit_path.t ->
+    Cstruct.t -> unit Silo_datakit_client.or_error Lwt.t
+  val delete_file_or_directory :
+    Silo_datakit_client.Transaction.t ->
+    Datakit_path.t -> unit Silo_datakit_client.or_error Lwt.t
 end = struct
   type t = {
     server : string
@@ -86,6 +97,10 @@ end = struct
   let new_transaction    = Silo_datakit_client.Branch.transaction
   let commit_transaction = Silo_datakit_client.Transaction.commit
   let abort_transaction  = Silo_datakit_client.Transaction.abort
+
+  let new_directory = Silo_datakit_client.Transaction.make_dirs
+  let new_file      = Silo_datakit_client.Transaction.create_or_replace_file
+  let delete_file_or_directory = Silo_datakit_client.Transaction.remove
 end
 
 let walk_path_exn p tr =
@@ -97,7 +112,7 @@ let walk_path_exn p tr =
     Core.Std.List.take path' ((List.length path') - 1)
     |> String.concat "/"
     |> Datakit_path.of_string_exn
-    |> Client.Silo_datakit_client.Transaction.make_dirs tr
+    |> Client.new_directory tr
     >>>= fun () -> Lwt.return path
 
 let build_branch ~peer ~service =
@@ -122,7 +137,7 @@ let write ~client ~peer ~service ~contents =
            (let write_file (f,c) =
               let c' = Yojson.Basic.to_string c |> Cstruct.of_string in
               walk_path_exn f tr
-              >>= (fun p -> Client.Silo_datakit_client.Transaction.create_or_replace_file tr p c')
+              >>= (fun p -> Client.new_file tr p c')
               >>>= Lwt.return
             in
             (try
@@ -181,7 +196,7 @@ let delete ~client ~peer ~service ~paths =
            (
              let delete_file f =
                try
-                 Client.Silo_datakit_client.Transaction.remove tr (Datakit_path.of_string_exn f)
+                 Client.delete_file_or_directory tr (Datakit_path.of_string_exn f)
                  >>>= fun () -> Lwt.return ()
                with
                | Datakit_error "Target does not exist." -> Lwt.return ()
