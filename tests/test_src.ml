@@ -132,9 +132,9 @@ module Auth_tests = struct
     Alcotest.(check bool) "R is not greater than or equal to D." (r >= d) false
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
-  let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" "example_key.pem" "test_cert"
-  let delegate = Peer.create "127.0.0.1" "6620"
-  let delegate2 = Peer.create "foo" "6620"
+  let server = new Http_server.server' "localhost" 6620 (Coding.decode_cstruct key) "localhost" "example_key.pem" "test_cert"
+  let delegate = Peer.create "127.0.0.1" 6620
+  let delegate2 = Peer.create "foo" 6620
 
   let if_requester_isnt_delegate_authorise_fails () =
     let ps = Auth.mint ~minter:server#get_address ~key:server#get_secret_key ~service:"test" ~permissions:[(R,"test_file.json")] ~delegate in
@@ -221,12 +221,12 @@ module Auth_tests = struct
       ~f:(fun s' -> fun c' -> Auth.CS.record_if_most_general ~service:s' ~macaroon:c')
 
   let find_is_deduped () =
-    let caps,notf = Auth.find_permissions tree' selection_args (Peer.create "127.0.0.1") "foo" in
+    let caps,notf = Auth.find_permissions tree' selection_args (Peer.create "127.0.0.1" 6620) "foo" in
       Alcotest.(check int) "Checks that best case miminal set is selected"
         (Core.Std.List.length caps) 1;
       Alcotest.(check int) "Checks that best case not found set is empty"
         (Core.Std.List.length notf) 0;
-      let caps',notf' = Auth.find_permissions tree selection_args (Peer.create "127.0.0.1") "foo" in
+      let caps',notf' = Auth.find_permissions tree selection_args (Peer.create "127.0.0.1" 6620) "foo" in
       Alcotest.(check int) "Checks that worst case miminal set is selected"
         (Core.Std.List.length caps') number_paths;
       Alcotest.(check int) "Checks that worst case not found set is empty"
@@ -234,12 +234,12 @@ module Auth_tests = struct
 
 
   let covered_tests () =
-    let caps1,_ = Auth.find_permissions tree' selection_args (Peer.create "127.0.0.1") "foo" in
+    let caps1,_ = Auth.find_permissions tree' selection_args (Peer.create "127.0.0.1" 6620) "foo" in
     Alcotest.(check bool) "Checks all best case covered"
       (Core.Std.List.fold ~init:true selection_args
          ~f:(fun b -> fun a -> b && Auth.covered (Core.Std.List.fold ~init:Auth.CS.empty ~f:(fun cs -> fun m -> Auth.CS.record_if_most_general ~service:cs ~macaroon:m) caps1) a))
       true;
-    let caps2,_ = Auth.find_permissions tree selection_args (Peer.create "127.0.0.1") "foo" in
+    let caps2,_ = Auth.find_permissions tree selection_args (Peer.create "127.0.0.1" 6620) "foo" in
     Alcotest.(check bool) "Checks all worst case covered"
       (Core.Std.List.fold ~init:true selection_args
          ~f:(fun b -> fun a -> b && Auth.covered (Core.Std.List.fold ~init:Auth.CS.empty ~f:(fun cs -> fun m -> Auth.CS.record_if_most_general ~service:cs ~macaroon:m) caps2) a))
@@ -304,8 +304,8 @@ module File_tree_tests = struct
   open Auth.Token
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
-  let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" "example_key.pem" "test_cert"
-  let delegate = Peer.create "127.0.0.1"
+  let server = new Http_server.server' "localhost" 6620 (Coding.decode_cstruct key) "localhost" "example_key.pem" "test_cert"
+  let delegate = Peer.create "127.0.0.1" 6620
 
   let location = fun (_,m) -> (M.location m |> Core.Std.String.split ~on:'/')
 
@@ -353,9 +353,9 @@ module File_tree_tests = struct
 
   let can_trim_logged_access_from_tree () =
     let pal = Peer_access_log.empty in
-    let host = Peer.create "localhost" in let service = "foo" in
+    let host = Peer.create "localhost" 6620 in let service = "foo" in
     let paths = ["bar2";"bar1";"bar3"] in
-    let peer = Peer.create "p1" in
+    let peer = Peer.create "p1" 6620 in
     let pal' =
       Core.Std.List.fold paths ~init:pal
         ~f:(fun p -> fun path -> Peer_access_log.log p ~host ~service ~peer ~path) in
@@ -381,8 +381,8 @@ module File_tree_tests = struct
 end
 
 module Peer_access_log_tests = struct
-  let host = Peer.create "192.168.1.86"
-  let peer = Peer.create "192.168.1.77"
+  let host = Peer.create "192.168.1.86" 6620
+  let peer = Peer.create "192.168.1.77" 6620
   let service = "foo"
   let path = "dir/file"
 
@@ -448,7 +448,7 @@ module Cryptography_tests = struct
   open Sexplib
 
   let sign_verify_test () =
-    let server = new Http_server.server' "localhost" (Coding.decode_cstruct "testtesttesttesttesttesttesttest") "localhost" "example_key.pem" "test_cert" in
+    let server = new Http_server.server' "localhost" 6620 (Coding.decode_cstruct "testtesttesttesttesttesttesttest") "localhost" "example_key.pem" "test_cert" in
     let message = "foo bar." in
     let sign = Api.sign message server in
     let verified = Cryptography.Signing.verify
