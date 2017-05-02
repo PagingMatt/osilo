@@ -129,7 +129,7 @@ let walk_path_exn p tr =
     >>>= fun () -> Lwt.return path
 
 let build_branch ~peer ~service =
-  Printf.sprintf "%s/%s" (Peer.string_of_t peer) service
+  Printf.sprintf "%s/%d/%s" (Peer.host peer) (Peer.port peer) service
 
 let write ~client ~peer ~service ~contents =
   let content =
