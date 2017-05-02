@@ -15,3 +15,9 @@ val port : t -> int
 val compare : t -> t -> int
 (** This makes a uri from the peer and then uses the [Uri] module's compare
     function. *)
+
+val t_of_string : string -> t
+(** Deserialisation function for [Peer]. *)
+
+val string_of_t : t -> string
+(** Serialisation function for [Peer]. *)
