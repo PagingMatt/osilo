@@ -392,7 +392,7 @@ module Peer_access_log_tests = struct
     match Peer_access_log.delog pal' ~host ~service ~path with
     | p::[],_ ->
         Alcotest.(check string) "Checks the logged peer is the one inserted."
-        (Peer.host peer) (Peer.host p);
+        (Peer.string_of_t peer) (Peer.string_of_t p);
     | _ -> Alcotest.fail "One single peer access should be logged."
 
   let access_inserted_into_log_can_be_retrieved_from_node_above () =
@@ -401,7 +401,7 @@ module Peer_access_log_tests = struct
     match Peer_access_log.delog pal' ~host ~service ~path:"dir" with
     | p::[],_ ->
         Alcotest.(check string) "Checks the logged peer is the one inserted."
-        (Peer.host peer) (Peer.host p);
+        (Peer.string_of_t peer) (Peer.string_of_t p);
     | _ -> Alcotest.fail "One single peer access should be logged."
 
   let tests = [
