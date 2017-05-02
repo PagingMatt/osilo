@@ -40,10 +40,11 @@ class type server = object
   method start : unit Lwt.t
 end
 
-class server' hostname secret_key silo_address silo_port key cert = object(self)
+class server' hostname port secret_key silo_address silo_port key cert = object(self)
+
   val s_log : unit = Log.info (fun m -> m "Starting peer %s." hostname);
 
-  val address : Peer.t = Peer.create hostname
+  val address : Peer.t = Peer.create hostname port
 
   method get_address = address
 
@@ -130,7 +131,7 @@ class server' hostname secret_key silo_address silo_port key cert = object(self)
 
   method start =
     let server = Server.make ~callback:self#callback () in
-    let mode   = `TLS (`Crt_file_path cert, `Key_file_path key, `No_password, `Port 6620) in
-    Log.info (fun m -> m "Starting REST server for peer %s on port %d." hostname 6620);
+    let mode   = `TLS (`Crt_file_path cert, `Key_file_path key, `No_password, `Port port) in
+    Log.info (fun m -> m "Starting REST server for peer %s on port %d." hostname port);
     Server.create ~mode server
 end

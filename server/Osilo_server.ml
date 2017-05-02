@@ -9,6 +9,8 @@ module Terminal = struct
         empty
         +> flag "-h" (required string)
         ~doc:"  Hostname of this server."
+        +> flag "-p" (required string)
+        ~doc:"  Port of this server."
         +> flag "-k" (required string)
         ~doc:"  Base 64 secret key shared with clients"
         +> flag "-d" (required string)
@@ -20,7 +22,7 @@ module Terminal = struct
         +> flag "-cert" (required string)
         ~doc:"  Path to certificate file"
       )
-      (fun h k d dp key cert () -> Lwt_main.run (new Http_server.server' h (Coding.decode_cstruct k) d (int_of_string dp) key cert)#start)
+      (fun h p k d dp key cert () -> Lwt_main.run (new Http_server.server' h (int_of_string p) (Coding.decode_cstruct k) d (int_of_string dp) key cert)#start)
 
   let commands =
     Command.group

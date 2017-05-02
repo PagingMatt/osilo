@@ -18,7 +18,7 @@ let get_path_info_exn rd wildcard =
   | None   -> raise (Path_info_exn wildcard)
 
 let attach_required_capabilities tok target service files s =
-  let requests          = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
+  let requests          = Core.Std.List.map files ~f:(fun c -> (Auth.Token.token_of_string tok),(Printf.sprintf "%s/%s/%s" (Peer.string_of_t target) service c)) in
   let caps, not_covered = Auth.find_permissions s#get_capability_service requests target service in
   let caps'             = Coding.encode_capabilities caps in
   `Assoc [
@@ -27,7 +27,7 @@ let attach_required_capabilities tok target service files s =
   ] |> Yojson.Basic.to_string
 
 let attach_required_capabilities_and_content target service paths contents s =
-  let requests          = Core.Std.List.map paths ~f:(fun c -> Log.info (fun m -> m "Attaching W to %s" c); (Auth.Token.token_of_string "W"),(Printf.sprintf "%s/%s/%s" (Peer.host target) service c)) in
+  let requests          = Core.Std.List.map paths ~f:(fun c -> Log.info (fun m -> m "Attaching W to %s" c); (Auth.Token.token_of_string "W"),(Printf.sprintf "%s/%s/%s" (Peer.string_of_t target) service c)) in
   let caps, not_covered = Auth.find_permissions s#get_capability_service requests target service in
   let caps'             = Coding.encode_capabilities caps in
   `Assoc [
@@ -61,7 +61,7 @@ let encrypt_write s file_content =
 let read_from_data_cache peer service files s =
   let hit,miss,cache = Core.Std.List.fold ~init:([],[],s#get_data_cache)
     ~f:(fun (h,m,dc) -> fun file ->
-      match Data_cache.read ~peer:(Peer.host peer) ~service ~file dc with
+      match Data_cache.read ~peer:(Peer.string_of_t peer) ~service ~file dc with
       | None          -> h,file::m,dc
       | Some (j, dc') -> (file,j)::h,m,dc') files in
   s#set_data_cache cache; hit,miss
@@ -69,13 +69,13 @@ let read_from_data_cache peer service files s =
 let write_to_data_cache peer service contents s =
   let cache = Core.Std.List.fold ~init:s#get_data_cache
       ~f:(fun dc -> fun (p,j) ->
-          Data_cache.write ~peer:(Peer.host peer) ~service ~file:p ~content:j dc) contents
+          Data_cache.write ~peer:(Peer.string_of_t peer) ~service ~file:p ~content:j dc) contents
   in s#set_data_cache cache
 
 let delete_from_data_cache peer service files s =
   let cache = Core.Std.List.fold ~init:s#get_data_cache
       ~f:(fun dc -> fun p ->
-          Data_cache.invalidate ~peer:(Peer.host peer) ~service ~file:p dc) files
+          Data_cache.invalidate ~peer:(Peer.string_of_t peer) ~service ~file:p dc) files
   in s#set_data_cache cache
 
 let read_from_cache peer service files s =
@@ -130,12 +130,12 @@ let sign message s =
 
 let rec verify message sign peer s is_retry =
   let open Cryptography in
-  Keying.lookup ~ks:(s#get_keying_service) ~peer:(Peer.create peer)
+  Keying.lookup ~ks:(s#get_keying_service) ~peer:(Peer.t_of_string peer)
   >>= fun (ks,pub) ->
     (s#set_keying_service ks;
      Signing.verify ~key:pub ~signature:(Cstruct.of_string sign) (Cstruct.of_string message))
     |> fun b -> if is_retry || b then Lwt.return b else
-      (s#set_keying_service (Keying.invalidate ~ks ~peer:(Peer.create peer));
+      (s#set_keying_service (Keying.invalidate ~ks ~peer:(Peer.t_of_string peer));
        verify message sign peer s true)
 
 let relog_paths_for_peer peer paths service s =
@@ -146,8 +146,8 @@ let relog_paths_for_peer peer paths service s =
 let invalidate_paths_at_peer peer paths service s =
   let open Http_client in
   let body = Coding.encode_file_list_message paths |> Yojson.Basic.to_string in
-  Http_client.post ~peer ~path:(Printf.sprintf "/peer/inv/%s/%s" (Peer.host s#get_address) service) ~body
-    ~auth:(Sig (Peer.host s#get_address, sign body s))
+  Http_client.post ~peer ~path:(Printf.sprintf "/peer/inv/%s/%s" (Peer.string_of_t s#get_address) service) ~body
+    ~auth:(Sig (Peer.string_of_t s#get_address, sign body s))
 
 let invalidate_paths_at_peers paths access_log service s =
   let path_peers,pal = Core.Std.List.fold ~init:([],s#get_peer_access_log) paths
@@ -185,7 +185,7 @@ let authorise rd service s =
   let open Cryptography in
   let headers = rd.Wm.Rd.req_headers in
   let message =
-    Printf.sprintf "%s/%s" (s#get_address |> Peer.host) service
+    Printf.sprintf "%s/%s" (s#get_address |> Peer.string_of_t) service
     |> Cstruct.of_string in
   let key = s#get_public_key in
   Wm.continue
@@ -304,7 +304,7 @@ module Client = struct
       try
         match Wm.Rd.lookup_path_info "peer" rd with
         | None       -> Wm.continue true rd
-        | Some peer' -> let peer = Peer.create peer' in
+        | Some peer' -> let peer = Peer.t_of_string peer' in
         match Wm.Rd.lookup_path_info "service" rd with
         | None          -> Wm.continue true rd
         | Some service' ->
@@ -339,7 +339,7 @@ module Client = struct
             (let body = attach_required_capabilities "R" peer' service' to_fetch'' s in
             let open Http_client in
             Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/get/%s" service') ~body
-              ~auth:(Sig (Peer.host s#get_address, sign body s))
+              ~auth:(Sig (Peer.string_of_t s#get_address, sign body s))
             >>= (fun (c,b) ->
               let `Assoc fetched = Coding.decode_file_content_list_message b in
               let results = Core.Std.List.append fetched cached in
@@ -380,7 +380,7 @@ module Client = struct
       try
         match Wm.Rd.lookup_path_info "peer" rd with
         | None       -> Wm.continue true rd
-        | Some peer' -> let peer = Peer.create peer' in
+        | Some peer' -> let peer = Peer.t_of_string peer' in
         match Wm.Rd.lookup_path_info "service" rd with
         | None          -> Wm.continue true rd
         | Some service' ->
@@ -410,7 +410,7 @@ module Client = struct
           then
             (let body = attach_required_capabilities "D" peer' service' requests s in
             Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/del/%s" service') ~body
-              ~auth:(Sig (Peer.host s#get_address, sign body s))
+              ~auth:(Sig (Peer.string_of_t s#get_address, sign body s))
             >>= fun (c,_) ->
             (if c = 204 then
                (delete_from_cache peer' service' requests s)
@@ -503,7 +503,7 @@ module Client = struct
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >>= (fun message ->
           service <- Some service';
-          target <- Some (Peer.create peer');
+          target <- Some (Peer.t_of_string peer');
           permission_list <- Coding.decode_permission_list_message message;
           Wm.continue false rd)
       with
@@ -524,9 +524,9 @@ module Client = struct
       let p_body       = Coding.encode_capabilities capabilities |> Yojson.Basic.to_string in
       let path         =
         (Printf.sprintf "/peer/permit/%s/%s"
-        (s#get_address |> Peer.host) service') in
+        (s#get_address |> Peer.string_of_t) service') in
       Http_client.post ~peer:target' ~path ~body:p_body
-        ~auth:(Sig (Peer.host s#get_address, sign p_body s))
+        ~auth:(Sig (Peer.string_of_t s#get_address, sign p_body s))
       >>= fun (c,b) ->
         Wm.continue (c=204) rd
   end
@@ -613,7 +613,7 @@ module Client = struct
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >>= (fun message ->
             service <- Some service';
-            peer <- Some (Peer.create peer');
+            peer <- Some (Peer.t_of_string peer');
             file_content_to_set <- Coding.decode_file_content_list_message message;
             Wm.continue false rd)
       with
@@ -639,7 +639,7 @@ module Client = struct
               then
                 (let body = attach_required_capabilities_and_content peer' service' paths targets s in
                 Http_client.post ~peer:peer' ~path:(Printf.sprintf "/peer/set/%s" service') ~body
-                  ~auth:(Sig (Peer.host s#get_address, sign body s)))
+                  ~auth:(Sig (Peer.string_of_t s#get_address, sign body s)))
                 >>= fun (c,_) -> (
                   if c = 204 then
                     (let requests = Core.Std.List.map paths
@@ -736,7 +736,7 @@ module Peer = struct
       | Some message ->
           authorise_p2p rd message s
           >>= begin function
-              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | Some src -> source <- Some (Peer.t_of_string src); Wm.continue `Authorized rd
               | None     -> Wm.continue (`Basic "Not authorised") rd
               end
       | None -> Wm.continue (`Basic "No raw content to authorise") rd
@@ -808,7 +808,7 @@ module Peer = struct
       | Some message ->
           authorise_p2p rd message s
           >>= begin function
-              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | Some src -> source <- Some (Peer.t_of_string src); Wm.continue `Authorized rd
               | None     -> Wm.continue (`Basic "Not authorised") rd
               end
       | None -> Wm.continue (`Basic "No raw content to authorise") rd
@@ -875,7 +875,7 @@ module Peer = struct
       | Some message ->
           authorise_p2p rd message s
           >>= begin function
-              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | Some src -> source <- Some (Peer.t_of_string src); Wm.continue `Authorized rd
               | None     -> Wm.continue (`Basic "Not authorised") rd
               end
       | None -> Wm.continue (`Basic "No raw content to authorise") rd
@@ -939,7 +939,7 @@ module Peer = struct
       | Some message ->
           authorise_p2p rd message s
           >>= begin function
-              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | Some src -> source <- Some (Peer.t_of_string src); Wm.continue `Authorized rd
               | None     -> Wm.continue (`Basic "Not authorised") rd
               end
       | None -> Wm.continue (`Basic "No raw content to authorise") rd
@@ -960,7 +960,7 @@ module Peer = struct
           let files' = Coding.decode_file_list_message message in
           service <- Some service';
           files <- files';
-          Wm.continue (peer_api = Peer.host s#get_address) rd)
+          Wm.continue (peer_api = Peer.string_of_t s#get_address) rd)
       with
       | Coding.Decoding_failed e -> Wm.continue true rd
 
@@ -998,7 +998,7 @@ module Peer = struct
       | Some message ->
           authorise_p2p rd message s
           >>= begin function
-              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | Some src -> source <- Some (Peer.t_of_string src); Wm.continue `Authorized rd
               | None     -> Wm.continue (`Basic "Not authorised") rd
               end
       | None -> Wm.continue (`Basic "No raw content to authorise") rd
