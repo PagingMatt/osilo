@@ -52,8 +52,8 @@ class type server = object
 end
 (** The class type of the REST server. *)
 
-class server' : string -> Cstruct.t -> string -> string -> string -> server
+class server' : string -> Cstruct.t -> string -> int -> string -> string -> server
 (** Server class encapsulates a [Webmachine] server. The parameters in
     application order are the peer's hostname, its secret key, the hostname of
-    the machine with its data silo and the string locations on disk of the
-    private key and certificate PEM files. *)
+    the machine with its data silo, the port to access the silo on and the
+    string locations on disk of the private key and certificate PEM files. *)
