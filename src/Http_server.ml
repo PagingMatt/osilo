@@ -40,7 +40,8 @@ class type server = object
   method start : unit Lwt.t
 end
 
-class server' hostname port secret_key silo key cert = object(self)
+class server' hostname port secret_key silo_address silo_port key cert = object(self)
+
   val s_log : unit = Log.info (fun m -> m "Starting peer %s." hostname);
 
   val address : Peer.t = Peer.create hostname port
@@ -86,8 +87,8 @@ class server' hostname port secret_key silo key cert = object(self)
   method set_peer_access_log p = peer_access_log <- p
 
   val mutable silo_client : Client.t =
-    Log.info (fun m -> m "Creating data silo client for datakit server at %s." silo);
-    Client.create ~server:silo
+    Log.info (fun m -> m "Creating data silo client for datakit server at %s:%d." silo_address silo_port);
+    Client.create ~server:silo_address ~port:silo_port
   method get_silo_client   = silo_client
 
   val mutable data_cache : Data_cache.t = Data_cache.create
