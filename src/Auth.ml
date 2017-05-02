@@ -120,10 +120,10 @@ end = struct
 
   let decode_location location =
     let j = Yojson.Basic.from_string location in
-    let source  = string_member "source"  j |> Peer.create in
+    let source  = string_member "source"  j |> Peer.t_of_string in
     let service = string_member "service" j   in
     let path    = string_member "path"    j   in
-    let target  = string_member "target"  j |> Peer.create in
+    let target  = string_member "target"  j |> Peer.t_of_string in
     source,service,path,target
 
   let create ~source ~service ~path ~delegate ~token ~key =

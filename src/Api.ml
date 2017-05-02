@@ -130,12 +130,12 @@ let sign message s =
 
 let rec verify message sign peer s is_retry =
   let open Cryptography in
-  Keying.lookup ~ks:(s#get_keying_service) ~peer:(Peer.create peer)
+  Keying.lookup ~ks:(s#get_keying_service) ~peer:(Peer.t_of_string peer)
   >>= fun (ks,pub) ->
     (s#set_keying_service ks;
      Signing.verify ~key:pub ~signature:(Cstruct.of_string sign) (Cstruct.of_string message))
     |> fun b -> if is_retry || b then Lwt.return b else
-      (s#set_keying_service (Keying.invalidate ~ks ~peer:(Peer.create peer));
+      (s#set_keying_service (Keying.invalidate ~ks ~peer:(Peer.t_of_string peer));
        verify message sign peer s true)
 
 let relog_paths_for_peer peer paths service s =
@@ -304,7 +304,7 @@ module Client = struct
       try
         match Wm.Rd.lookup_path_info "peer" rd with
         | None       -> Wm.continue true rd
-        | Some peer' -> let peer = Peer.create peer' in
+        | Some peer' -> let peer = Peer.t_of_string peer' in
         match Wm.Rd.lookup_path_info "service" rd with
         | None          -> Wm.continue true rd
         | Some service' ->
@@ -380,7 +380,7 @@ module Client = struct
       try
         match Wm.Rd.lookup_path_info "peer" rd with
         | None       -> Wm.continue true rd
-        | Some peer' -> let peer = Peer.create peer' in
+        | Some peer' -> let peer = Peer.t_of_string peer' in
         match Wm.Rd.lookup_path_info "service" rd with
         | None          -> Wm.continue true rd
         | Some service' ->
@@ -503,7 +503,7 @@ module Client = struct
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >>= (fun message ->
           service <- Some service';
-          target <- Some (Peer.create peer');
+          target <- Some (Peer.t_of_string peer');
           permission_list <- Coding.decode_permission_list_message message;
           Wm.continue false rd)
       with
@@ -613,7 +613,7 @@ module Client = struct
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body
         >>= (fun message ->
             service <- Some service';
-            peer <- Some (Peer.create peer');
+            peer <- Some (Peer.t_of_string peer');
             file_content_to_set <- Coding.decode_file_content_list_message message;
             Wm.continue false rd)
       with
@@ -736,7 +736,7 @@ module Peer = struct
       | Some message ->
           authorise_p2p rd message s
           >>= begin function
-              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | Some src -> source <- Some (Peer.t_of_string src); Wm.continue `Authorized rd
               | None     -> Wm.continue (`Basic "Not authorised") rd
               end
       | None -> Wm.continue (`Basic "No raw content to authorise") rd
@@ -808,7 +808,7 @@ module Peer = struct
       | Some message ->
           authorise_p2p rd message s
           >>= begin function
-              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | Some src -> source <- Some (Peer.t_of_string src); Wm.continue `Authorized rd
               | None     -> Wm.continue (`Basic "Not authorised") rd
               end
       | None -> Wm.continue (`Basic "No raw content to authorise") rd
@@ -875,7 +875,7 @@ module Peer = struct
       | Some message ->
           authorise_p2p rd message s
           >>= begin function
-              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | Some src -> source <- Some (Peer.t_of_string src); Wm.continue `Authorized rd
               | None     -> Wm.continue (`Basic "Not authorised") rd
               end
       | None -> Wm.continue (`Basic "No raw content to authorise") rd
@@ -939,7 +939,7 @@ module Peer = struct
       | Some message ->
           authorise_p2p rd message s
           >>= begin function
-              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | Some src -> source <- Some (Peer.t_of_string src); Wm.continue `Authorized rd
               | None     -> Wm.continue (`Basic "Not authorised") rd
               end
       | None -> Wm.continue (`Basic "No raw content to authorise") rd
@@ -998,7 +998,7 @@ module Peer = struct
       | Some message ->
           authorise_p2p rd message s
           >>= begin function
-              | Some src -> source <- Some (Peer.create src); Wm.continue `Authorized rd
+              | Some src -> source <- Some (Peer.t_of_string src); Wm.continue `Authorized rd
               | None     -> Wm.continue (`Basic "Not authorised") rd
               end
       | None -> Wm.continue (`Basic "No raw content to authorise") rd

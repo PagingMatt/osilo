@@ -40,10 +40,10 @@ class type server = object
   method start : unit Lwt.t
 end
 
-class server' hostname secret_key silo key cert = object(self)
+class server' hostname port secret_key silo key cert = object(self)
   val s_log : unit = Log.info (fun m -> m "Starting peer %s." hostname);
 
-  val address : Peer.t = Peer.create hostname
+  val address : Peer.t = Peer.create hostname port
 
   method get_address = address
 
