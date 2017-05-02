@@ -2,13 +2,13 @@ let cstruct = Alcotest.testable (Cstruct.hexdump_pp) (Cstruct.equal)
 
 let host = "127.0.0.1"
 let port = 6630
-let peer = Peer.create host
+let peer = Peer.create host port
 
 let host1 = "127.0.0.1"
-let peer1 = Peer.create host1
+let peer1 = Peer.create host1 port
 
 let host2 = "localhost"
-let peer2 = Peer.create host2
+let peer2 = Peer.create host2 port
 
 module Api_tests = struct
   open Api
@@ -133,8 +133,8 @@ module Auth_tests = struct
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
   let server = new Http_server.server' "localhost" (Coding.decode_cstruct key) "localhost" "example_key.pem" "test_cert"
-  let delegate = Peer.create "127.0.0.1"
-  let delegate2 = Peer.create "foo"
+  let delegate = Peer.create "127.0.0.1" "6620"
+  let delegate2 = Peer.create "foo" "6620"
 
   let if_requester_isnt_delegate_authorise_fails () =
     let ps = Auth.mint ~minter:server#get_address ~key:server#get_secret_key ~service:"test" ~permissions:[(R,"test_file.json")] ~delegate in
@@ -414,8 +414,12 @@ module Peer_tests = struct
   let peer_builds_with_host () =
     Alcotest.(check string)
       "Checks host is stored and retrieved correctly from Peer"
-      host
-      (Peer.host peer)
+      host (Peer.host peer)
+
+  let peer_builds_with_port () =
+    Alcotest.(check int)
+      "Checks port is stored and retrieved correctly from Peer"
+      port (Peer.port peer)
 
   let peer_comparison_tests () =
     if (Peer.compare peer1 peer2)=0
@@ -424,9 +428,19 @@ module Peer_tests = struct
       "Checks same hosts give 0 on comparison"
       (Peer.compare peer peer1) 0
 
+  let serialising_symmetric_to_deserialising () =
+    let s1 = Peer.string_of_t peer in
+    let p2 = Peer.t_of_string s1   in
+    let s2 = Peer.string_of_t p2   in
+    Alcotest.(check string) "Checks serialised forms are the same" s1 s2;
+    Alcotest.(check int) "Checks deserialised forms are the same"
+      (Peer.compare peer p2) 0
+
   let tests = [
     ("Correctly builds with host", `Quick, peer_builds_with_host);
+    ("Correctly builds with port", `Quick, peer_builds_with_port);
     ("Checks comparison", `Quick, peer_comparison_tests);
+    ("Checks serialisation is symmetric", `Quick, serialising_symmetric_to_deserialising);
   ]
 end
 
