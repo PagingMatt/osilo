@@ -16,9 +16,9 @@ let compare p1 p2 =
   Uri.compare uri1 uri2
 
 let t_of_string s =
-  match String.split_on_char '-' s with
+  match String.split_on_char ':' s with
   | h::p::[] -> create h (int_of_string p)
   | _        -> invalid_arg s
 
 let string_of_t p =
-  Printf.sprintf "%s-%d" p.host p.port
+  Printf.sprintf "%s:%d" p.host p.port
