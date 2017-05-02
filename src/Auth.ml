@@ -112,10 +112,10 @@ end = struct
 
   let encode_location ~source ~service ~path ~target =
       `Assoc [
-        ("source" , `String (Peer.host source));
+        ("source" , `String (Peer.string_of_t source));
         ("service", `String (service));
         ("path"   , `String (path));
-        ("target" , `String (Peer.host target))]
+        ("target" , `String (Peer.string_of_t target))]
       |> Yojson.Basic.to_string
 
   let decode_location location =
@@ -148,7 +148,7 @@ end = struct
 
   let location macaroon =
     let source,service,path,_ = Mac.location macaroon |> decode_location in
-    Printf.sprintf "%s/%s/%s" (source |> Peer.host) service path
+    Printf.sprintf "%s/%s/%s" (source |> Peer.string_of_t) service path
 
   let token macaroon =
     Mac.identifier macaroon
@@ -196,7 +196,7 @@ end = struct
 
   let empty = File_tree.empty
 
-  let location m = (Peer.host (M.source m))::(M.service m)::(M.path m |> Core.Std.String.split ~on:'/')
+  let location m = (Peer.string_of_t (M.source m))::(M.service m)::(M.path m |> Core.Std.String.split ~on:'/')
 
   let select m1 m2 =
     if (M.token m2) >> (M.token m1)
@@ -235,7 +235,7 @@ let mint ~minter ~key ~service ~permissions ~delegate =
 
 let verify_location target service l =
   match Core.Std.String.split l ~on:'/' with
-  | x::y::zs -> if (x=Peer.host target) && (y=service) then Core.Std.String.concat ~sep:"/" zs else ""
+  | x::y::zs -> if (x=Peer.string_of_t target) && (y=service) then Core.Std.String.concat ~sep:"/" zs else ""
   | _        -> ""
 
 let vpath_subsumes_request vpath rpath =

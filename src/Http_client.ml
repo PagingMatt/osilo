@@ -7,15 +7,15 @@ open Cohttp_lwt_unix
 let src = Logs.Src.create ~doc:"logger for HTTP client" "osilo.http_client"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let build_uri ~peer ~path = 
-  Uri.make ~scheme:"https" ~host:(Peer.host peer) ~port:6620 ~path:path ()
+let build_uri ~peer ~path =
+  Uri.make ~scheme:"https" ~host:(Peer.host peer) ~port:(Peer.port peer) ~path:path ()
 
 let handle_http_resp (r,b) =
   let code = r |> Response.status |> Code.code_of_status in
-  Cohttp_lwt_body.to_string b 
+  Cohttp_lwt_body.to_string b
   >|= fun body -> (code,body)
 
-type auth = 
+type auth =
   | None
   | Key of string
   | Sig of string * string
@@ -27,7 +27,7 @@ let get ~peer ~path =
 
 let post ~peer ~path ~body ~auth =
   let uri = build_uri ~peer ~path in
-  let headers = 
+  let headers =
     match auth with
     | None      -> (Header.init ())
     | Key k     -> (Header.add_authorization (Header.init ()) (`Other k))
