@@ -2,7 +2,7 @@ open Bench
 open Bench.Bootstrap
 open Core.Std
 
-let peer = "localhost" |> Peer.create
+let peer = Peer.create "localhost" 6620
 let key = "fooBARfooBARfooBARfooBARfooBARfo" |> Coding.decode_cstruct
 let service = "foo"
 
