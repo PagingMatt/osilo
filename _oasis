@@ -30,13 +30,6 @@ Executable server
   BuildDepends: osilo
   Install: false
 
-Executable client
-  Path: client
-  MainIs: Osilo_client.ml
-  CompiledObject: best
-  BuildDepends: osilo
-  Install: false
-
 Executable osilo_tests
   Path: tests
   MainIs: test_src.ml
