@@ -132,7 +132,7 @@ module Auth_tests = struct
     Alcotest.(check bool) "R is not greater than or equal to D." (r >= d) false
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
-  let server = new Http_server.server' "localhost" 6620 (Coding.decode_cstruct key) "localhost" "example_key.pem" "test_cert"
+  let server = new Http_server.server' "localhost" 6620 (Coding.decode_cstruct key) "localhost" 5640 "example_key.pem" "test_cert"
   let delegate = Peer.create "127.0.0.1" 6620
   let delegate2 = Peer.create "foo" 6620
 
@@ -304,7 +304,7 @@ module File_tree_tests = struct
   open Auth.Token
 
   let key = "fooBARfooBARfooBARfooBARfooBARfo"
-  let server = new Http_server.server' "localhost" 6620 (Coding.decode_cstruct key) "localhost" "example_key.pem" "test_cert"
+  let server = new Http_server.server' "localhost" 6620 (Coding.decode_cstruct key) "localhost" 5640 "example_key.pem" "test_cert"
   let delegate = Peer.create "127.0.0.1" 6620
 
   let location = fun (_,m) -> (M.location m |> Core.Std.String.split ~on:'/')
@@ -448,7 +448,8 @@ module Cryptography_tests = struct
   open Sexplib
 
   let sign_verify_test () =
-    let server = new Http_server.server' "localhost" 6620 (Coding.decode_cstruct "testtesttesttesttesttesttesttest") "localhost" "example_key.pem" "test_cert" in
+    let server = new Http_server.server' "localhost" 6620 (Coding.decode_cstruct "testtesttesttesttesttesttesttest") "localhost" 5640 "example_key.pem" "test_cert" in
+
     let message = "foo bar." in
     let sign = Api.sign message server in
     let verified = Cryptography.Signing.verify

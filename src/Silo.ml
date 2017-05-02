@@ -24,8 +24,8 @@ module Client : sig
   type t
 
   exception Failed_to_make_silo_client of Uri.t
-  val create : server:string -> t
-  val server : t -> string
+  val create : server:string -> port:int -> t
+  val address : t -> string
 
   module Silo_9p_client : sig
     include (module type of Client9p_unix.Make(Log))
@@ -74,26 +74,26 @@ module Client : sig
     Silo_datakit_client.Commit.t option Silo_datakit_client.or_error Lwt.t
 end = struct
   type t = {
-    server : string
+    server : string ;
+    port   : int
   }
 
   exception Failed_to_make_silo_client of Uri.t
 
-  let create ~server =
-    let address = Printf.sprintf "%s:5640" server in
-    { server = address }
+  let create ~server ~port =
+    { server = server ; port = port ; }
 
-  let server c = c.server
+  let address c = Printf.sprintf "%s:%d" c.server c.port
 
   module Silo_9p_client = Client9p_unix.Make(Log)
 
   module Silo_datakit_client = Datakit_client_9p.Make(Silo_9p_client)
 
   let connect client =
-    Silo_9p_client.connect "tcp" (server client) ()
+    Silo_9p_client.connect "tcp" (address client) ()
     >|= begin function
       | Ok conn_9p  -> (conn_9p,(conn_9p |> Silo_datakit_client.connect))
-      | Error (`Msg msg) -> raise (Connection_failed ((server client), msg))
+      | Error (`Msg msg) -> raise (Connection_failed ((address client), msg))
     end
 
   let disconnect conn_9p conn_dk =
@@ -163,9 +163,9 @@ let write ~client ~peer ~service ~contents =
                Log.info (fun m -> m "Aborting transaction.");
                Client.abort_transaction tr >|= fun () -> Ok ()))
            >>>= fun () ->
-           (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client));
+           (Log.debug (fun m -> m "Disconnecting from %s" (Client.address client));
             Client.disconnect c9p cdk
-            >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))))
+            >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.address client)))))
     with _ -> Client.disconnect c9p cdk
 
 let rec read_path tree acc path =
@@ -224,8 +224,8 @@ let delete ~client ~peer ~service ~paths =
                 Log.info (fun m -> m "Aborting transaction.\n");
                 Client.abort_transaction tr >|= fun () -> raise Delete_failed))
            >>>= fun () ->
-           (Log.debug (fun m -> m "Disconnecting from %s" (Client.server client));
+           (Log.debug (fun m -> m "Disconnecting from %s" (Client.address client));
             Client.disconnect c9p cdk
-            >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.server client)))))
+            >|= fun () -> Log.debug (fun m -> m "Disconnected from %s" (Client.address client)))))
     with _ -> (Log.err (fun m -> m "Aborted transaction.");
                Client.disconnect c9p cdk >|= fun () -> raise (Delete_failed))

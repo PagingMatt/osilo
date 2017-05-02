@@ -13,8 +13,8 @@ module Client : sig
   (** [Failed_to_make_silo_client s] is thrown when the [Uri.t] [s] has either
       no port or no host meaning that a [t] cannot be built of it. *)
 
-  val create : server:string -> t
-  (** [make ~server] gives a [t] for [server]. *)
+  val create : server:string -> port:int -> t
+  (** [create ~server ~port] gives a [t] for [server] at [port]. *)
 end
 (** [Client] module abstracts some client-specific behaviour. It encapsulates
     the two clients needed to interact with Datakit and operations on these,
