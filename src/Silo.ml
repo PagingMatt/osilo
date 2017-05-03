@@ -169,16 +169,17 @@ let write ~client ~peer ~service ~contents =
     with _ -> Client.disconnect c9p cdk
 
 let rec read_path tree acc path =
-  Client.read_from_tree tree (Datakit_path.of_string_exn path)
-  >>>= fun t ->
-  (match t with
-   | `File cstruct ->
-     Lwt.return ((path,(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string))::acc)
-   | `Dir paths ->
-     (Lwt_list.fold_left_s (read_path tree) acc
+  let path' = Datakit_path.of_string_exn path in
+  Client.read_from_tree tree path' >>= fun t -> match t with
+  | Ok (`File cstruct) ->
+      Lwt.return ((path,(cstruct |> Cstruct.to_string |> Yojson.Basic.from_string))::acc)
+  | Ok (`Dir paths)    ->
+      (Lwt_list.fold_left_s (read_path tree) acc
         (Core.Std.List.map ~f:(fun p -> (Printf.sprintf "%s/%s" path p)) paths))
-   | _ -> (* Symlinks are not handled as violate the recursive permission model *)
-     Lwt.return acc)
+  | Ok _ -> (* Symlinks are not handled as violate the recursive permission model *)
+      Lwt.return acc
+  | Error `Does_not_exist -> Lwt.return ((path,`Null)::acc)
+  | _                     -> raise (Datakit_error "Error reading from tree")
 
 let read ~client ~peer ~service ~paths =
   if paths = [] then Lwt.return (`Assoc []) else
