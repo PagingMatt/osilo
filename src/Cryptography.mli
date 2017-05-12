@@ -28,9 +28,9 @@ end
 (** Encapsulates serialisation functions for the cryptographic types. *)
 
 module Signing : sig
-  include (module type of Rsa.PSS(Hash.SHA512))
+  include (module type of Rsa.PSS(Hash.SHA256))
 end
-(** Instantiation of PSS RSA signing functor with SHA-512 hash. *)
+(** Instantiation of PSS RSA signing functor with SHA-256 hash. *)
 
 module Keying : sig
   type t
