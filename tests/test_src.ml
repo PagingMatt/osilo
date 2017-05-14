@@ -476,13 +476,16 @@ module Cryptography_tests = struct
   ]
 end
 
+let test_suite = [ 
+  "API module"            , Api_tests.tests;
+  "Auth module"           , Auth_tests.tests;
+  "Crypto module"         , Cryptography_tests.tests;
+  "Peer module"           , Peer_tests.tests;
+  "Coding module"         , Coding_tests.tests;
+  "File tree module"      , File_tree_tests.tests;
+  "Peer access log module", Peer_access_log_tests.tests;
+]
+
 let () =
-  Alcotest.run "Osilo Tests" [
-    "API module"         , Api_tests.tests;
-    "Auth module"         , Auth_tests.tests;
-    "Crypto module"         , Cryptography_tests.tests;
-    "Peer module"        , Peer_tests.tests;
-    "Coding module"      , Coding_tests.tests;
-    "File tree module", File_tree_tests.tests;
-    "Peer access log module", Peer_access_log_tests.tests;
-  ]
+  Alcotest.run "Osilo Tests" test_suite
+
