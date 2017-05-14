@@ -6,7 +6,7 @@ Using  social  applications  presupposes  handing  over  personal  data  to  the
 
 ## Datakit
 
-To run a peer using `Osilo_server.native`, it is necessary to start a [Datakit](https://github.com/docker/datakit) server pointing towards a git repository (structured as a data silo). This should use the default Datakit port (5640) and the hostname the port is exposed at should be passed into `Osilo_server.native` using the `-ds` flag.
+To run a peer using `Osilo_server.native`, it is necessary to start a [Datakit](https://github.com/docker/datakit) server pointing towards a git repository (structured as a data silo). 
 
 ## Working with the code
 
